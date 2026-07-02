@@ -188,16 +188,52 @@
   // ============================================================
   // 5. KUIS
   // ============================================================
+  // Progres jawaban disimpan per NIK+sesi di localStorage supaya kalau kiosk
+  // auto-logout karena idle (atau HP-nya di-refresh) di tengah kuis, jawaban
+  // tidak hilang -- tinggal login NIK yang sama & pilih sesi yang sama lagi.
+  const PROGRESS_MAX_AGE_MS = 4 * 60 * 60 * 1000; // progres lebih lama dari ini dianggap basi
+  const progressKey = (nik, sessionId) => `quizProgress:${nik}:${sessionId}`;
+  function saveProgress() {
+    if (!S.employee || !S.session) return;
+    try {
+      localStorage.setItem(progressKey(S.employee.nik, S.session.id), JSON.stringify({
+        topicCode: S.topic.code, served: S.served, answers: S.answers,
+        idx: S.idx, attemptNo: S.attemptNo, startedAt: S.startedAt, savedAt: Date.now(),
+      }));
+    } catch (e) { /* localStorage penuh/nonaktif -- progres tidak tersimpan, tidak fatal */ }
+  }
+  function loadProgress(nik, sessionId) {
+    try {
+      const raw = localStorage.getItem(progressKey(nik, sessionId));
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      if (!data.savedAt || Date.now() - data.savedAt > PROGRESS_MAX_AGE_MS) return null;
+      return data;
+    } catch (e) { return null; }
+  }
+  function clearProgress(nik, sessionId) {
+    try { localStorage.removeItem(progressKey(nik, sessionId)); } catch (e) { /* diabaikan */ }
+  }
+
   function startQuiz() {
-    const n = Math.min(C.questionsPerAttempt, S.topic.questions.length);
-    S.served = shuffle(S.topic.questions).slice(0, n).map(q => {
-      const order = shuffle(q.options.map((text, i) => ({ text, correct: i === q.correct })));
-      return { q: q.q, options: order };
-    });
-    S.answers = new Array(S.served.length).fill(null);
-    S.idx = 0;
-    S.attemptNo += 1;
-    S.startedAt = Date.now();
+    const saved = loadProgress(S.employee.nik, S.session.id);
+    if (saved && saved.topicCode === S.topic.code && Array.isArray(saved.served) && saved.served.length) {
+      S.served = saved.served;
+      S.answers = saved.answers;
+      S.idx = Math.min(saved.idx, S.served.length - 1);
+      S.attemptNo = saved.attemptNo;
+      S.startedAt = saved.startedAt;
+    } else {
+      const n = Math.min(C.questionsPerAttempt, S.topic.questions.length);
+      S.served = shuffle(S.topic.questions).slice(0, n).map(q => {
+        const order = shuffle(q.options.map((text, i) => ({ text, correct: i === q.correct })));
+        return { q: q.q, options: order };
+      });
+      S.answers = new Array(S.served.length).fill(null);
+      S.idx = 0;
+      S.attemptNo += 1;
+      S.startedAt = Date.now();
+    }
     $('#quiz-submit-error').classList.add('hidden');
     $('#btn-next').disabled = false;
     renderQuestion();
@@ -205,6 +241,7 @@
   }
 
   function renderQuestion() {
+    saveProgress();
     const item = S.served[S.idx];
     const answeredCount = S.answers.filter(a => a !== null).length;
     $('#quiz-topic-label').textContent = S.topic.title;
@@ -308,6 +345,7 @@
       submittedAt: new Date().toISOString(),
     });
     if (S.cert) S.cert.no = saved.certificateNo;
+    clearProgress(S.employee.nik, S.session.id); // sudah terkirim -- progres tersimpan tidak dibutuhkan lagi
 
     renderResult(threshold);
     show('screen-result');
@@ -375,7 +413,12 @@
       const canvas = await html2canvas(node, { scale: 2, backgroundColor: '#ffffff' });
       const img = canvas.toDataURL('image/png');
       const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [canvas.width, canvas.height] });
+      // Di layar sempit (HP) kartu sertifikat ditumpuk jadi bentuk portrait
+      // (lebih tinggi dari lebar). orientation harus ikut bentuk asli kanvas --
+      // dipaksa 'landscape' membuat jsPDF membalik lebar/tinggi halaman,
+      // sehingga gambar sertifikat kepotong di bagian bawah.
+      const orientation = canvas.width >= canvas.height ? 'landscape' : 'portrait';
+      const pdf = new jsPDF({ orientation, unit: 'px', format: [canvas.width, canvas.height] });
       pdf.addImage(img, 'PNG', 0, 0, canvas.width, canvas.height);
       pdf.save(`Sertifikat-${S.cert.no.replace(/\//g, '-')}.pdf`);
     } catch (e) {

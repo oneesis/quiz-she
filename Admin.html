@@ -158,7 +158,7 @@
     /* ---------------- Dashboard ---------------- */
     function loadDashboard() {
       google.script.run.withSuccessHandler(function (d) {
-        var rows = d.perCompany.map(function (c) {
+        var rows = (d.perCompany || []).map(function (c) {
           return '<tr><td>' + esc(c.name) + '</td><td>' + c.total + '</td><td>' + c.passed + '</td></tr>';
         }).join('');
         document.getElementById('tab-content').innerHTML =
@@ -176,8 +176,8 @@
     /* ---------------- Companies ---------------- */
     function loadCompanies() {
       google.script.run.withSuccessHandler(function (list) {
-        cache.companies = list;
-        var rows = list.map(function (c) {
+        cache.companies = list || [];
+        var rows = cache.companies.map(function (c) {
           return '<tr><td>' + esc(c.name) + '</td><td>' + esc(c.code) + '</td>' +
             '<td><button class="btn btn-sm" onclick="editCompany(' + c.id + ')">Edit</button></td></tr>';
         }).join('');
@@ -208,8 +208,8 @@
     /* ---------------- Employees ---------------- */
     function loadEmployees() {
       google.script.run.withSuccessHandler(function (list) {
-        cache.employees = list;
-        var rows = list.map(function (e) {
+        cache.employees = list || [];
+        var rows = cache.employees.map(function (e) {
           return '<tr><td>' + esc(e.nik) + '</td><td>' + esc(e.nama) + '</td><td>' + esc(e.company_name) + '</td>' +
             '<td><span class="badge ' + (e.status === 'aktif' ? 'success' : 'fail') + '">' + esc(e.status) + '</span></td>' +
             '<td><button class="btn btn-sm" onclick="editEmployee(' + e.id + ')">Edit</button></td></tr>';
@@ -288,8 +288,8 @@
     /* ---------------- Topics & Questions ---------------- */
     function loadTopics() {
       google.script.run.withSuccessHandler(function (list) {
-        cache.topics = list;
-        var rows = list.map(function (t) {
+        cache.topics = list || [];
+        var rows = cache.topics.map(function (t) {
           return '<tr><td>' + esc(t.code) + '</td><td>' + esc(t.title) + '</td><td>' + t.questions_count + '</td>' +
             '<td>' + t.pass_threshold + '%</td>' +
             '<td><button class="btn btn-sm" onclick="editTopic(' + t.id + ')">Edit</button> ' +
@@ -339,7 +339,7 @@
 
     function manageQuestions(topicId, topicTitle) {
       google.script.run.withSuccessHandler(function (list) {
-        cache.questions = list;
+        cache.questions = list || [];
         renderQuestionsModal(topicId, topicTitle);
       }).withFailureHandler(handleAdminError_).adminListQuestions(TOKEN, topicId);
     }
@@ -396,8 +396,8 @@
     /* ---------------- Sessions ---------------- */
     function loadSessions() {
       google.script.run.withSuccessHandler(function (list) {
-        cache.sessions = list;
-        var rows = list.map(function (s) {
+        cache.sessions = list || [];
+        var rows = cache.sessions.map(function (s) {
           return '<tr><td>' + esc(s.topic_title) + '</td><td>' + new Date(s.valid_from).toLocaleDateString('id-ID') + '</td>' +
             '<td>' + new Date(s.valid_until).toLocaleDateString('id-ID') + '</td><td>' + esc(s.status) + '</td>' +
             '<td><button class="btn btn-sm" onclick="editSession(' + s.id + ')">Edit</button></td></tr>';
@@ -454,7 +454,7 @@
     /* ---------------- Participations ---------------- */
     function loadParticipations() {
       google.script.run.withSuccessHandler(function (list) {
-        var rows = list.map(function (p) {
+        var rows = (list || []).map(function (p) {
           return '<tr><td>' + esc(p.employee_name) + '</td><td>' + esc(p.company_name) + '</td><td>' + esc(p.topic_title) + '</td>' +
             '<td>' + p.score + '%</td><td><span class="badge ' + (p.passed ? 'success' : 'fail') + '">' + (p.passed ? 'Lulus' : 'Gagal') + '</span></td>' +
             '<td>' + new Date(p.submitted_at).toLocaleString('id-ID') + '</td><td>' + esc(p.certificate_no) + '</td></tr>';

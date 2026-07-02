@@ -458,8 +458,12 @@
       var data = {
         topic_id: topicId,
         title: document.getElementById('f-title').value,
-        valid_from: validFrom,
-        valid_until: validUntil,
+        // Sent as ISO strings, not Date objects — google.script.run has been
+        // observed throwing "illegal value in property" when serializing
+        // native Date objects for some locale/browser combinations. The
+        // server parses these back into Date before writing to the sheet.
+        valid_from: validFrom.toISOString(),
+        valid_until: validUntil.toISOString(),
         target_company_ids: [],
         target_area: '',
         status: document.getElementById('f-status').value,

@@ -151,7 +151,11 @@ function adminListSessions(token) {
 function adminSaveSession(token, data) {
   requireAdmin_(token);
   const db = getDb_();
-  const payload = Object.assign({}, data, { target_company_ids: JSON.stringify(data.target_company_ids || []) });
+  const payload = Object.assign({}, data, {
+    target_company_ids: JSON.stringify(data.target_company_ids || []),
+    valid_from: new Date(data.valid_from),
+    valid_until: new Date(data.valid_until),
+  });
   if (data.id) {
     updateRow_(db, SHEETS.QUIZ_SESSIONS, data.id, payload);
     return data.id;

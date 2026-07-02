@@ -215,28 +215,45 @@
     ev.preventDefault();
     const questions = collectQuestions();
     if (!questions.length) { alert('Tambahkan minimal satu soal.'); return; }
+    const code = editingTopicCode || $('#t-code').value.trim();
+    if (!code) { alert('Kode topik wajib diisi.'); return; }
+    if (!editingTopicCode && topics.some(t => t.code === code)) {
+      alert(`Kode topik "${code}" sudah dipakai topik lain. Pakai kode yang berbeda.`);
+      return;
+    }
     const topic = {
-      code: editingTopicCode || $('#t-code').value.trim(),
+      code,
       title: $('#t-title').value.trim(),
       passThreshold: Number($('#t-threshold').value) || C.passThresholdDefault,
       material: $('#t-material').value,
       materialImage: currentImageUrl,
       questions,
     };
-    if (!topic.code) { alert('Kode topik wajib diisi.'); return; }
-    await API.saveTopic(topic);
-    await reloadData();
-    renderTopicsList();
-    switchTab('topics');
+    const btn = $('#topic-form button[type=submit]');
+    btn.disabled = true;
+    try {
+      await API.saveTopic(topic);
+      await reloadData();
+      renderTopicsList();
+      switchTab('topics');
+    } catch (e) {
+      alert('Gagal menyimpan topik. Periksa koneksi lalu coba lagi.');
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   async function deleteTopicConfirm() {
     if (!editingTopicCode) return;
     if (!confirm(`Hapus topik "${editingTopicCode}"? Sesi yang memakainya jadi tidak tampil di kiosk.`)) return;
-    await API.deleteTopic(editingTopicCode);
-    await reloadData();
-    renderTopicsList();
-    switchTab('topics');
+    try {
+      await API.deleteTopic(editingTopicCode);
+      await reloadData();
+      renderTopicsList();
+      switchTab('topics');
+    } catch (e) {
+      alert('Gagal menghapus topik. Periksa koneksi lalu coba lagi.');
+    }
   }
 
   // ============================================================
@@ -415,19 +432,31 @@
       targetCompanies: $('#s-companies').value.split(',').map(s => s.trim()).filter(Boolean),
       status: $('#s-status').value,
     };
-    await API.saveSession(session);
-    await reloadData();
-    renderSessionsList();
-    switchTab('sessions');
+    const btn = $('#session-form button[type=submit]');
+    btn.disabled = true;
+    try {
+      await API.saveSession(session);
+      await reloadData();
+      renderSessionsList();
+      switchTab('sessions');
+    } catch (e) {
+      alert('Gagal menyimpan sesi. Periksa koneksi lalu coba lagi.');
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   async function deleteSessionConfirm() {
     if (!editingSessionId) return;
     if (!confirm('Hapus sesi ini?')) return;
-    await API.deleteSession(editingSessionId);
-    await reloadData();
-    renderSessionsList();
-    switchTab('sessions');
+    try {
+      await API.deleteSession(editingSessionId);
+      await reloadData();
+      renderSessionsList();
+      switchTab('sessions');
+    } catch (e) {
+      alert('Gagal menghapus sesi. Periksa koneksi lalu coba lagi.');
+    }
   }
 
   // ============================================================

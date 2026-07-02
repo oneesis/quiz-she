@@ -51,6 +51,7 @@
     el.scrollTop = 0;
     window.scrollTo(0, 0);
     document.body.classList.toggle('mode-focus', id === 'screen-quiz');
+    closeLightbox(); // jangan sampai lightbox "nyangkut" nutupin layar baru
     resetIdle();
   }
 
@@ -123,15 +124,17 @@
         wrap.innerHTML = '<div class="empty">Belum ada sesi Safety Talk yang aktif hari ini. Silakan hubungi petugas SHE.</div>';
         return;
       }
+      const existingResults = await Promise.all(sessions.map(s => API.findExisting(S.employee.nik, s.id)));
       wrap.innerHTML = '';
-      for (const s of sessions) {
-        const existing = await API.findExisting(S.employee.nik, s.id);
+      sessions.forEach((s, i) => {
+        const existing = existingResults[i];
+        const servedCount = Math.min(C.questionsPerAttempt, s.topic.questions.length);
         const card = document.createElement('button');
         card.className = 'session-card';
         card.innerHTML = `
           <span class="session-card__eyebrow">${s.topic.code}</span>
           <span class="session-card__title">${s.title || s.topic.title}</span>
-          <span class="session-card__meta">${s.topic.questions.length} soal · lulus ≥ ${s.topic.passThreshold || C.passThresholdDefault}%</span>
+          <span class="session-card__meta">${servedCount} soal · lulus ≥ ${s.topic.passThreshold || C.passThresholdDefault}%</span>
           ${existing ? '<span class="session-card__badge">✓ Sudah lulus</span>' : ''}
           <span class="session-card__go">${existing ? 'Lihat Sertifikat →' : 'Mulai →'}</span>`;
         card.onclick = () => {
@@ -145,7 +148,7 @@
           }
         };
         wrap.appendChild(card);
-      }
+      });
     } catch (e) {
       wrap.innerHTML = '<div class="empty">Gagal memuat sesi. Coba lagi.</div>';
     }
@@ -195,6 +198,8 @@
     S.idx = 0;
     S.attemptNo += 1;
     S.startedAt = Date.now();
+    $('#quiz-submit-error').classList.add('hidden');
+    $('#btn-next').disabled = false;
     renderQuestion();
     show('screen-quiz');
   }
@@ -250,7 +255,7 @@
     $('#quiz-incomplete-warning').classList.add('hidden');
   }
 
-  function nextQuestion() {
+  async function nextQuestion() {
     if (S.idx < S.served.length - 1) { S.idx++; renderQuestion(); return; }
     const unanswered = S.answers.map((a, i) => (a === null ? i : -1)).filter(i => i >= 0);
     if (unanswered.length) {
@@ -261,7 +266,18 @@
       warn.classList.remove('hidden');
       return;
     }
-    grade();
+    const btn = $('#btn-next');
+    if (btn.disabled) return; // cegah kirim dobel kalau server lambat & tombol diklik lagi
+    btn.disabled = true;
+    btn.textContent = 'Menyimpan…';
+    $('#quiz-submit-error').classList.add('hidden');
+    try {
+      await grade();
+    } catch (e) {
+      $('#quiz-submit-error').classList.remove('hidden');
+      btn.disabled = false;
+      btn.textContent = 'Selesai & Nilai';
+    }
   }
   function prevQuestion() { if (S.idx > 0) { S.idx--; renderQuestion(); } }
 

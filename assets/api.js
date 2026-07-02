@@ -180,15 +180,31 @@
       const data = await this._get({ action: 'topics' });
       return Array.isArray(data) && data.length ? data : window.SAMPLE.topics;
     },
-    async saveTopic(topic) { await this._post('topic_save', topic); return topic; },
-    async deleteTopic(code) { await this._post('topic_delete', { code }); return true; },
+    async saveTopic(topic) {
+      const data = await this._post('topic_save', topic);
+      if (!data || !data.ok) throw new Error('Gagal menyimpan topik');
+      return topic;
+    },
+    async deleteTopic(code) {
+      const data = await this._post('topic_delete', { code });
+      if (!data || !data.ok) throw new Error('Gagal menghapus topik');
+      return true;
+    },
 
     async listSessions() {
       const data = await this._get({ action: 'sessions' });
       return Array.isArray(data) && data.length ? data : window.SAMPLE.sessions;
     },
-    async saveSession(session) { await this._post('session_save', session); return session; },
-    async deleteSession(id) { await this._post('session_delete', { id }); return true; },
+    async saveSession(session) {
+      const data = await this._post('session_save', session);
+      if (!data || !data.ok) throw new Error('Gagal menyimpan sesi');
+      return session;
+    },
+    async deleteSession(id) {
+      const data = await this._post('session_delete', { id });
+      if (!data || !data.ok) throw new Error('Gagal menghapus sesi');
+      return true;
+    },
     async uploadImage(base64, filename, mimeType) {
       const data = await this._post('upload_image', { base64, filename, mimeType });
       if (!data || !data.ok) throw new Error('Gagal mengunggah gambar');

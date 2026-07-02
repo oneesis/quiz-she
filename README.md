@@ -167,14 +167,18 @@ function doPost(e) {
 
 // Simpan gambar materi ke folder Drive "Quiz SHE Uploads" (dibuat otomatis
 // saat pertama kali dipakai) dan kembalikan URL yang bisa dipakai langsung
-// sebagai <img src>.
+// sebagai <img src>. Pakai endpoint "thumbnail" (bukan "uc?export=view") --
+// yang terakhir sering gagal dimuat sebagai <img> karena Drive menampilkan
+// halaman peringatan alih-alih gambar langsung, apalagi kalau file sering
+// diakses (kasus khas kiosk banyak karyawan). "thumbnail" redirect ke CDN
+// gambar Google (lh3.googleusercontent.com) yang jauh lebih andal.
 function uploadImage_(p) {
   const folder = getUploadsFolder_();
   const bytes = Utilities.base64Decode(p.base64);
   const blob = Utilities.newBlob(bytes, p.mimeType || 'image/jpeg', p.filename || 'materi.jpg');
   const file = folder.createFile(blob);
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  return 'https://drive.google.com/uc?export=view&id=' + file.getId();
+  return 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=w2000';
 }
 function getUploadsFolder_() {
   const name = 'Quiz SHE Uploads';

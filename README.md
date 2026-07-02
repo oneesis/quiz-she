@@ -145,7 +145,10 @@ function doGet(e) {
   if (a === 'verify')         return json(findByToken(e.parameter.token));
   if (a === 'topics')         return json(listTopics());
   if (a === 'sessions')       return json(listSessions());
-  if (a === 'participations') return json(listParticipations());
+  if (a === 'existing')       return json(findExisting(e.parameter.nik, e.parameter.sessionId));
+  // 'participations' berisi nama+NIK+skor semua karyawan -- hanya untuk admin,
+  // beda dengan 'employee'/'existing' yang cuma balas data 1 orang.
+  if (a === 'participations') return isAdmin(e.parameter.adminToken) ? json(listParticipations()) : json([]);
   if (a === 'employees')      return isAdmin(e.parameter.adminToken) ? json(listEmployees()) : json([]);
   return json({});
 }
@@ -237,6 +240,24 @@ function findByToken(token) {
     certificateNo: hit[c('certificateNo')], score: hit[c('score')], verificationToken: token,
   } : {};
 }
+
+// Percobaan LULUS paling baru milik satu NIK untuk satu sesi -- dipakai kiosk
+// supaya karyawan yang sudah lulus tidak perlu mengulang kuis, cukup lihat
+// sertifikat lamanya. Hanya balas data 1 orang (bukan seluruh tabel).
+function findExisting(nik, sessionId) {
+  const rows = SpreadsheetApp.openById(SS_ID).getSheetByName(RESULTS).getDataRange().getValues();
+  const head = rows.shift(); const c = n => head.indexOf(n);
+  const hits = rows.filter(r =>
+    String(r[c('nik')]).trim() === String(nik).trim() &&
+    String(r[c('sessionId')]) === String(sessionId) &&
+    r[c('passed')]);
+  if (!hits.length) return {};
+  const hit = hits[hits.length - 1];
+  return {
+    score: hit[c('score')], certificateNo: hit[c('certificateNo')],
+    verificationToken: hit[c('verificationToken')], submittedAt: hit[c('waktu')],
+  };
+}
 function listParticipations() {
   const rows = SpreadsheetApp.openById(SS_ID).getSheetByName(RESULTS).getDataRange().getValues();
   const head = rows.shift(); const c = n => head.indexOf(n);
@@ -297,7 +318,7 @@ function json(o) {
 
 ## Batasan yang perlu kamu tahu (jujur)
 
-- **Privasi roster.** Jangan publikasikan seluruh isi Sheet karyawan ke web publik. Dengan pola Apps Script di atas, yang keluar hanya data 1 orang saat NIK dicari — bukan seluruh daftar. Hindari menaruh NIK/no. HP di file yang di-commit publik.
+- **Privasi roster.** Jangan publikasikan seluruh isi Sheet karyawan ke web publik. Dengan pola Apps Script di atas, aksi publik (`employee`, `verify`, `existing`) hanya membalas data 1 orang/1 sesi — bukan seluruh daftar. Aksi yang membongkar banyak data sekaligus (`employees`, `participations`) mensyaratkan `adminToken` yang cocok. Hindari menaruh NIK/no. HP di file yang di-commit publik.
 - **Keamanan login rendah.** "Login" hanya pencocokan NIK, tanpa password — memang sesuai kebutuhan P5M yang ringan, tapi bukan autentikasi kuat. Jangan pakai pola ini untuk data sensitif.
 - **Panel Admin bukan autentikasi aman.** `admin.html` dikunci dengan satu password yang dicek di browser (`CONFIG.admin.password` di `assets/config.js`) — siapa pun yang membuka file itu (mis. lewat "View Source" di GitHub Pages) bisa melihat password-nya. Mode `apps_script` menambah pengecekan `ADMIN_TOKEN` di sisi server untuk aksi tulis & daftar karyawan, tapi karena token yang dikirim **adalah** password yang sama yang tersimpan di `config.js` publik, ini hanya menaikkan sedikit dari "bisa ditulis siapa saja" menjadi "perlu tahu password yang sudah terpampang di source" — bukan keamanan yang sebenarnya. Cukup untuk mencegah orang iseng, bukan untuk melindungi data sensitif. Kalau butuh keamanan sungguhan, taruh `admin.html` di balik autentikasi level hosting (bukan GitHub Pages publik) atau bangun alur login yang tidak menyimpan rahasianya di kode klien.
 - **Tanpa Apps Script, hasil tidak terekam terpusat.** Mode `mock` menyimpan hasil hanya di browser perangkat itu (localStorage). Untuk rekap compliance lintas perangkat, sambungkan Apps Script.
@@ -309,3 +330,5 @@ function json(o) {
 ## Alur
 
 Masuk (NIK) → Konfirmasi identitas → Pilih sesi aktif → Baca materi → Kuis (soal acak) → Hasil (lulus/gagal) → Sertifikat + QR → rekam partisipasi.
+
+Kalau karyawan sudah pernah **lulus** sesi yang sama sebelumnya, kartu sesi menampilkan badge "Sudah lulus" dan langsung membuka sertifikat yang sudah ada saat diklik — tidak perlu mengulang materi/kuis. Percobaan yang belum lulus tidak dianggap "sudah selesai", jadi tetap bisa dicoba lagi seperti biasa.

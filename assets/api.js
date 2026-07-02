@@ -76,6 +76,11 @@
       const [sessions, topics] = await Promise.all([this.listSessions(), this.listTopics()]);
       return buildActiveSessions(employee, sessions, topics);
     },
+    async findExisting(nik, sessionId) {
+      const list = JSON.parse(store.get('participations') || '[]');
+      const hits = list.filter(p => p.nik === nik && p.sessionId === sessionId && p.passed);
+      return hits.length ? hits[hits.length - 1] : null;
+    },
     async saveParticipation(rec) {
       const certificateNo = rec.passed ? buildCertNo(rec.perusahaan) : null;
       const full = { ...rec, certificateNo };
@@ -150,6 +155,10 @@
       const [sessions, topics] = await Promise.all([this.listSessions(), this.listTopics()]);
       return buildActiveSessions(employee, sessions, topics);
     },
+    async findExisting(nik, sessionId) {
+      const data = await this._get({ action: 'existing', nik: (nik || '').trim(), sessionId });
+      return data && data.certificateNo ? data : null;
+    },
     async saveParticipation(rec) {
       const data = await this._post('participation', rec);
       return { certificateNo: (data && data.certificateNo) || null };
@@ -159,7 +168,7 @@
       return data && data.verificationToken ? data : null;
     },
     async listParticipations() {
-      const data = await this._get({ action: 'participations' });
+      const data = await this._get({ action: 'participations', adminToken: adminToken || '' });
       return Array.isArray(data) ? data : [];
     },
     async listEmployees() {
@@ -193,6 +202,7 @@
     mode: C.dataSource,
     findEmployee: (nik) => impl.findEmployee(nik),
     activeSessions: (emp) => impl.activeSessions(emp),
+    findExisting: (nik, sessionId) => impl.findExisting(nik, sessionId),
     saveParticipation: (rec) => impl.saveParticipation(rec),
     findByToken: (t) => impl.findByToken(t),
     listParticipations: () => impl.listParticipations(),

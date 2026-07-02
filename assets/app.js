@@ -124,17 +124,28 @@
         return;
       }
       wrap.innerHTML = '';
-      sessions.forEach(s => {
+      for (const s of sessions) {
+        const existing = await API.findExisting(S.employee.nik, s.id);
         const card = document.createElement('button');
         card.className = 'session-card';
         card.innerHTML = `
           <span class="session-card__eyebrow">${s.topic.code}</span>
           <span class="session-card__title">${s.title || s.topic.title}</span>
           <span class="session-card__meta">${s.topic.questions.length} soal · lulus ≥ ${s.topic.passThreshold || C.passThresholdDefault}%</span>
-          <span class="session-card__go">Mulai →</span>`;
-        card.onclick = () => { S.session = s; S.topic = s.topic; renderMaterial(); };
+          ${existing ? '<span class="session-card__badge">✓ Sudah lulus</span>' : ''}
+          <span class="session-card__go">${existing ? 'Lihat Sertifikat →' : 'Mulai →'}</span>`;
+        card.onclick = () => {
+          S.session = s; S.topic = s.topic;
+          if (existing) {
+            S.score = existing.score;
+            S.cert = { no: existing.certificateNo, token: existing.verificationToken, date: existing.submittedAt ? new Date(existing.submittedAt) : new Date() };
+            renderCertificate();
+          } else {
+            renderMaterial();
+          }
+        };
         wrap.appendChild(card);
-      });
+      }
     } catch (e) {
       wrap.innerHTML = '<div class="empty">Gagal memuat sesi. Coba lagi.</div>';
     }

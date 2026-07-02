@@ -130,6 +130,10 @@ h1.screen-title { font-family:'Archivo'; font-weight:800; font-size:26px; line-h
 .session-card__title { font-family:'Archivo'; font-weight:700; font-size:18px; line-height:1.15; }
 .session-card__meta { font-size:13px; color:var(--steel); }
 .session-card__go { position:absolute; right:16px; bottom:16px; font-weight:700; color:var(--amber-deep); font-size:14px; }
+.session-card__badge {
+  justify-self:start; margin-top:2px; padding:2px 9px; border-radius:20px;
+  background:#e4f6ec; color:var(--go); font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
+}
 .empty { text-align:center; color:var(--steel); padding:34px 10px; border:1.5px dashed var(--line); border-radius:var(--r); }
 
 /* ---------- materi ---------- */

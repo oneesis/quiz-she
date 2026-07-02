@@ -9,8 +9,8 @@
                       Isi appsScriptUrl di bawah. (lihat README)
    ============================================================ */
 window.CONFIG = {
-  dataSource: 'mock',
-  appsScriptUrl: '', // <- tempel URL Web App Apps Script di sini saat mode 'apps_script'
+  dataSource: 'apps_script',
+  appsScriptUrl: 'https://script.google.com/macros/s/AKfycbxcDx6BPcOkkbV5sytyUnxxqeH4GTaDb9KZs90Y7gYjGtYwWeTpkgSCouwATBDeNRuo/exec',
 
   org: {
     name: 'PT Energi Batubara Lestari',

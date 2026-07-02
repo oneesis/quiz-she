@@ -15,6 +15,7 @@
   let editingSessionId = null;   // null = sesi baru
   let qCount = 0;                // penomor blok soal di editor
   let lastTab = 'dashboard';     // tab aktif terakhir, dipakai saat kembali dari editor
+  let currentImageUrl = '';      // materialImage topik yang sedang diedit
 
   function showPanel(id) {
     $$('.admin-panel').forEach(p => p.classList.add('hidden'));
@@ -169,6 +170,8 @@
     $('#t-title').value = topic ? topic.title : '';
     $('#t-threshold').value = topic ? (topic.passThreshold || C.passThresholdDefault) : C.passThresholdDefault;
     $('#t-material').value = topic ? topic.material : '';
+    setImagePreview(topic ? topic.materialImage : '');
+    $('#csv-import-status').textContent = '';
     $('#btn-topic-delete').hidden = !topic;
     $('#questions-editor').innerHTML = '';
     qCount = 0;
@@ -214,6 +217,7 @@
       title: $('#t-title').value.trim(),
       passThreshold: Number($('#t-threshold').value) || C.passThresholdDefault,
       material: $('#t-material').value,
+      materialImage: currentImageUrl,
       questions,
     };
     if (!topic.code) { alert('Kode topik wajib diisi.'); return; }
@@ -230,6 +234,122 @@
     await reloadData();
     renderTopicsList();
     switchTab('topics');
+  }
+
+  // ============================================================
+  // GAMBAR MATERI (upload ke Drive lewat Apps Script)
+  // ============================================================
+  function setImagePreview(url) {
+    currentImageUrl = url || '';
+    const wrap = $('#t-image-preview-wrap');
+    if (currentImageUrl) { $('#t-image-preview').src = currentImageUrl; wrap.classList.remove('hidden'); }
+    else { wrap.classList.add('hidden'); }
+  }
+
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleImageFileChange(ev) {
+    const file = ev.target.files[0];
+    ev.target.value = '';
+    if (!file) return;
+    const status = $('#t-image-status');
+    if (API.mode !== 'apps_script') {
+      status.textContent = 'Upload gambar hanya tersedia di mode apps_script.';
+      status.className = 'text-xs text-error mt-1';
+      return;
+    }
+    status.textContent = 'Mengunggah…';
+    status.className = 'text-xs text-on-surface-variant mt-1';
+    try {
+      const base64 = await fileToBase64(file);
+      const url = await API.uploadImage(base64, file.name, file.type);
+      if (!url) throw new Error('no url');
+      setImagePreview(url);
+      status.textContent = 'Gambar berhasil diunggah.';
+      status.className = 'text-xs text-green-700 mt-1';
+    } catch (e) {
+      status.textContent = 'Gagal mengunggah gambar. Coba lagi.';
+      status.className = 'text-xs text-error mt-1';
+    }
+  }
+
+  // ============================================================
+  // IMPOR SOAL DARI CSV
+  // ============================================================
+  function parseCsv(text) {
+    const rows = [];
+    let row = [], field = '', inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (inQuotes) {
+        if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else { inQuotes = false; } }
+        else field += c;
+      } else if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else if (c === '\r') { /* diabaikan, ditangani lewat \n */ }
+      else field += c;
+    }
+    if (field.length || row.length) { row.push(field); rows.push(row); }
+    return rows.filter(r => r.some(v => v !== ''));
+  }
+
+  function setCsvStatus(msg, isError) {
+    const el = $('#csv-import-status');
+    el.textContent = msg;
+    el.className = 'text-xs font-semibold ' + (isError ? 'text-error' : 'text-green-700');
+  }
+
+  function handleCsvFileChange(ev) {
+    const file = ev.target.files[0];
+    ev.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const rows = parseCsv(String(reader.result));
+      if (!rows.length) { setCsvStatus('File CSV kosong.', true); return; }
+      const header = rows[0].map(h => h.trim().toLowerCase());
+      const need = ['pertanyaan', 'opsia', 'opsib', 'opsic', 'opsid', 'jawaban'];
+      const idx = {};
+      need.forEach(n => { idx[n] = header.indexOf(n); });
+      if (Object.values(idx).some(i => i === -1)) {
+        setCsvStatus('Header CSV tidak sesuai template. Unduh "Template CSV" dulu.', true);
+        return;
+      }
+      let added = 0, skipped = 0;
+      rows.slice(1).forEach(r => {
+        const q = (r[idx.pertanyaan] || '').trim();
+        const options = [r[idx.opsia], r[idx.opsib], r[idx.opsic], r[idx.opsid]].map(o => (o || '').trim());
+        const correct = 'ABCD'.indexOf((r[idx.jawaban] || '').trim().toUpperCase());
+        if (!q || options.some(o => !o) || correct === -1) { skipped++; return; }
+        addQuestionBlock({ q, options, correct });
+        added++;
+      });
+      setCsvStatus(`${added} soal berhasil diimpor.` + (skipped ? ` ${skipped} baris dilewati (data tidak lengkap atau jawaban tidak valid).` : ''), skipped > 0 && added === 0);
+    };
+    reader.readAsText(file, 'utf-8');
+  }
+
+  function downloadCsvTemplate() {
+    const rows = [
+      ['pertanyaan', 'opsiA', 'opsiB', 'opsiC', 'opsiD', 'jawaban'],
+      ['Apa fungsi utama helm keselamatan?', 'Gaya berpenampilan', 'Melindungi kepala dari benturan & benda jatuh', 'Menahan panas matahari', 'Identitas perusahaan', 'B'],
+    ];
+    const csvEscape = (v) => `"${String(v).replace(/"/g, '""')}"`;
+    const csv = rows.map(r => r.map(csvEscape).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'template-soal.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
   }
 
   // ============================================================
@@ -450,6 +570,11 @@
     $('#btn-topic-back').onclick = () => switchTab('topics');
     $('#btn-add-question').onclick = () => addQuestionBlock(null);
     $('#btn-topic-delete').onclick = deleteTopicConfirm;
+    $('#t-image').addEventListener('change', handleImageFileChange);
+    $('#btn-remove-image').onclick = () => setImagePreview('');
+    $('#btn-download-csv-template').onclick = downloadCsvTemplate;
+    $('#btn-import-csv').onclick = () => $('#csv-import-input').click();
+    $('#csv-import-input').addEventListener('change', handleCsvFileChange);
 
     $('#btn-new-session').onclick = () => openSessionEditor(null);
     $('#session-form').addEventListener('submit', saveSessionForm);

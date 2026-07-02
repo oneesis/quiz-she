@@ -118,6 +118,9 @@
       writeOverride('admin_sessions', readOverride('admin_sessions', window.SAMPLE.sessions).filter(s => s.id !== id));
       return true;
     },
+    async uploadImage() {
+      throw new Error('Upload gambar hanya tersedia di mode apps_script.');
+    },
   };
 
   // ------------- APPS SCRIPT -------------
@@ -177,6 +180,11 @@
     },
     async saveSession(session) { await this._post('session_save', session); return session; },
     async deleteSession(id) { await this._post('session_delete', { id }); return true; },
+    async uploadImage(base64, filename, mimeType) {
+      const data = await this._post('upload_image', { base64, filename, mimeType });
+      if (!data || !data.ok) throw new Error('Gagal mengunggah gambar');
+      return data.url;
+    },
   };
 
   const impl = C.dataSource === 'apps_script' ? scriptApi : mockApi;
@@ -196,5 +204,6 @@
     listSessions: () => impl.listSessions(),
     saveSession: (s) => impl.saveSession(s),
     deleteSession: (id) => impl.deleteSession(id),
+    uploadImage: (base64, filename, mimeType) => impl.uploadImage(base64, filename, mimeType),
   };
 })();

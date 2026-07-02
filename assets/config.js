@@ -54,23 +54,16 @@ window.SAMPLE = {
       code: 'ST-APD',
       title: 'Alat Pelindung Diri (APD) di Area Tambang',
       passThreshold: 80,
-      material: `
-        <p>Alat Pelindung Diri (APD) adalah pertahanan terakhir ketika bahaya tidak bisa dihilangkan
-        dari sumbernya. APD tidak menghilangkan bahaya, tapi mengurangi tingkat keparahan cedera bila
-        terjadi kontak.</p>
-        <h4>APD wajib di area operasi tambang</h4>
-        <ul>
-          <li><strong>Helm keselamatan</strong> — lindungi kepala dari benturan & benda jatuh.</li>
-          <li><strong>Sepatu safety</strong> — pelindung ujung baja, alas anti-selip.</li>
-          <li><strong>Rompi reflektif</strong> — agar terlihat oleh operator alat berat.</li>
-          <li><strong>Kacamata & sarung tangan</strong> — sesuai jenis pekerjaan.</li>
-          <li><strong>Pelindung telinga</strong> — di area kebisingan tinggi.</li>
-        </ul>
-        <h4>Prinsip pemakaian</h4>
-        <p>Periksa kondisi APD sebelum dipakai. APD yang rusak, retak, atau sudah lewat masa pakai
-        harus diganti — bukan dipaksakan. Pakai APD sepanjang berada di area kerja, bukan hanya saat
-        ada pengawas.</p>
-      `,
+      materialImage: '',
+      material: `Alat Pelindung Diri (APD) adalah pertahanan terakhir ketika bahaya tidak bisa dihilangkan dari sumbernya. APD tidak menghilangkan bahaya, tapi mengurangi tingkat keparahan cedera bila terjadi kontak.
+## APD wajib di area operasi tambang
+- Helm keselamatan — lindungi kepala dari benturan & benda jatuh.
+- Sepatu safety — pelindung ujung baja, alas anti-selip.
+- Rompi reflektif — agar terlihat oleh operator alat berat.
+- Kacamata & sarung tangan — sesuai jenis pekerjaan.
+- Pelindung telinga — di area kebisingan tinggi.
+## Prinsip pemakaian
+Periksa kondisi APD sebelum dipakai. APD yang rusak, retak, atau sudah lewat masa pakai harus diganti — bukan dipaksakan. Pakai APD sepanjang berada di area kerja, bukan hanya saat ada pengawas.`,
       questions: [
         { q: 'APD berfungsi sebagai pengendali bahaya tingkat…', options: ['Pertama (eliminasi)', 'Terakhir', 'Administratif', 'Substitusi'], correct: 1 },
         { q: 'Sepatu safety di area tambang wajib memiliki…', options: ['Warna cerah', 'Pelindung ujung baja & alas anti-selip', 'Hak tinggi', 'Bahan kanvas'], correct: 1 },
@@ -84,21 +77,14 @@ window.SAMPLE = {
       code: 'ST-FTG',
       title: 'Manajemen Kelelahan (Fatigue) untuk Pekerja Shift',
       passThreshold: 80,
-      material: `
-        <p>Kelelahan (fatigue) menurunkan kewaspadaan, memperlambat reaksi, dan meningkatkan risiko
-        kecelakaan — terutama bagi operator alat berat dan pengemudi. Kelelahan berat setara dampaknya
-        dengan pengaruh alkohol terhadap konsentrasi.</p>
-        <h4>Tanda-tanda kelelahan</h4>
-        <ul>
-          <li>Sering menguap, mata berat, sulit fokus.</li>
-          <li>Melamun / kehilangan beberapa detik tanpa sadar (microsleep).</li>
-          <li>Mudah tersinggung dan reaksi melambat.</li>
-        </ul>
-        <h4>Yang harus dilakukan</h4>
-        <p>Tidur cukup sebelum shift, manfaatkan waktu istirahat, dan hindari kafein berlebihan sebagai
-        pengganti tidur. Bila merasa mengantuk saat mengoperasikan unit, <strong>berhenti di tempat aman
-        dan lapor pengawas</strong> — jangan memaksakan diri.</p>
-      `,
+      materialImage: '',
+      material: `Kelelahan (fatigue) menurunkan kewaspadaan, memperlambat reaksi, dan meningkatkan risiko kecelakaan — terutama bagi operator alat berat dan pengemudi. Kelelahan berat setara dampaknya dengan pengaruh alkohol terhadap konsentrasi.
+## Tanda-tanda kelelahan
+- Sering menguap, mata berat, sulit fokus.
+- Melamun / kehilangan beberapa detik tanpa sadar (microsleep).
+- Mudah tersinggung dan reaksi melambat.
+## Yang harus dilakukan
+Tidur cukup sebelum shift, manfaatkan waktu istirahat, dan hindari kafein berlebihan sebagai pengganti tidur. Bila merasa mengantuk saat mengoperasikan unit, berhenti di tempat aman dan lapor pengawas — jangan memaksakan diri.`,
       questions: [
         { q: 'Kelelahan berat berdampak pada konsentrasi setara dengan…', options: ['Olahraga', 'Pengaruh alkohol', 'Sarapan', 'Peregangan'], correct: 1 },
         { q: 'Kehilangan kesadaran beberapa detik tanpa sadar disebut…', options: ['Microsleep', 'Refleks', 'Istirahat aktif', 'Fokus'], correct: 0 },

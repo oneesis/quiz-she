@@ -245,15 +245,35 @@
               <input class="admin-field" id="t-threshold" type="number" min="0" max="100" value="80" required />
             </div>
             <div>
-              <label class="block text-xs font-bold uppercase tracking-wide text-on-surface-variant mb-1" for="t-material">Materi (HTML diperbolehkan)</label>
-              <textarea class="admin-field font-mono text-xs" id="t-material" rows="8" required></textarea>
+              <label class="block text-xs font-bold uppercase tracking-wide text-on-surface-variant mb-1" for="t-image">Gambar Materi (opsional)</label>
+              <div id="t-image-preview-wrap" class="hidden mb-2">
+                <img id="t-image-preview" class="w-full max-h-48 object-cover rounded-lg border border-outline-variant" />
+                <button type="button" id="btn-remove-image" class="mt-1 text-xs font-bold text-error hover:underline">Hapus gambar</button>
+              </div>
+              <input type="file" accept="image/*" id="t-image" class="admin-field" />
+              <p id="t-image-status" class="text-xs text-on-surface-variant mt-1"></p>
             </div>
-            <div class="flex items-center justify-between pt-2">
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wide text-on-surface-variant mb-1" for="t-material">Materi</label>
+              <p class="text-xs text-on-surface-variant mb-1">Teks biasa — satu baris jadi satu paragraf. Awali baris dengan "- " untuk bullet, "## " untuk subjudul.</p>
+              <textarea class="admin-field text-sm" id="t-material" rows="8" required></textarea>
+            </div>
+            <div class="flex items-center justify-between pt-2 flex-wrap gap-2">
               <h3 class="font-bold text-primary">Bank Soal</h3>
-              <button type="button" id="btn-add-question" class="flex items-center gap-1 px-3 py-1.5 border border-outline-variant rounded-lg text-sm font-bold text-primary hover:bg-surface-container-low">
-                <span class="material-symbols-outlined text-[16px]">add</span>Soal
-              </button>
+              <div class="flex gap-2">
+                <button type="button" id="btn-download-csv-template" class="flex items-center gap-1 px-3 py-1.5 border border-outline-variant rounded-lg text-sm font-bold text-primary hover:bg-surface-container-low">
+                  <span class="material-symbols-outlined text-[16px]">download</span>Template CSV
+                </button>
+                <button type="button" id="btn-import-csv" class="flex items-center gap-1 px-3 py-1.5 border border-outline-variant rounded-lg text-sm font-bold text-primary hover:bg-surface-container-low">
+                  <span class="material-symbols-outlined text-[16px]">upload_file</span>Impor CSV
+                </button>
+                <input type="file" accept=".csv" id="csv-import-input" class="hidden" />
+                <button type="button" id="btn-add-question" class="flex items-center gap-1 px-3 py-1.5 border border-outline-variant rounded-lg text-sm font-bold text-primary hover:bg-surface-container-low">
+                  <span class="material-symbols-outlined text-[16px]">add</span>Soal
+                </button>
+              </div>
             </div>
+            <p id="csv-import-status" class="text-xs font-semibold"></p>
             <div id="questions-editor" class="space-y-4"></div>
 
             <div class="flex gap-3 pt-4">

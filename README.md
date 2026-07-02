@@ -70,10 +70,40 @@ Buka `admin.html` (mis. `http://localhost:8080/admin.html` atau `https://<user>.
 
 Navigasi lewat sidebar kiri, lima menu:
 - **Dashboard** — kartu ringkasan (total karyawan, total topik, sesi aktif, total partisipasi, rata-rata skor, tingkat kelulusan) dan daftar aktivitas terbaru. Semua angka dihitung dari data nyata yang sudah tercatat — tidak ada data contoh/placeholder.
-- **Topik** — tambah/edit/hapus topik: kode, judul, ambang lulus, materi (HTML), dan bank soal (pertanyaan + 4 opsi + jawaban benar).
+- **Topik** — tambah/edit/hapus topik: kode, judul, ambang lulus, gambar materi (opsional), materi (teks biasa), dan bank soal (ketik manual atau impor CSV). Detail di bawah.
 - **Sesi** — jadwalkan topik untuk tampil di kiosk: rentang tanggal berlaku, target perusahaan (opsional), status `draft`/`published`. Hanya sesi `published` & masih dalam rentang tanggal yang muncul di kiosk.
 - **Laporan** — ringkasan per perusahaan (jumlah peserta, lulus/belum, rata-rata skor, % kelulusan) di atas, lalu tabel detail per peserta yang bisa difilter per perusahaan, dengan tombol unduh CSV.
 - **Karyawan** — daftar seluruh karyawan (nama, NIK, perusahaan, jabatan, departemen) dengan pencarian. Baca saja — untuk mengubah roster, edit `SAMPLE.employees` di `config.js` (mode mock) atau tab `Master_Karyawan` di Sheet (mode apps_script).
+
+### Format materi
+
+Materi ditulis sebagai **teks biasa**, bukan HTML — aman dari kesalahan tag dan tidak bisa disalahgunakan untuk menyuntik HTML/script. Format ringan:
+- Setiap baris = satu paragraf.
+- Baris diawali `- ` = butir bullet (baris berurutan yang diawali `- ` otomatis jadi satu daftar).
+- Baris diawali `## ` = subjudul.
+
+Contoh:
+```
+Alat Pelindung Diri (APD) adalah pertahanan terakhir ketika bahaya tidak bisa dihilangkan dari sumbernya.
+## APD wajib di area operasi tambang
+- Helm keselamatan — lindungi kepala dari benturan.
+- Sepatu safety — pelindung ujung baja.
+## Prinsip pemakaian
+Periksa kondisi APD sebelum dipakai.
+```
+
+### Gambar materi
+
+Di editor topik ada field **Gambar Materi** (opsional) — pilih file dari perangkat, otomatis terupload ke folder Drive **"Quiz SHE Uploads"** (dibuat otomatis saat pertama kali dipakai) lewat Apps Script, lalu link-nya tersimpan di kolom `materialImage`. Di kiosk, gambar tampil di atas teks materi dan bisa diketuk untuk **diperbesar** (lightbox layar penuh, ketuk gambar untuk zoom in/out). Upload hanya berfungsi di mode `apps_script` — di mode `mock` tidak ada tempat penyimpanan file, jadi kontrol upload akan menampilkan pesan bahwa fitur ini tidak tersedia.
+
+### Impor soal lewat CSV
+
+Alih-alih mengetik soal satu per satu, admin bisa siapkan soal di Excel/Google Sheets lalu impor sekaligus:
+1. Klik **Template CSV** di editor topik untuk mengunduh contoh formatnya.
+2. Isi baris demi baris di Excel/Sheets, kolom: `pertanyaan, opsiA, opsiB, opsiC, opsiD, jawaban` (`jawaban` diisi huruf `A`/`B`/`C`/`D`).
+3. Export/simpan sebagai `.csv`, lalu klik **Impor CSV** di editor topik dan pilih file itu.
+
+Soal yang berhasil diparsing ditambahkan ke bank soal yang sudah ada (tidak menimpa); baris dengan data tidak lengkap atau huruf jawaban tidak valid dilewati dan dilaporkan jumlahnya.
 
 ---
 
@@ -90,7 +120,7 @@ Situs statis tidak bisa membaca/menulis Sheet privat sendiri secara aman. Jembat
 1. Di Google Sheet: **Ekstensi → Apps Script**, tempel skrip di bawah, isi `SS_ID`.
 2. Buat tab-tab berikut dengan header persis di baris 1:
    - `Partisipasi`: `waktu | nik | nama | perusahaan | topicCode | sessionId | attemptNo | score | passed | certificateNo | verificationToken`
-   - `Topics`: `code | title | passThreshold | material | questionsJson`
+   - `Topics`: `code | title | passThreshold | material | materialImage | questionsJson`
    - `Sessions`: `id | topicCode | title | validFrom | validUntil | targetCompanies | status`
 3. **Project Settings → Script Properties**, tambah `ADMIN_TOKEN` dengan nilai **sama persis** dengan `CONFIG.admin.password` di `assets/config.js`. Ini dipakai server-side untuk menolak aksi admin (simpan/hapus topik & sesi, lihat daftar karyawan) dari siapa pun yang tidak login lewat `admin.html`.
 4. **Deploy → New deployment → Web app**, *Execute as: Me*, *Who has access: Anyone*. Salin URL.
@@ -124,11 +154,29 @@ function doPost(e) {
   const p = body.payload;
   if (body.action === 'participation') { return json({ ok: true, certificateNo: appendResult(p) }); }
   if (!isAdmin(body.adminToken)) return json({ ok: false, error: 'unauthorized' });
-  if (body.action === 'topic_save')     { saveRow(TOPICS, 'code', p.code, [p.code, p.title, p.passThreshold, p.material, JSON.stringify(p.questions)]); return json({ ok: true }); }
+  if (body.action === 'topic_save')     { saveRow(TOPICS, 'code', p.code, { code: p.code, title: p.title, passThreshold: p.passThreshold, material: p.material, materialImage: p.materialImage, questionsJson: JSON.stringify(p.questions) }); return json({ ok: true }); }
   if (body.action === 'topic_delete')   { deleteRow(TOPICS, 'code', p.code); return json({ ok: true }); }
-  if (body.action === 'session_save')   { saveRow(SESSIONS, 'id', p.id, [p.id, p.topicCode, p.title, p.validFrom, p.validUntil, (p.targetCompanies || []).join(','), p.status]); return json({ ok: true }); }
+  if (body.action === 'session_save')   { saveRow(SESSIONS, 'id', p.id, { id: p.id, topicCode: p.topicCode, title: p.title, validFrom: p.validFrom, validUntil: p.validUntil, targetCompanies: (p.targetCompanies || []).join(','), status: p.status }); return json({ ok: true }); }
   if (body.action === 'session_delete') { deleteRow(SESSIONS, 'id', p.id); return json({ ok: true }); }
+  if (body.action === 'upload_image')   { return json({ ok: true, url: uploadImage_(p) }); }
   return json({ ok: false });
+}
+
+// Simpan gambar materi ke folder Drive "Quiz SHE Uploads" (dibuat otomatis
+// saat pertama kali dipakai) dan kembalikan URL yang bisa dipakai langsung
+// sebagai <img src>.
+function uploadImage_(p) {
+  const folder = getUploadsFolder_();
+  const bytes = Utilities.base64Decode(p.base64);
+  const blob = Utilities.newBlob(bytes, p.mimeType || 'image/jpeg', p.filename || 'materi.jpg');
+  const file = folder.createFile(blob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  return 'https://drive.google.com/uc?export=view&id=' + file.getId();
+}
+function getUploadsFolder_() {
+  const name = 'Quiz SHE Uploads';
+  const it = DriveApp.getFoldersByName(name);
+  return it.hasNext() ? it.next() : DriveApp.createFolder(name);
 }
 
 function listEmployees() {
@@ -170,7 +218,7 @@ function appendResult(p) {
 }
 function nextCertNo_(sheet, perusahaan) {
   const tz = Session.getScriptTimeZone();
-  const suffix = '/' + companyCode_(perusahaan) + '/' + Utilities.formatDate(new Date(), tz, 'MM/yy');
+  const suffix = '/ST/' + companyCode_(perusahaan) + '/' + Utilities.formatDate(new Date(), tz, 'MM/yy');
   const rows = sheet.getDataRange().getValues();
   const head = rows.length ? rows.shift() : [];
   const ci = head.indexOf('certificateNo');
@@ -204,7 +252,8 @@ function listTopics() {
   const head = rows.shift(); const c = n => head.indexOf(n);
   return rows.map(r => ({
     code: r[c('code')], title: r[c('title')], passThreshold: r[c('passThreshold')],
-    material: r[c('material')], questions: JSON.parse(r[c('questionsJson')] || '[]'),
+    material: r[c('material')], materialImage: r[c('materialImage')],
+    questions: JSON.parse(r[c('questionsJson')] || '[]'),
   }));
 }
 function listSessions() {
@@ -217,11 +266,13 @@ function listSessions() {
     status: r[c('status')],
   }));
 }
-// Simpan (tambah/timpa) baris berdasarkan kolom kunci; hapus baris via deleteRow.
-function saveRow(sheetName, keyCol, keyVal, rowValues) {
+// Simpan (tambah/timpa) baris berdasarkan kolom kunci, mengisi tiap kolom
+// sesuai NAMA header (bukan posisi). valuesByName: { namaKolom: nilai, ... }
+function saveRow(sheetName, keyCol, keyVal, valuesByName) {
   const sheet = SpreadsheetApp.openById(SS_ID).getSheetByName(sheetName);
   const rows = sheet.getDataRange().getValues();
   const head = rows[0]; const ci = head.indexOf(keyCol);
+  const rowValues = head.map(h => (h in valuesByName ? valuesByName[h] : ''));
   for (let i = 1; i < rows.length; i++) {
     if (String(rows[i][ci]) === String(keyVal)) { sheet.getRange(i + 1, 1, 1, rowValues.length).setValues([rowValues]); return; }
   }

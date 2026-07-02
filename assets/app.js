@@ -24,6 +24,24 @@
     return `${d.getDate()} ${b[d.getMonth()]} ${d.getFullYear()}`;
   }
   const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16); }));
+  function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+  // Materi ditulis sebagai teks biasa oleh admin (bukan HTML), format ringan:
+  // baris kosong belum diperlukan (tiap baris = satu paragraf), "- " di awal
+  // baris = butir bullet, "## " di awal baris = subjudul.
+  function renderMaterialText(text) {
+    let html = '', listOpen = false;
+    const closeList = () => { if (listOpen) { html += '</ul>'; listOpen = false; } };
+    String(text || '').split('\n').forEach(line => {
+      const t = line.trim();
+      if (!t) { closeList(); return; }
+      if (t.startsWith('## ')) { closeList(); html += `<h4>${escapeHtml(t.slice(3))}</h4>`; }
+      else if (t.startsWith('- ')) { if (!listOpen) { html += '<ul>'; listOpen = true; } html += `<li>${escapeHtml(t.slice(2))}</li>`; }
+      else { closeList(); html += `<p>${escapeHtml(t)}</p>`; }
+    });
+    closeList();
+    return html;
+  }
 
   // ---- navigasi layar ----
   function show(id) {
@@ -127,7 +145,16 @@
   // ============================================================
   function renderMaterial() {
     $('#material-title').textContent = S.topic.title;
-    $('#material-body').innerHTML = S.topic.material;
+    $('#material-body').innerHTML = renderMaterialText(S.topic.material);
+
+    const imgBtn = $('#material-image-btn');
+    if (S.topic.materialImage) {
+      $('#material-image').src = S.topic.materialImage;
+      imgBtn.hidden = false;
+    } else {
+      imgBtn.hidden = true;
+    }
+
     const btn = $('#btn-start-quiz');
     show('screen-material');
 
@@ -358,6 +385,18 @@
     return true;
   }
 
+  // ============================================================
+  // LIGHTBOX ZOOM GAMBAR
+  // ============================================================
+  function openLightbox(src) {
+    const img = $('#lightbox-img');
+    img.src = src;
+    img.classList.remove('is-zoomed');
+    $('#lightbox').hidden = false;
+  }
+  function closeLightbox() { $('#lightbox').hidden = true; }
+  function toggleZoom() { $('#lightbox-img').classList.toggle('is-zoomed'); }
+
   // ---- helper tombol sibuk ----
   function setBusy(sel, busy, label) {
     const b = $(sel);
@@ -385,6 +424,10 @@
     $('#btn-download').onclick = downloadPdf;
     $('#btn-cert-done').onclick = () => { reset(); renderLogin(); show('screen-login'); };
     $('#btn-verify-close').onclick = () => { history.replaceState(null, '', location.pathname); reset(); renderLogin(); show('screen-login'); };
+
+    $('#material-image-btn').onclick = () => openLightbox($('#material-image').src);
+    $('#lightbox-close').onclick = closeLightbox;
+    $('#lightbox-img').onclick = toggleZoom;
   }
 
   // ---- init ----

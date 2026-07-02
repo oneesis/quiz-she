@@ -86,6 +86,10 @@
       <section class="screen" id="screen-material">
         <span class="eyebrow">Materi</span>
         <h1 class="screen-title" id="material-title"></h1>
+        <button type="button" class="material-image-btn" id="material-image-btn" hidden>
+          <img id="material-image" alt="Gambar materi" />
+          <span class="material-image-hint">Ketuk untuk perbesar</span>
+        </button>
         <div class="material" id="material-body"></div>
         <div class="btn-row">
           <button class="btn btn--ghost" id="btn-material-back">Kembali</button>
@@ -219,6 +223,15 @@
 
     </div>
   </main>
+
+  <!-- lightbox zoom gambar materi -->
+  <div class="lightbox" id="lightbox" hidden>
+    <button type="button" class="lightbox__close" id="lightbox-close" aria-label="Tutup">✕</button>
+    <div class="lightbox__frame" id="lightbox-frame">
+      <img id="lightbox-img" alt="" />
+    </div>
+    <p class="lightbox__hint">Ketuk gambar untuk perbesar/perkecil</p>
+  </div>
 
   <!-- pustaka: QR + PDF -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>

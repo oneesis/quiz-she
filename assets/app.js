@@ -26,6 +26,22 @@
   const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16); }));
   function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
+  // ---- pemuatan lazy pustaka QR/PDF (dipakai cuma di layar sertifikat) ----
+  const loadedScripts = {};
+  function loadScript(src) {
+    if (!loadedScripts[src]) {
+      loadedScripts[src] = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = src; s.onload = resolve; s.onerror = () => reject(new Error('gagal memuat ' + src));
+        document.head.appendChild(s);
+      });
+    }
+    return loadedScripts[src];
+  }
+  const QRCODE_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+  const HTML2CANVAS_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+  const JSPDF_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+
   // Materi ditulis sebagai teks biasa oleh admin (bukan HTML), format ringan:
   // baris kosong belum diperlukan (tiap baris = satu paragraf), "- " di awal
   // baris = butir bullet, "## " di awal baris = subjudul.
@@ -399,16 +415,20 @@
     $('#cert-no').textContent = c.no;
 
     const qEl = $('#cert-qr');
-    qEl.innerHTML = '';
-    const verifyUrl = `${location.origin}${location.pathname}?verify=${c.token}`;
-    new QRCode(qEl, { text: verifyUrl, width: 108, height: 108, correctLevel: QRCode.CorrectLevel.M });
+    qEl.innerHTML = '<span class="muted" style="font-size:11px">Memuat QR…</span>';
     show('screen-certificate');
+    const verifyUrl = `${location.origin}${location.pathname}?verify=${c.token}`;
+    loadScript(QRCODE_SRC).then(() => {
+      qEl.innerHTML = '';
+      new QRCode(qEl, { text: verifyUrl, width: 108, height: 108, correctLevel: QRCode.CorrectLevel.M });
+    }).catch(() => { qEl.innerHTML = '<span class="muted" style="font-size:11px">Gagal memuat QR.</span>'; });
   }
 
   async function downloadPdf() {
     const btn = $('#btn-download');
     setBusy('#btn-download', true, 'Menyiapkan…');
     try {
+      await Promise.all([loadScript(HTML2CANVAS_SRC), loadScript(JSPDF_SRC)]);
       const node = $('#certificate');
       const canvas = await html2canvas(node, { scale: 2, backgroundColor: '#ffffff' });
       const img = canvas.toDataURL('image/png');
@@ -459,13 +479,25 @@
   // ============================================================
   // LIGHTBOX ZOOM GAMBAR
   // ============================================================
+  // Viewport dikunci (maximum-scale=1) di seluruh app supaya UI kuis tidak
+  // sengaja ke-zoom kalau kepencet di HP. Tapi di lightbox gambar materi,
+  // pinch-zoom justru yang diinginkan -- daripada menulis ulang logika
+  // gesture zoom manual (rawan bug: hitung jarak 2 jari, transform-origin,
+  // batas zoom, dst.), viewport dilonggarkan sementara supaya browser
+  // menangani pinch-zoom asli, lalu dikunci lagi begitu lightbox ditutup.
   function openLightbox(src) {
     const img = $('#lightbox-img');
     img.src = src;
     img.classList.remove('is-zoomed');
     $('#lightbox').hidden = false;
+    const vp = document.querySelector('meta[name=viewport]');
+    if (vp) { vp.dataset.prevContent = vp.content; vp.content = 'width=device-width, initial-scale=1, maximum-scale=5'; }
   }
-  function closeLightbox() { $('#lightbox').hidden = true; }
+  function closeLightbox() {
+    $('#lightbox').hidden = true;
+    const vp = document.querySelector('meta[name=viewport]');
+    if (vp && vp.dataset.prevContent) { vp.content = vp.dataset.prevContent; delete vp.dataset.prevContent; }
+  }
   function toggleZoom() { $('#lightbox-img').classList.toggle('is-zoomed'); }
 
   // ---- helper tombol sibuk ----
@@ -502,8 +534,13 @@
   }
 
   // ---- init ----
-  document.addEventListener('DOMContentLoaded', async () => {
-    // isi teks organisasi
+  // Skrip ini ditaruh di akhir <body>, jadi seluruh HTML yang dibutuhkan di
+  // sini sudah pasti ada saat baris ini dieksekusi -- tidak perlu menunggu
+  // event DOMContentLoaded, yang di halaman ini malah baru terpicu setelah
+  // skrip Tailwind (dipakai layar kuis/hasil) selesai di-JIT-compile oleh
+  // browser. Menunggunya cuma menunda tombol login bisa diklik tanpa alasan,
+  // apalagi di HP yang CPU-nya lebih lambat memproses compile itu.
+  (async () => {
     $$('[data-org-name]').forEach(el => el.textContent = C.org.name);
     $$('[data-org-short]').forEach(el => el.textContent = C.org.short);
     $$('[data-org-subtitle]').forEach(el => el.textContent = C.org.subtitle);
@@ -511,5 +548,5 @@
     if (await tryVerifyFromUrl()) return;
     renderLogin();
     show('screen-login');
-  });
+  })();
 })();

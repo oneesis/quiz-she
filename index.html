@@ -7,23 +7,32 @@
   <meta name="description" content="Sharing Session digital: baca materi, kerjakan kuis, dapatkan sertifikat." />
   <link rel="icon" href="assets/Logo EBL.png" />
   <link rel="stylesheet" href="assets/styles.css" />
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Barlow:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" />
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
   <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            primary: '#003063', 'primary-container': '#00468c', 'on-primary': '#ffffff',
-            secondary: '#7c5800', 'secondary-container': '#feb700', 'on-secondary-container': '#6b4b00',
-            surface: '#f7f9fb', 'on-surface': '#191c1e', 'on-surface-variant': '#424751',
-            'outline-variant': '#c2c6d2', 'surface-container': '#eceef0', 'surface-container-low': '#f2f4f6',
-            'surface-container-highest': '#e0e3e5', error: '#ba1a1a', 'error-container': '#ffdad6',
+    // Layar login/konfirmasi/sesi/materi/sertifikat pakai CSS sendiri (bukan
+    // Tailwind) -- Tailwind cuma dipakai layar kuis & hasil. CDN Tailwind
+    // men-JIT-compile di browser tiap kali dimuat (berat di HP), jadi
+    // skripnya di-defer supaya tidak menahan render layar login yang jauh
+    // lebih sering dibuka. Config-nya baru diisi lewat onload di bawah,
+    // setelah skrip Tailwind-nya sendiri selesai berjalan.
+    function applyTailwindConfig() {
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              primary: '#003063', 'primary-container': '#00468c', 'on-primary': '#ffffff',
+              secondary: '#7c5800', 'secondary-container': '#feb700', 'on-secondary-container': '#6b4b00',
+              surface: '#f7f9fb', 'on-surface': '#191c1e', 'on-surface-variant': '#424751',
+              'outline-variant': '#c2c6d2', 'surface-container': '#eceef0', 'surface-container-low': '#f2f4f6',
+              'surface-container-highest': '#e0e3e5', error: '#ba1a1a', 'error-container': '#ffdad6',
+            },
           },
         },
-      },
-    };
+      };
+    }
   </script>
+  <script src="https://cdn.tailwindcss.com" defer onload="applyTailwindConfig()"></script>
   <style>
     body.mode-focus .masthead { display: none; }
     .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; vertical-align: middle; }
@@ -234,10 +243,9 @@
     <p class="lightbox__hint">Ketuk gambar untuk perbesar/perkecil</p>
   </div>
 
-  <!-- pustaka: QR + PDF -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- pustaka QR + PDF dimuat lazy oleh app.js (lihat loadScript) -- hanya
+       dibutuhkan di layar sertifikat, tidak perlu membebani muat awal
+       (layar login dst.) yang jauh lebih sering diakses & lewat HP. -->
 
   <!-- aplikasi -->
   <script src="assets/config.js"></script>

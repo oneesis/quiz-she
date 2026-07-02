@@ -3,7 +3,10 @@
    Identitas: papan safety site. Signature: pita bahaya (hazard
    stripe) + kartu sertifikat bergaya izin kerja.
    ============================================================ */
-@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Barlow:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
+/* Font di-load lewat <link> di index.html (bukan @import di sini) supaya
+   browser bisa mengambilnya paralel dengan styles.css, bukan berurutan
+   setelahnya -- @import CSS antar-domain menambah satu round-trip network
+   penuh sebelum halaman bisa dirender. */
 
 :root {
   --ink:#141821;
@@ -159,8 +162,8 @@ h1.screen-title { font-family:'Archivo'; font-weight:800; font-size:26px; line-h
   display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
 }
 .lightbox[hidden] { display:none; }
-.lightbox__frame { width:100%; height:100%; overflow:auto; display:flex; align-items:center; justify-content:center; touch-action:pan-x pan-y; }
-.lightbox__frame img { max-width:92vw; max-height:82vh; cursor:zoom-in; transition:transform .2s ease; touch-action:pan-x pan-y; }
+.lightbox__frame { width:100%; height:100%; overflow:auto; display:flex; align-items:center; justify-content:center; touch-action:pan-x pan-y pinch-zoom; }
+.lightbox__frame img { max-width:92vw; max-height:82vh; cursor:zoom-in; transition:transform .2s ease; touch-action:pan-x pan-y pinch-zoom; }
 .lightbox__frame img.is-zoomed { cursor:zoom-out; max-width:none; max-height:none; }
 .lightbox__close {
   position:absolute; top:14px; right:14px; width:40px; height:40px; border-radius:50%;

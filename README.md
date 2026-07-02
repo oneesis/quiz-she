@@ -248,7 +248,7 @@ function appendResult(p) {
     const certificateNo = p.passed ? nextCertNo_(sheet, p.perusahaan) : null;
     sheet.appendRow([
       new Date(), p.nik, p.nama, p.perusahaan, p.topicCode, p.sessionId,
-      p.attemptNo, p.score, p.passed, certificateNo, p.verificationToken,
+      p.attemptNo, p.score, p.passed, certificateNo, p.verificationToken, p.answerBreakdown || '',
     ]);
     return certificateNo;
   } finally {
@@ -297,12 +297,16 @@ function findExisting(nik, sessionId) {
 function listParticipations() {
   const rows = SpreadsheetApp.openById(SS_ID).getSheetByName(RESULTS).getDataRange().getValues();
   const head = rows.shift(); const c = n => head.indexOf(n);
-  return rows.map(r => ({
+  return rows.map(r => {
+    let answerBreakdown = [];
+    try { answerBreakdown = JSON.parse(r[c('answerBreakdown')] || '[]'); } catch (e) { /* data lama/rusak -- abaikan */ }
+    return {
     submittedAt: r[c('waktu')], nik: r[c('nik')], nama: r[c('nama')], perusahaan: r[c('perusahaan')],
     topicCode: r[c('topicCode')], sessionId: r[c('sessionId')], attemptNo: r[c('attemptNo')],
     score: r[c('score')], passed: r[c('passed')], certificateNo: r[c('certificateNo')],
-    verificationToken: r[c('verificationToken')],
-  })).reverse();
+    verificationToken: r[c('verificationToken')], answerBreakdown,
+    };
+  }).reverse();
 }
 function listTopics() {
   const cached = cacheGet_('topics_v1');

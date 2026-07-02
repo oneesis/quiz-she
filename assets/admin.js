@@ -578,6 +578,7 @@
       lastReports = await API.listParticipations();
       renderCompanySummary(lastReports);
       renderTopicSummary(lastReports);
+      renderQuestionAnalytics(lastReports);
       populateFilter('#reports-company-filter', lastReports, p => p.perusahaan, 'Semua perusahaan');
       populateFilter('#reports-topic-filter', lastReports, p => p.topicCode, 'Semua topik');
       renderReportsTable(lastReports);
@@ -639,6 +640,39 @@
 
   function renderTopicSummary(list) {
     renderSummaryTable('#topic-summary-body', buildSummary(list, p => p.topicCode, 'Tanpa topik'));
+  }
+
+  // Direkap dari answerBreakdown tiap partisipasi (dikunci ke topik+teks soal,
+  // bukan indeks, karena soal yang tampil diacak & beda2 tiap percobaan).
+  // Percobaan dari sebelum fitur ini aktif tidak punya answerBreakdown, jadi
+  // otomatis tidak ikut terhitung -- bukan bug, cuma belum ada datanya.
+  function renderQuestionAnalytics(list) {
+    const groups = {};
+    list.forEach(p => {
+      (p.answerBreakdown || []).forEach(item => {
+        const key = (p.topicCode || '-') + '::' + item.q;
+        const g = groups[key] || (groups[key] = { topicCode: p.topicCode, q: item.q, served: 0, wrong: 0 });
+        g.served++;
+        if (!item.correct) g.wrong++;
+      });
+    });
+    const rows = Object.values(groups)
+      .map(g => ({ ...g, wrongRate: Math.round((g.wrong / g.served) * 100) }))
+      .sort((a, b) => b.wrongRate - a.wrongRate || b.served - a.served);
+
+    const wrap = $('#question-analytics-body');
+    if (!rows.length) {
+      wrap.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-on-surface-variant">Belum ada data. Analitik ini dihitung dari percobaan kuis setelah fitur ini aktif.</td></tr>`;
+      return;
+    }
+    wrap.innerHTML = rows.slice(0, 25).map(r => `
+      <tr>
+        <td class="px-6 py-3">${escapeHtml(r.topicCode || '-')}</td>
+        <td class="px-6 py-3">${escapeHtml(r.q)}</td>
+        <td class="px-6 py-3">${r.served}</td>
+        <td class="px-6 py-3">${r.wrong}</td>
+        <td class="px-6 py-3 font-bold ${r.wrongRate >= 50 ? 'text-error' : 'text-primary'}">${r.wrongRate}%</td>
+      </tr>`).join('');
   }
 
   function populateFilter(selId, list, keyFn, allLabel) {

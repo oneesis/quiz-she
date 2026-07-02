@@ -337,9 +337,32 @@
   // ============================================================
   // 6. PENILAIAN & HASIL
   // ============================================================
+  // Koneksi kiosk kadang putus sesaat -- coba kirim ulang otomatis beberapa
+  // kali (jeda makin lama) sebelum benar-benar minta karyawan klik ulang.
+  const SUBMIT_RETRY_DELAYS_MS = [1000, 2000, 4000];
+  async function submitWithRetry(payload) {
+    const btn = $('#btn-next');
+    for (let i = 0; i <= SUBMIT_RETRY_DELAYS_MS.length; i++) {
+      try {
+        return await API.saveParticipation(payload);
+      } catch (e) {
+        if (i === SUBMIT_RETRY_DELAYS_MS.length) throw e; // percobaan otomatis habis
+        btn.textContent = `Koneksi terganggu, mencoba lagi… (${i + 1}/${SUBMIT_RETRY_DELAYS_MS.length})`;
+        await new Promise(r => setTimeout(r, SUBMIT_RETRY_DELAYS_MS[i]));
+      }
+    }
+  }
+
   async function grade() {
     let correct = 0;
-    S.served.forEach((item, i) => { if (item.options[S.answers[i]] && item.options[S.answers[i]].correct) correct++; });
+    // Rincian benar/salah per soal (dikunci ke teks soal, bukan indeks --
+    // soal yang tampil beda2 tiap percobaan karena diacak dari bank soal)
+    // dipakai admin buat lihat soal mana yang paling sering salah dijawab.
+    const answerBreakdown = S.served.map((item, i) => {
+      const ok = !!(item.options[S.answers[i]] && item.options[S.answers[i]].correct);
+      if (ok) correct++;
+      return { q: item.q, correct: ok };
+    });
     S.correctCount = correct;
     S.score = Math.round(correct / S.served.length * 100);
     S.durationMs = Date.now() - S.startedAt;
@@ -353,12 +376,13 @@
     // simpan catatan partisipasi -- nomor sertifikat ditentukan oleh lapisan
     // data (localStorage di mode mock, Apps Script di mode apps_script) supaya
     // urutannya konsisten walau dipakai dari banyak perangkat sekaligus.
-    const saved = await API.saveParticipation({
+    const saved = await submitWithRetry({
       sessionId: S.session.id, topicCode: S.topic.code,
       nik: S.employee.nik, nama: S.employee.nama, perusahaan: S.employee.perusahaan,
       attemptNo: S.attemptNo, score: S.score, passed: S.passed,
       verificationToken: S.cert ? S.cert.token : null,
       submittedAt: new Date().toISOString(),
+      answerBreakdown: JSON.stringify(answerBreakdown),
     });
     if (S.cert) S.cert.no = saved.certificateNo;
     clearProgress(S.employee.nik, S.session.id); // sudah terkirim -- progres tersimpan tidak dibutuhkan lagi

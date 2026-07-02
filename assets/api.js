@@ -94,7 +94,14 @@
       return list.find(p => p.verificationToken === token) || null;
     },
     async listParticipations() {
-      return JSON.parse(store.get('participations') || '[]').slice().reverse();
+      // answerBreakdown disimpan sebagai string JSON (sama seperti kolom Sheet
+      // di mode apps_script) -- parse balik di sini supaya bentuknya konsisten
+      // dgn scriptApi.listParticipations (selalu array), bukan tanggung jawab
+      // tiap pemanggil buat nebak-nebak bentuknya.
+      return JSON.parse(store.get('participations') || '[]').slice().reverse().map(p => ({
+        ...p,
+        answerBreakdown: typeof p.answerBreakdown === 'string' ? JSON.parse(p.answerBreakdown || '[]') : (p.answerBreakdown || []),
+      }));
     },
     async listEmployees() { return window.SAMPLE.employees; },
 

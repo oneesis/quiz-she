@@ -205,6 +205,24 @@
           </div>
 
           <div class="bg-white rounded-2xl border border-outline-variant card-shadow overflow-hidden">
+            <div class="px-6 py-4 border-b border-outline-variant bg-surface-container-low">
+              <h3 class="font-bold text-primary">Analitik Soal — Paling Sering Salah</h3>
+              <p class="text-xs text-on-surface-variant mt-0.5">Masukan buat perbaiki materi/soal yang membingungkan. Diurutkan dari tingkat salah tertinggi.</p>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="bg-surface-container-low text-left text-xs uppercase tracking-wide text-on-surface-variant">
+                    <th class="px-6 py-3">Topik</th><th class="px-6 py-3">Soal</th>
+                    <th class="px-6 py-3">Muncul</th><th class="px-6 py-3">Salah</th><th class="px-6 py-3">Tingkat Salah</th>
+                  </tr>
+                </thead>
+                <tbody id="question-analytics-body" class="divide-y divide-outline-variant"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-outline-variant card-shadow overflow-hidden">
             <div class="px-6 py-4 border-b border-outline-variant bg-surface-container-low flex items-center justify-between flex-wrap gap-2">
               <div>
                 <h3 class="font-bold text-primary">Belum Lulus per Sesi</h3>

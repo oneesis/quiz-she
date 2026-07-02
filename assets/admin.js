@@ -57,10 +57,13 @@
     $('#reports-scope-note').textContent = API.mode === 'mock'
       ? 'Rekap partisipasi — mode demo, hanya tersimpan di browser ini.'
       : 'Rekap partisipasi dari Google Sheet.';
+    // Navigasi ke dashboard SEKARANG (bukan setelah data topik/sesi selesai
+    // dimuat) supaya klik tab lain oleh admin selagi data masih dimuat
+    // tidak tertimpa balik ke Dashboard begitu reloadData() selesai.
+    switchTab('dashboard');
     await reloadData();
     renderTopicsList();
     renderSessionsList();
-    switchTab('dashboard');
   }
 
   async function reloadData() {

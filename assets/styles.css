@@ -49,10 +49,9 @@ body {
 .masthead__stripe { height:8px; background:var(--stripe); }
 .masthead__bar { display:flex; align-items:center; gap:12px; padding:16px 20px; }
 .badge {
-  width:40px; height:40px; border-radius:9px; flex:0 0 auto;
-  background:var(--amber); color:var(--ink);
-  display:grid; place-items:center; font-family:'Archivo'; font-weight:800; font-size:20px;
-  box-shadow:inset 0 -3px 0 rgba(0,0,0,.15);
+  width:40px; height:40px; border-radius:50%; flex:0 0 auto;
+  background:#fff; object-fit:contain; padding:2px;
+  box-shadow:inset 0 -1px 0 rgba(0,0,0,.06);
 }
 .masthead__txt { line-height:1.1; }
 .masthead__title { font-family:'Archivo'; font-weight:800; font-size:15px; letter-spacing:.02em; }
@@ -146,8 +145,9 @@ h1.screen-title { font-family:'Archivo'; font-weight:800; font-size:26px; line-h
   background:#fff; border:1px solid var(--line); border-radius:var(--r); overflow:hidden;
   box-shadow:0 4px 16px rgba(20,24,33,.1);
 }
-.certificate__head { background:var(--ink); color:#fff; padding:16px 20px; position:relative; }
+.certificate__head { background:var(--ink); color:#fff; padding:16px 20px; position:relative; display:flex; align-items:center; gap:12px; }
 .certificate__head::after { content:''; position:absolute; left:0; right:0; bottom:0; height:6px; background:var(--stripe); }
+.certificate__logo { width:44px; height:44px; border-radius:50%; background:#fff; object-fit:contain; padding:2px; flex:0 0 auto; }
 .certificate__kicker { font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--amber); font-weight:700; }
 .certificate__h { font-family:'Archivo'; font-weight:800; font-size:19px; margin:3px 0 0; }
 .certificate__org { font-size:12px; color:var(--steel-2); margin-top:2px; }

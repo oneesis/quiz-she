@@ -37,6 +37,16 @@
     return n;
   }
 
+  // "001/ST/OFN/07/26" -- dipakai mockApi (penomoran lokal per perangkat).
+  // Mode apps_script: nomor ini dihitung di server (lihat README) supaya
+  // konsisten walau dipakai dari banyak kiosk sekaligus.
+  function buildCertNo(perusahaan) {
+    const now = new Date();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const yy = String(now.getFullYear()).slice(-2);
+    return `${String(nextSeq(perusahaan)).padStart(3, '0')}/ST/${companyCode(perusahaan)}/${mm}/${yy}`;
+  }
+
   // Konten kuis (topik + sesi) berasal dari config.js sebagai bawaan, tapi bisa
   // ditimpa lewat Panel Admin (admin.html). Mode mock: perubahan tersimpan di
   // localStorage perangkat ini saja. Mode apps_script: tersimpan di Google Sheet.
@@ -67,10 +77,12 @@
       return buildActiveSessions(employee, sessions, topics);
     },
     async saveParticipation(rec) {
+      const certificateNo = rec.passed ? buildCertNo(rec.perusahaan) : null;
+      const full = { ...rec, certificateNo };
       const list = JSON.parse(store.get('participations') || '[]');
-      list.push(rec);
+      list.push(full);
       store.set('participations', JSON.stringify(list));
-      return true;
+      return { certificateNo };
     },
     async findByToken(token) {
       const list = JSON.parse(store.get('participations') || '[]');
@@ -137,7 +149,7 @@
     },
     async saveParticipation(rec) {
       const data = await this._post('participation', rec);
-      return !!(data && data.ok);
+      return { certificateNo: (data && data.certificateNo) || null };
     },
     async findByToken(token) {
       const data = await this._get({ action: 'verify', token });
@@ -184,7 +196,5 @@
     listSessions: () => impl.listSessions(),
     saveSession: (s) => impl.saveSession(s),
     deleteSession: (id) => impl.deleteSession(id),
-    companyCode,
-    nextSeq,
   };
 })();

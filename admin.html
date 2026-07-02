@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
 <title>Panel Admin — LMS K3 EBL</title>
+<link rel="icon" href="assets/Logo EBL.png" />
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
@@ -52,6 +53,7 @@
   <!-- LOGIN -->
   <div id="admin-login-view" class="min-h-screen flex items-center justify-center p-4">
     <div class="w-full max-w-sm bg-white rounded-2xl border border-outline-variant card-shadow p-8">
+      <img src="assets/Logo EBL.png" alt="Logo PT EBL" class="w-14 h-14 rounded-full mb-3" />
       <h1 class="text-2xl font-extrabold text-primary">LMS K3 EBL</h1>
       <p class="text-sm text-on-surface-variant mb-6">Panel Admin · Safety Talk Digital</p>
       <label class="block text-xs font-bold uppercase tracking-wide text-on-surface-variant mb-1" for="admin-password">Password Admin</label>
@@ -66,9 +68,12 @@
   <!-- DASHBOARD SHELL -->
   <div id="admin-shell" class="hidden">
     <aside class="h-screen w-64 fixed left-0 top-0 bg-primary card-shadow flex flex-col py-6 px-4 overflow-y-auto z-50">
-      <div class="mb-8 px-2">
-        <h1 class="text-xl font-extrabold text-white">LMS K3 EBL</h1>
-        <p class="text-xs text-white/60" data-org-subtitle>Panel Admin</p>
+      <div class="mb-8 px-2 flex items-center gap-2">
+        <img src="assets/Logo EBL.png" alt="Logo PT EBL" class="w-9 h-9 rounded-full bg-white p-0.5 flex-shrink-0" />
+        <div>
+          <h1 class="text-lg font-extrabold text-white leading-tight">LMS K3 EBL</h1>
+          <p class="text-xs text-white/60" data-org-subtitle>Panel Admin</p>
+        </div>
       </div>
       <nav class="flex-1 space-y-1">
         <button data-tab="dashboard" class="nav-link is-active flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-colors">

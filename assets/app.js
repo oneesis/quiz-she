@@ -19,7 +19,6 @@
 
   // ---- util ----
   const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[a[i], a[j]] = [a[j], a[i]]; } return a; };
-  const pad = (n, w = 3) => String(n).padStart(w, '0');
   function fmtDate(d) {
     const b = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
     return `${d.getDate()} ${b[d.getMonth()]} ${d.getFullYear()}`;
@@ -240,25 +239,20 @@
     S.passed = S.score >= threshold;
 
     if (S.passed) {
-      const seq = API.nextSeq(S.employee.perusahaan);
-      const now = new Date();
-      const mm = pad(now.getMonth() + 1, 2), yy = String(now.getFullYear()).slice(-2);
-      S.cert = {
-        no: `${pad(seq)}/ST/${API.companyCode(S.employee.perusahaan)}/${mm}/${yy}`,
-        token: uuid(),
-        date: now,
-      };
+      S.cert = { no: null, token: uuid(), date: new Date() };
     }
 
-    // simpan catatan partisipasi
-    await API.saveParticipation({
+    // simpan catatan partisipasi -- nomor sertifikat ditentukan oleh lapisan
+    // data (localStorage di mode mock, Apps Script di mode apps_script) supaya
+    // urutannya konsisten walau dipakai dari banyak perangkat sekaligus.
+    const saved = await API.saveParticipation({
       sessionId: S.session.id, topicCode: S.topic.code,
       nik: S.employee.nik, nama: S.employee.nama, perusahaan: S.employee.perusahaan,
       attemptNo: S.attemptNo, score: S.score, passed: S.passed,
-      certificateNo: S.cert ? S.cert.no : null,
       verificationToken: S.cert ? S.cert.token : null,
       submittedAt: new Date().toISOString(),
     });
+    if (S.cert) S.cert.no = saved.certificateNo;
 
     renderResult(threshold);
     show('screen-result');

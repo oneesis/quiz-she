@@ -122,7 +122,7 @@ function doGet(e) {
 function doPost(e) {
   const body = JSON.parse(e.postData.contents);
   const p = body.payload;
-  if (body.action === 'participation') { appendResult(p); return json({ ok: true }); }
+  if (body.action === 'participation') { return json({ ok: true, certificateNo: appendResult(p) }); }
   if (!isAdmin(body.adminToken)) return json({ ok: false, error: 'unauthorized' });
   if (body.action === 'topic_save')     { saveRow(TOPICS, 'code', p.code, [p.code, p.title, p.passThreshold, p.material, JSON.stringify(p.questions)]); return json({ ok: true }); }
   if (body.action === 'topic_delete')   { deleteRow(TOPICS, 'code', p.code); return json({ ok: true }); }
@@ -151,11 +151,34 @@ function findEmployee(nik) {
     jabatan: hit[c('JABATAN')], departemen: hit[c('DEPARTEMEN')],
   } : {};
 }
+// Nomor sertifikat dihitung & baris ditulis dalam satu lock supaya dua
+// kiosk yang submit bersamaan tidak pernah dapat nomor yang sama.
 function appendResult(p) {
-  SpreadsheetApp.openById(SS_ID).getSheetByName(RESULTS).appendRow([
-    new Date(), p.nik, p.nama, p.perusahaan, p.topicCode, p.sessionId,
-    p.attemptNo, p.score, p.passed, p.certificateNo, p.verificationToken,
-  ]);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sheet = SpreadsheetApp.openById(SS_ID).getSheetByName(RESULTS);
+    const certificateNo = p.passed ? nextCertNo_(sheet, p.perusahaan) : null;
+    sheet.appendRow([
+      new Date(), p.nik, p.nama, p.perusahaan, p.topicCode, p.sessionId,
+      p.attemptNo, p.score, p.passed, certificateNo, p.verificationToken,
+    ]);
+    return certificateNo;
+  } finally {
+    lock.releaseLock();
+  }
+}
+function nextCertNo_(sheet, perusahaan) {
+  const tz = Session.getScriptTimeZone();
+  const suffix = '/' + companyCode_(perusahaan) + '/' + Utilities.formatDate(new Date(), tz, 'MM/yy');
+  const rows = sheet.getDataRange().getValues();
+  const head = rows.length ? rows.shift() : [];
+  const ci = head.indexOf('certificateNo');
+  const count = rows.filter(r => r[ci] && String(r[ci]).indexOf(suffix) !== -1).length;
+  return Utilities.formatString('%03d', count + 1) + suffix;
+}
+function companyCode_(perusahaan) {
+  return String(perusahaan || '').replace(/^PT\s+/i, '').trim().split(/\s+/)[0].toUpperCase() || 'NA';
 }
 function findByToken(token) {
   const rows = SpreadsheetApp.openById(SS_ID).getSheetByName(RESULTS).getDataRange().getValues();

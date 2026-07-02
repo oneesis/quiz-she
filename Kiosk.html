@@ -405,7 +405,7 @@
           '<h2 style="color:#047857">Selamat, Anda Lulus!</h2>' +
           '<p>Skor: ' + r.score + '%</p>' +
           (r.certificateNo ? '<p style="color:var(--slate-500)">No. Sertifikat: <span style="font-family:monospace">' + r.certificateNo + '</span></p>' : '') +
-          (r.verificationToken ? '<a class="btn btn-success" style="margin-top:8px;text-decoration:none" href="' + getVerifyLink_(r.verificationToken) + '" target="_blank">Lihat Sertifikat</a>' : '');
+          (r.verificationToken ? '<button class="btn btn-success" style="margin-top:8px" id="download-pdf">Unduh Sertifikat PDF</button>' : '');
       } else {
         div.innerHTML =
           '<svg class="icon-circle" viewBox="0 0 24 24" fill="none" stroke="#b91c1c" stroke-width="2"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="m9.5 9.5 5 5m0-5-5 5"/></svg>' +
@@ -423,12 +423,27 @@
           render();
         };
       }
+      var downloadBtn = div.querySelector('#download-pdf');
+      if (downloadBtn) {
+        downloadBtn.onclick = function () {
+          downloadBtn.disabled = true;
+          downloadBtn.innerText = 'Menyiapkan PDF...';
+          google.script.run
+            .withSuccessHandler(function (url) {
+              window.open(url, '_blank');
+              downloadBtn.disabled = false;
+              downloadBtn.innerText = 'Unduh Sertifikat PDF';
+            })
+            .withFailureHandler(function (err) {
+              alert('Gagal membuat PDF: ' + (err.message || String(err)));
+              downloadBtn.disabled = false;
+              downloadBtn.innerText = 'Unduh Sertifikat PDF';
+            })
+            .kioskGetCertificatePdfUrl(r.verificationToken);
+        };
+      }
       div.querySelector('#finish').onclick = function () { location.reload(); };
       return div;
-    }
-
-    function getVerifyLink_(token) {
-      return window.location.href.split('?')[0] + '?page=verify&token=' + encodeURIComponent(token);
     }
 
     render();

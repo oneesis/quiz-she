@@ -8,6 +8,7 @@ function doGet(e) {
     template.token = e.parameter.token || '';
     template.cert = template.token ? findCertificateByToken_(template.token) : null;
     template.qrImageUrl = qrImageUrl_(getScriptUrl_() + '?page=verify&token=' + encodeURIComponent(template.token));
+    template.pdfUrl = template.cert ? getCertificatePdfUrl_(template.token) : null;
   } else if (page === 'admin') {
     template = HtmlService.createTemplateFromFile('Admin');
   } else {
@@ -58,4 +59,8 @@ function kioskStartQuiz(sessionId, employeeId) {
 
 function kioskSubmitQuiz(participationId, answers) {
   return submitQuizAttempt_(participationId, answers);
+}
+
+function kioskGetCertificatePdfUrl(token) {
+  return getCertificatePdfUrl_(token);
 }

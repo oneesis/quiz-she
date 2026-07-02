@@ -34,6 +34,9 @@
         <div class="row"><dt>No. Sertifikat</dt><dd><?= cert.certificateNo ?></dd></div>
       </dl>
       <img class="qr" src="<?= qrImageUrl ?>" width="150" height="150" alt="QR verifikasi">
+      <? if (pdfUrl) { ?>
+        <a href="<?= pdfUrl ?>" target="_blank" style="display:block;margin-top:16px;background:#047857;color:#fff;text-decoration:none;padding:12px;border-radius:10px;font-weight:600">Unduh Sertifikat PDF</a>
+      <? } ?>
     <? } else { ?>
       <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#b91c1c" stroke-width="2"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="m9.5 9.5 5 5m0-5-5 5"/></svg>
       <h1 style="color:#b91c1c">Sertifikat Tidak Ditemukan</h1>

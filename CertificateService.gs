@@ -59,3 +59,44 @@ function findCertificateByToken_(token) {
 function qrImageUrl_(verifyUrl) {
   return 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent(verifyUrl);
 }
+
+/**
+ * Builds (or reuses, if already generated) a downloadable PDF certificate
+ * for a passed participation, saved in the uploads Drive folder. The QR is
+ * fetched and embedded as a base64 data URI rather than left as an external
+ * <img src> — Apps Script's HTML→PDF conversion doesn't reliably fetch
+ * remote images at render time, but it does render already-embedded data.
+ */
+function getCertificatePdfUrl_(token) {
+  const cert = findCertificateByToken_(token);
+
+  if (!cert) {
+    throw new Error('Sertifikat tidak ditemukan.');
+  }
+
+  const folder = getUploadsFolder_();
+  const filename = 'Sertifikat-' + cert.certificateNo.replace(/\//g, '-') + '.pdf';
+
+  const existingFiles = folder.getFilesByName(filename);
+  if (existingFiles.hasNext()) {
+    return existingFiles.next().getUrl();
+  }
+
+  const verifyUrl = getScriptUrl_() + '?page=verify&token=' + encodeURIComponent(token);
+  const qrBlob = UrlFetchApp.fetch(qrImageUrl_(verifyUrl)).getBlob();
+  const qrDataUri = 'data:image/png;base64,' + Utilities.base64Encode(qrBlob.getBytes());
+
+  const template = HtmlService.createTemplateFromFile('CertificateTemplate');
+  template.cert = cert;
+  template.verifyUrl = verifyUrl;
+  template.qrDataUri = qrDataUri;
+
+  const html = template.evaluate().getContent();
+  const pdfBlob = Utilities.newBlob(html, MimeType.HTML, filename).getAs(MimeType.PDF);
+  pdfBlob.setName(filename);
+
+  const file = folder.createFile(pdfBlob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+  return file.getUrl();
+}

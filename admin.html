@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>Panel Admin — Safety Talk Digital</title>
+  <link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+  <main class="app admin-app">
+    <header class="masthead">
+      <div class="masthead__stripe"></div>
+      <div class="masthead__bar">
+        <div class="badge" data-org-short>PT EBL</div>
+        <div class="masthead__txt">
+          <div class="masthead__title" data-org-name>PT Energi Batubara Lestari</div>
+          <div class="masthead__sub">Panel Admin · Safety Talk Digital</div>
+        </div>
+      </div>
+    </header>
+
+    <div class="stage">
+
+      <!-- LOGIN ADMIN -->
+      <section class="screen" id="admin-screen-login">
+        <span class="eyebrow">Admin</span>
+        <h1 class="screen-title">Masuk Panel Admin</h1>
+        <p class="lead">Kelola topik, jadwal sesi, dan laporan partisipasi.</p>
+        <label class="field-label" for="admin-password">Password Admin</label>
+        <input class="nik-field" id="admin-password" type="password" autocomplete="off" />
+        <div class="error" id="admin-login-error" role="alert"></div>
+        <div class="stack">
+          <button class="btn btn--primary" id="btn-admin-login">Masuk</button>
+          <a class="btn btn--ghost" href="index.html">← Kembali ke Kiosk</a>
+        </div>
+      </section>
+
+      <!-- DASHBOARD -->
+      <section class="screen" id="admin-screen-dashboard">
+        <div class="admin-topbar">
+          <div>
+            <span class="eyebrow">Admin</span>
+            <h1 class="screen-title">Dashboard</h1>
+          </div>
+          <button class="btn btn--ghost admin-topbar__logout" id="btn-admin-logout">Keluar</button>
+        </div>
+
+        <nav class="admin-tabs">
+          <button class="admin-tab is-active" data-tab="topics">Topik</button>
+          <button class="admin-tab" data-tab="sessions">Sesi</button>
+          <button class="admin-tab" data-tab="reports">Laporan</button>
+        </nav>
+
+        <!-- TAB: TOPIK -->
+        <div class="admin-panel" id="panel-topics">
+          <div class="admin-panel__head">
+            <p class="muted">Materi &amp; bank soal per topik Safety Talk.</p>
+            <button class="btn btn--primary admin-btn-sm" id="btn-new-topic">+ Topik Baru</button>
+          </div>
+          <div class="admin-list" id="topics-list"></div>
+        </div>
+
+        <!-- TAB: SESI -->
+        <div class="admin-panel" id="panel-sessions" hidden>
+          <div class="admin-panel__head">
+            <p class="muted">Jadwal terbit topik. Hanya sesi <strong>published</strong> &amp; berlaku yang tampil di kiosk.</p>
+            <button class="btn btn--primary admin-btn-sm" id="btn-new-session">+ Sesi Baru</button>
+          </div>
+          <div class="admin-list" id="sessions-list"></div>
+        </div>
+
+        <!-- TAB: LAPORAN -->
+        <div class="admin-panel" id="panel-reports" hidden>
+          <div class="admin-panel__head">
+            <p class="muted" id="reports-scope-note">Rekap partisipasi.</p>
+            <button class="btn btn--ghost admin-btn-sm" id="btn-export-csv">Unduh CSV</button>
+          </div>
+          <div class="admin-table-wrap">
+            <table class="admin-table" id="reports-table">
+              <thead>
+                <tr>
+                  <th>Waktu</th><th>Nama</th><th>NIK</th><th>Perusahaan</th>
+                  <th>Topik</th><th>Skor</th><th>Status</th><th>No. Sertifikat</th>
+                </tr>
+              </thead>
+              <tbody id="reports-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- EDITOR TOPIK -->
+      <section class="screen" id="admin-screen-topic-editor">
+        <span class="eyebrow" id="topic-editor-eyebrow">Topik</span>
+        <h1 class="screen-title" id="topic-editor-title">Topik Baru</h1>
+        <form id="topic-form">
+          <label class="field-label" for="t-code">Kode Topik (unik)</label>
+          <input class="admin-input" id="t-code" placeholder="mis. ST-APD" required />
+
+          <label class="field-label" for="t-title">Judul</label>
+          <input class="admin-input" id="t-title" required />
+
+          <label class="field-label" for="t-threshold">Ambang Lulus (%)</label>
+          <input class="admin-input" id="t-threshold" type="number" min="0" max="100" value="80" required />
+
+          <label class="field-label" for="t-material">Materi (HTML diperbolehkan)</label>
+          <textarea class="admin-textarea" id="t-material" rows="8" required></textarea>
+
+          <div class="admin-panel__head">
+            <label class="field-label" style="margin:0">Bank Soal</label>
+            <button type="button" class="btn btn--ghost admin-btn-sm" id="btn-add-question">+ Soal</button>
+          </div>
+          <div id="questions-editor"></div>
+
+          <div class="btn-row" style="margin-top:24px">
+            <button type="button" class="btn btn--ghost" id="btn-topic-cancel">Batal</button>
+            <button type="submit" class="btn btn--primary">Simpan Topik</button>
+          </div>
+          <button type="button" class="btn btn--ghost admin-danger" id="btn-topic-delete" hidden>Hapus Topik</button>
+        </form>
+      </section>
+
+      <!-- EDITOR SESI -->
+      <section class="screen" id="admin-screen-session-editor">
+        <span class="eyebrow" id="session-editor-eyebrow">Sesi</span>
+        <h1 class="screen-title" id="session-editor-title">Sesi Baru</h1>
+        <form id="session-form">
+          <label class="field-label" for="s-topic">Topik</label>
+          <select class="admin-input" id="s-topic" required></select>
+
+          <label class="field-label" for="s-title">Judul Sesi (opsional)</label>
+          <input class="admin-input" id="s-title" placeholder="kosongkan = pakai judul topik" />
+
+          <div class="btn-row">
+            <div style="flex:1">
+              <label class="field-label" for="s-from">Berlaku Dari</label>
+              <input class="admin-input" id="s-from" type="date" required />
+            </div>
+            <div style="flex:1">
+              <label class="field-label" for="s-until">Berlaku Sampai</label>
+              <input class="admin-input" id="s-until" type="date" required />
+            </div>
+          </div>
+
+          <label class="field-label" for="s-companies">Target Perusahaan (opsional, pisah koma — kosong = semua)</label>
+          <input class="admin-input" id="s-companies" placeholder="mis. PT OFN, PT SCI" />
+
+          <label class="field-label" for="s-status">Status</label>
+          <select class="admin-input" id="s-status">
+            <option value="draft">Draft (belum tampil di kiosk)</option>
+            <option value="published">Published (tampil di kiosk)</option>
+          </select>
+
+          <div class="btn-row" style="margin-top:24px">
+            <button type="button" class="btn btn--ghost" id="btn-session-cancel">Batal</button>
+            <button type="submit" class="btn btn--primary">Simpan Sesi</button>
+          </div>
+          <button type="button" class="btn btn--ghost admin-danger" id="btn-session-delete" hidden>Hapus Sesi</button>
+        </form>
+      </section>
+
+    </div>
+  </main>
+
+  <script src="assets/config.js"></script>
+  <script src="assets/api.js"></script>
+  <script src="assets/admin.js"></script>
+</body>
+</html>

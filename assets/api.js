@@ -36,13 +36,22 @@
     return n;
   }
 
-  // Konten kuis (topik + sesi) selalu dari repo (config.js), di kedua mode.
-  // Hanya roster karyawan & hasil yang lewat Google Sheet saat mode apps_script.
-  function buildActiveSessions(employee) {
-    return window.SAMPLE.sessions
+  // Konten kuis (topik + sesi) berasal dari config.js sebagai bawaan, tapi bisa
+  // ditimpa lewat Panel Admin (admin.html). Mode mock: perubahan tersimpan di
+  // localStorage perangkat ini saja. Mode apps_script: tersimpan di Google Sheet.
+  function readOverride(key, fallback) {
+    const raw = store.get(key);
+    if (raw === null) return fallback.slice();
+    try { const list = JSON.parse(raw); return Array.isArray(list) ? list : fallback.slice(); }
+    catch (e) { return fallback.slice(); }
+  }
+  function writeOverride(key, list) { store.set(key, JSON.stringify(list)); }
+
+  function buildActiveSessions(employee, sessions, topics) {
+    return sessions
       .filter(s => s.status === 'published' && todayInRange(s.validFrom, s.validUntil))
-      .filter(s => !s.targetCompanies.length || s.targetCompanies.includes(employee.perusahaan))
-      .map(s => ({ ...s, topic: window.SAMPLE.topics.find(t => t.code === s.topicCode) }))
+      .filter(s => !(s.targetCompanies || []).length || s.targetCompanies.includes(employee.perusahaan))
+      .map(s => ({ ...s, topic: topics.find(t => t.code === s.topicCode) }))
       .filter(s => s.topic);
   }
 
@@ -53,7 +62,8 @@
       return window.SAMPLE.employees.find(e => e.nik.toLowerCase() === key) || null;
     },
     async activeSessions(employee) {
-      return buildActiveSessions(employee);
+      const [sessions, topics] = await Promise.all([this.listSessions(), this.listTopics()]);
+      return buildActiveSessions(employee, sessions, topics);
     },
     async saveParticipation(rec) {
       const list = JSON.parse(store.get('participations') || '[]');
@@ -64,6 +74,35 @@
     async findByToken(token) {
       const list = JSON.parse(store.get('participations') || '[]');
       return list.find(p => p.verificationToken === token) || null;
+    },
+    async listParticipations() {
+      return JSON.parse(store.get('participations') || '[]').slice().reverse();
+    },
+
+    async listTopics() { return readOverride('admin_topics', window.SAMPLE.topics); },
+    async saveTopic(topic) {
+      const list = readOverride('admin_topics', window.SAMPLE.topics);
+      const i = list.findIndex(t => t.code === topic.code);
+      if (i >= 0) list[i] = topic; else list.push(topic);
+      writeOverride('admin_topics', list);
+      return topic;
+    },
+    async deleteTopic(code) {
+      writeOverride('admin_topics', readOverride('admin_topics', window.SAMPLE.topics).filter(t => t.code !== code));
+      return true;
+    },
+
+    async listSessions() { return readOverride('admin_sessions', window.SAMPLE.sessions); },
+    async saveSession(session) {
+      const list = readOverride('admin_sessions', window.SAMPLE.sessions);
+      const i = list.findIndex(s => s.id === session.id);
+      if (i >= 0) list[i] = session; else list.push(session);
+      writeOverride('admin_sessions', list);
+      return session;
+    },
+    async deleteSession(id) {
+      writeOverride('admin_sessions', readOverride('admin_sessions', window.SAMPLE.sessions).filter(s => s.id !== id));
+      return true;
     },
   };
 
@@ -77,25 +116,49 @@
       if (!res.ok) throw new Error('Gagal menghubungi server data');
       return res.json();
     },
+    async _post(action, payload) {
+      const res = await fetch(C.appsScriptUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // hindari preflight CORS
+        body: JSON.stringify({ action, payload }),
+      });
+      if (!res.ok) throw new Error('Gagal menyimpan ke server data');
+      return res.json();
+    },
     async findEmployee(nik) {
       const data = await this._get({ action: 'employee', nik: (nik || '').trim() });
       return data && data.nik ? data : null;
     },
     async activeSessions(employee) {
-      return buildActiveSessions(employee); // konten dari repo (config.js)
+      const [sessions, topics] = await Promise.all([this.listSessions(), this.listTopics()]);
+      return buildActiveSessions(employee, sessions, topics);
     },
     async saveParticipation(rec) {
-      const res = await fetch(C.appsScriptUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // hindari preflight CORS
-        body: JSON.stringify({ action: 'participation', payload: rec }),
-      });
-      return res.ok;
+      const data = await this._post('participation', rec);
+      return !!(data && data.ok);
     },
     async findByToken(token) {
       const data = await this._get({ action: 'verify', token });
       return data && data.verificationToken ? data : null;
     },
+    async listParticipations() {
+      const data = await this._get({ action: 'participations' });
+      return Array.isArray(data) ? data : [];
+    },
+
+    async listTopics() {
+      const data = await this._get({ action: 'topics' });
+      return Array.isArray(data) && data.length ? data : window.SAMPLE.topics;
+    },
+    async saveTopic(topic) { await this._post('topic_save', topic); return topic; },
+    async deleteTopic(code) { await this._post('topic_delete', { code }); return true; },
+
+    async listSessions() {
+      const data = await this._get({ action: 'sessions' });
+      return Array.isArray(data) && data.length ? data : window.SAMPLE.sessions;
+    },
+    async saveSession(session) { await this._post('session_save', session); return session; },
+    async deleteSession(id) { await this._post('session_delete', { id }); return true; },
   };
 
   const impl = C.dataSource === 'apps_script' ? scriptApi : mockApi;
@@ -106,6 +169,13 @@
     activeSessions: (emp) => impl.activeSessions(emp),
     saveParticipation: (rec) => impl.saveParticipation(rec),
     findByToken: (t) => impl.findByToken(t),
+    listParticipations: () => impl.listParticipations(),
+    listTopics: () => impl.listTopics(),
+    saveTopic: (t) => impl.saveTopic(t),
+    deleteTopic: (code) => impl.deleteTopic(code),
+    listSessions: () => impl.listSessions(),
+    saveSession: (s) => impl.saveSession(s),
+    deleteSession: (id) => impl.deleteSession(id),
     companyCode,
     nextSeq,
   };

@@ -23,6 +23,15 @@ window.CONFIG = {
   minMaterialSeconds: 8,      // durasi minimum baca materi sebelum kuis terbuka
   idleResetSeconds: 120,      // auto-reset kiosk saat tidak ada aktivitas
   showDemoHint: true,         // tampilkan NIK contoh di layar login (matikan di produksi)
+
+  admin: {
+    // Gerbang login panel admin (admin.html). Ini pengecekan di sisi
+    // browser saja, BUKAN autentikasi yang aman — siapa pun yang bisa
+    // melihat file ini bisa melihat password-nya. Ganti sebelum deploy,
+    // dan lihat catatan keamanan di README sebelum memakai ini untuk
+    // data sensitif.
+    password: 'ebl-admin',
+  },
 };
 
 /* ============================================================

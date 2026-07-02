@@ -41,6 +41,10 @@
     .options-row { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
     .options-row input:first-child { max-width:60px; margin:0; }
     .options-row input:last-child { margin:0; }
+    .error-box { background:#fef2f2; border:2px solid #fecaca; color:#991b1b; border-radius:12px; padding:12px 16px; margin-bottom:16px; font-weight:500; font-size:14px; }
+    .spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(0,0,0,.15); border-top-color: var(--orange); border-radius:50%; animation:spin .7s linear infinite; vertical-align:-2px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 1.4s; } }
   </style>
 </head>
 <body>
@@ -65,7 +69,10 @@
       </div>
     </div>
     <div class="tabs" id="tabs"></div>
-    <div class="content" id="tab-content"></div>
+    <div class="content">
+      <div id="admin-error"></div>
+      <div id="tab-content"></div>
+    </div>
   </div>
 
   <div id="modal-root"></div>
@@ -119,8 +126,9 @@
     function switchTab(key) {
       activeTab = key;
       renderTabs();
+      clearAdminError_();
       var content = document.getElementById('tab-content');
-      content.innerHTML = '<p style="color:var(--slate-500)">Memuat...</p>';
+      content.innerHTML = '<p style="color:var(--slate-500)"><span class="spinner"></span> Memuat...</p>';
       if (key === 'dashboard') loadDashboard();
       else if (key === 'topics') loadTopics();
       else if (key === 'sessions') loadSessions();
@@ -132,6 +140,20 @@
     function esc(s) { var d = document.createElement('div'); d.innerText = (s === undefined || s === null) ? '' : s; return d.innerHTML; }
     function closeModal() { document.getElementById('modal-root').innerHTML = ''; }
     function openModal(html) { document.getElementById('modal-root').innerHTML = '<div class="modal-backdrop" onclick="if(event.target===this) closeModal()"><div class="modal">' + html + '</div></div>'; }
+
+    /**
+     * Shared failure handler for every google.script.run call below — without
+     * this, a server-side error just silently leaves the UI on its previous
+     * (often ambiguous, e.g. "loading...") state with no explanation.
+     */
+    function handleAdminError_(err) {
+      document.getElementById('admin-error').innerHTML =
+        '<div class="error-box" role="alert">Gagal memuat/menyimpan: ' + esc(err.message || String(err)) + '</div>';
+    }
+
+    function clearAdminError_() {
+      document.getElementById('admin-error').innerHTML = '';
+    }
 
     /* ---------------- Dashboard ---------------- */
     function loadDashboard() {
@@ -148,7 +170,7 @@
           '</div>' +
           '<div class="card" style="margin-top:20px"><h3>Rekap per Perusahaan</h3>' +
           '<table><thead><tr><th>Perusahaan</th><th>Total</th><th>Lulus</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
-      }).adminGetDashboard(TOKEN);
+      }).withFailureHandler(handleAdminError_).adminGetDashboard(TOKEN);
     }
 
     /* ---------------- Companies ---------------- */
@@ -162,7 +184,7 @@
         document.getElementById('tab-content').innerHTML =
           '<div class="toprow"><h2>Perusahaan</h2><button class="btn btn-primary" onclick="editCompany()">+ Tambah</button></div>' +
           '<div class="card"><table><thead><tr><th>Nama</th><th>Kode</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>';
-      }).adminListCompanies(TOKEN);
+      }).withFailureHandler(handleAdminError_).adminListCompanies(TOKEN);
     }
 
     function editCompany(id) {
@@ -180,7 +202,7 @@
     function saveCompany(id) {
       var data = { name: document.getElementById('f-name').value, code: document.getElementById('f-code').value };
       if (id) data.id = id;
-      google.script.run.withSuccessHandler(function () { closeModal(); loadCompanies(); }).adminSaveCompany(TOKEN, data);
+      google.script.run.withSuccessHandler(function () { closeModal(); loadCompanies(); }).withFailureHandler(handleAdminError_).adminSaveCompany(TOKEN, data);
     }
 
     /* ---------------- Employees ---------------- */
@@ -198,7 +220,7 @@
           '<button class="btn btn-primary" onclick="editEmployee()">+ Tambah</button></div></div>' +
           '<div id="sync-result"></div>' +
           '<div class="card"><table><thead><tr><th>NIK</th><th>Nama</th><th>Perusahaan</th><th>Status</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>';
-      }).adminListEmployees(TOKEN);
+      }).withFailureHandler(handleAdminError_).adminListEmployees(TOKEN);
     }
 
     function syncEmployees() {
@@ -246,7 +268,7 @@
         '<button class="btn btn-primary" onclick="saveEmployee(' + (id || 'null') + ')">Simpan</button>' +
         '<button class="btn" onclick="closeModal()">Batal</button></div>'
       );
-      if (!cache.companies) google.script.run.withSuccessHandler(function (list) { cache.companies = list; }).adminListCompanies(TOKEN);
+      if (!cache.companies) google.script.run.withSuccessHandler(function (list) { cache.companies = list; }).withFailureHandler(handleAdminError_).adminListCompanies(TOKEN);
     }
 
     function saveEmployee(id) {
@@ -260,7 +282,7 @@
         status: document.getElementById('f-status').value,
       };
       if (id) data.id = id;
-      google.script.run.withSuccessHandler(function () { closeModal(); loadEmployees(); }).adminSaveEmployee(TOKEN, data);
+      google.script.run.withSuccessHandler(function () { closeModal(); loadEmployees(); }).withFailureHandler(handleAdminError_).adminSaveEmployee(TOKEN, data);
     }
 
     /* ---------------- Topics & Questions ---------------- */
@@ -276,7 +298,7 @@
         document.getElementById('tab-content').innerHTML =
           '<div class="toprow"><h2>Topik</h2><button class="btn btn-primary" onclick="editTopic()">+ Tambah Topik</button></div>' +
           '<div class="card"><table><thead><tr><th>Kode</th><th>Judul</th><th>Jml Soal</th><th>Ambang Lulus</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>';
-      }).adminListTopics(TOKEN);
+      }).withFailureHandler(handleAdminError_).adminListTopics(TOKEN);
     }
 
     function editTopic(id) {
@@ -312,14 +334,14 @@
         is_active: true,
       };
       if (id) data.id = id;
-      google.script.run.withSuccessHandler(function () { closeModal(); loadTopics(); }).adminSaveTopic(TOKEN, data);
+      google.script.run.withSuccessHandler(function () { closeModal(); loadTopics(); }).withFailureHandler(handleAdminError_).adminSaveTopic(TOKEN, data);
     }
 
     function manageQuestions(topicId, topicTitle) {
       google.script.run.withSuccessHandler(function (list) {
         cache.questions = list;
         renderQuestionsModal(topicId, topicTitle);
-      }).adminListQuestions(TOKEN, topicId);
+      }).withFailureHandler(handleAdminError_).adminListQuestions(TOKEN, topicId);
     }
 
     function renderQuestionsModal(topicId, topicTitle) {
@@ -368,7 +390,7 @@
         is_active: true,
       };
       if (id) data.id = id;
-      google.script.run.withSuccessHandler(function () { manageQuestions(topicId, topicTitle); }).adminSaveQuestion(TOKEN, data);
+      google.script.run.withSuccessHandler(function () { manageQuestions(topicId, topicTitle); }).withFailureHandler(handleAdminError_).adminSaveQuestion(TOKEN, data);
     }
 
     /* ---------------- Sessions ---------------- */
@@ -383,9 +405,9 @@
         document.getElementById('tab-content').innerHTML =
           '<div class="toprow"><h2>Session</h2><button class="btn btn-primary" onclick="editSession()">+ Tambah Session</button></div>' +
           '<div class="card"><table><thead><tr><th>Topik</th><th>Dari</th><th>Sampai</th><th>Status</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>';
-      }).adminListSessions(TOKEN);
+      }).withFailureHandler(handleAdminError_).adminListSessions(TOKEN);
 
-      if (!cache.topics) google.script.run.withSuccessHandler(function (list) { cache.topics = list; }).adminListTopics(TOKEN);
+      if (!cache.topics) google.script.run.withSuccessHandler(function (list) { cache.topics = list; }).withFailureHandler(handleAdminError_).adminListTopics(TOKEN);
     }
 
     function toLocalInput_(dateVal) {
@@ -426,7 +448,7 @@
         status: document.getElementById('f-status').value,
       };
       if (id) data.id = id;
-      google.script.run.withSuccessHandler(function () { closeModal(); loadSessions(); }).adminSaveSession(TOKEN, data);
+      google.script.run.withSuccessHandler(function () { closeModal(); loadSessions(); }).withFailureHandler(handleAdminError_).adminSaveSession(TOKEN, data);
     }
 
     /* ---------------- Participations ---------------- */
@@ -440,7 +462,7 @@
         document.getElementById('tab-content').innerHTML =
           '<h2>Partisipasi</h2>' +
           '<div class="card"><table><thead><tr><th>Karyawan</th><th>Perusahaan</th><th>Topik</th><th>Skor</th><th>Status</th><th>Tanggal</th><th>No. Sertifikat</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
-      }).adminListParticipations(TOKEN);
+      }).withFailureHandler(handleAdminError_).adminListParticipations(TOKEN);
     }
 
     document.getElementById('login-password').addEventListener('keydown', function (e) {

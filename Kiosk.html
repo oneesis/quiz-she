@@ -109,6 +109,12 @@
       padding:12px 16px; font-size:13px; color:var(--slate-500); text-align:center;
     }
     .badge { display:inline-block; background:#fff7ed; color:#9a3412; font-weight:600; font-size:13px; padding:4px 10px; border-radius:8px; }
+    .spinner { display:inline-block; width:18px; height:18px; border:3px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; vertical-align:middle; }
+    .btn-outline .spinner, .btn.loading-outline .spinner { border-color: rgba(51,65,85,.25); border-top-color: var(--slate-700); }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-block { text-align:center; padding:32px 0; color:var(--slate-500); }
+    .loading-block .spinner { border-color: rgba(100,116,139,.25); border-top-color: var(--orange); width:28px; height:28px; border-width:3px; margin-bottom:12px; }
+    @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 1.4s; } }
   </style>
 </head>
 <body>
@@ -118,6 +124,7 @@
       <p>PT Energi Batubara Lestari</p>
     </div>
     <div id="progress"></div>
+    <div id="error-slot"></div>
     <div id="app"></div>
   </div>
 
@@ -130,6 +137,7 @@
       step: 'nik',
       employee: null,
       sessions: [],
+      sessionsLoaded: false,
       selectedSessionId: null,
       topic: null,
       participationId: null,
@@ -144,8 +152,26 @@
     var STEP_ORDER = ['confirm', 'session', 'material', 'quiz'];
     var STEP_LABELS = { confirm: 'Konfirmasi', session: 'Pilih Topik', material: 'Baca Materi', quiz: 'Kerjakan Kuis' };
 
+    /**
+     * Wraps every google.script.run call so failures are never silently
+     * swallowed (a missing failure handler here previously made "gagal
+     * memuat" look identical to "memang tidak ada data").
+     */
+    function call_(fnName, args, onSuccess) {
+      state.error = '';
+      renderError_();
+      google.script.run
+        .withSuccessHandler(onSuccess)
+        .withFailureHandler(function (err) {
+          state.error = (err && err.message) || String(err);
+          renderError_();
+        })
+        [fnName].apply(null, args);
+    }
+
     function render() {
       renderProgress();
+      renderError_();
       var app = document.getElementById('app');
       app.innerHTML = '';
       if (state.step === 'nik') app.appendChild(renderNik());
@@ -169,9 +195,13 @@
         '</div>';
     }
 
-    function errorBox() {
-      if (!state.error) return '';
-      return '<div class="error-box">' + escapeHtml_(state.error) + '</div>';
+    function renderError_() {
+      var el = document.getElementById('error-slot');
+      if (!state.error) { el.innerHTML = ''; return; }
+      el.innerHTML =
+        '<div class="error-box" role="alert">' +
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" style="vertical-align:-4px;margin-right:6px"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 8v5m0 3h.01"/></svg>' +
+        escapeHtml_(state.error) + '</div>';
     }
 
     function escapeHtml_(s) {
@@ -185,27 +215,35 @@
       var div = document.createElement('div');
       div.className = 'card';
       div.innerHTML =
-        errorBox() +
         '<label for="nik-input">Masukkan NIK Anda</label>' +
         '<input type="text" id="nik-input" inputmode="numeric" autofocus>' +
         '<p class="hint">Ketik NIK sesuai kartu karyawan, lalu tekan Lanjut.</p>' +
         '<button class="btn btn-primary" id="nik-submit" style="margin-top:16px">Lanjut</button>';
 
-      div.querySelector('#nik-submit').onclick = function () {
-        var nik = document.getElementById('nik-input').value.trim();
-        state.error = '';
-        google.script.run
-          .withSuccessHandler(function (employee) {
-            state.employee = employee;
-            state.step = 'confirm';
-            render();
-          })
-          .withFailureHandler(function (err) {
-            state.error = err.message || String(err);
-            render();
-          })
-          .kioskFindEmployee(nik);
-      };
+      var submitBtn = div.querySelector('#nik-submit');
+      var input = div.querySelector('#nik-input');
+
+      function submit() {
+        var nik = input.value.trim();
+        if (!nik) return;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner"></span> Memeriksa...';
+        call_('kioskFindEmployee', [nik], function (employee) {
+          state.employee = employee;
+          state.step = 'confirm';
+          render();
+        });
+        // Re-enable in case of failure; call_ already re-renders the error box.
+        setTimeout(function () {
+          if (document.getElementById('nik-submit')) {
+            submitBtn.disabled = false;
+            submitBtn.innerText = 'Lanjut';
+          }
+        }, 4000);
+      }
+
+      submitBtn.onclick = submit;
+      input.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') submit(); });
       return div;
     }
 
@@ -227,11 +265,13 @@
       div.querySelector('#not-me').onclick = function () { location.reload(); };
       div.querySelector('#confirm-me').onclick = function () {
         state.step = 'session';
-        google.script.run.withSuccessHandler(function (sessions) {
-          state.sessions = sessions;
-          render();
-        }).kioskGetEligibleSessions(state.employee.id);
+        state.sessionsLoaded = false;
         render();
+        call_('kioskGetEligibleSessions', [state.employee.id], function (sessions) {
+          state.sessions = sessions;
+          state.sessionsLoaded = true;
+          render();
+        });
       };
       return div;
     }
@@ -239,10 +279,17 @@
     /* ---------------- Session list ---------------- */
     function renderSession() {
       var div = document.createElement('div');
-      if (!state.sessions.length) {
-        div.innerHTML = '<div class="card center" style="color:var(--slate-500)">Memuat / tidak ada topik aktif untuk Anda saat ini.</div>';
+
+      if (!state.sessionsLoaded) {
+        div.innerHTML = '<div class="card loading-block"><div class="spinner"></div><div>Memuat daftar topik...</div></div>';
         return div;
       }
+
+      if (!state.sessions.length) {
+        div.innerHTML = '<div class="card center" style="color:var(--slate-500)">Tidak ada topik aktif untuk Anda saat ini.</div>';
+        return div;
+      }
+
       state.sessions.forEach(function (s) {
         var item = document.createElement('div');
         item.className = 'session-item';
@@ -251,22 +298,25 @@
           '<p>Berlaku sampai ' + new Date(s.valid_until).toLocaleString('id-ID') + '</p></div>' +
           '<button class="btn ' + (s.already_passed ? 'btn-success' : 'btn-primary') + '">' + (s.already_passed ? 'Sudah Lulus' : 'Mulai') + '</button>';
 
-        item.querySelector('button').onclick = function () {
+        var actionBtn = item.querySelector('button');
+        actionBtn.onclick = function () {
           state.selectedSessionId = s.id;
+          actionBtn.disabled = true;
+          actionBtn.innerHTML = '<span class="spinner"></span>';
           if (s.already_passed) {
-            google.script.run.withSuccessHandler(function (result) {
+            call_('kioskGetExistingResult', [s.id, state.employee.id], function (result) {
               state.result = result;
               state.step = 'result';
               render();
-            }).kioskGetExistingResult(s.id, state.employee.id);
+            });
             return;
           }
-          google.script.run.withSuccessHandler(function (topic) {
+          call_('kioskGetTopicForSession', [s.id], function (topic) {
             state.topic = topic;
             state.materialStartedAt = Date.now();
             state.step = 'material';
             render();
-          }).kioskGetTopicForSession(s.id);
+          });
         };
         div.appendChild(item);
       });
@@ -284,15 +334,17 @@
         (t.min_material_seconds ? '<p class="hint">Mohon baca materi hingga selesai sebelum melanjutkan ke kuis.</p>' : '') +
         '<button class="btn btn-primary" id="start-quiz" style="margin-top:20px">Mulai Kuis</button>';
 
-      div.querySelector('#start-quiz').onclick = function () {
+      var startBtn = div.querySelector('#start-quiz');
+      startBtn.onclick = function () {
         var elapsed = (Date.now() - state.materialStartedAt) / 1000;
         if (t.min_material_seconds && elapsed < Number(t.min_material_seconds)) {
           state.error = 'Mohon baca materi hingga selesai sebelum melanjutkan.';
-          render();
+          renderError_();
           return;
         }
-        state.error = '';
-        google.script.run.withSuccessHandler(function (res) {
+        startBtn.disabled = true;
+        startBtn.innerHTML = '<span class="spinner"></span> Menyiapkan kuis...';
+        call_('kioskStartQuiz', [state.selectedSessionId, state.employee.id], function (res) {
           state.participationId = res.participationId;
           state.questions = res.questions;
           state.currentIndex = 0;
@@ -300,7 +352,7 @@
           state.flagged = {};
           state.step = 'quiz';
           render();
-        }).kioskStartQuiz(state.selectedSessionId, state.employee.id);
+        });
       };
       return div;
     }
@@ -345,11 +397,14 @@
         if (isFlagged) delete state.flagged[q.id]; else state.flagged[q.id] = true;
         render();
       };
-      main.querySelector('#next-q').onclick = function () {
+      var nextBtn = main.querySelector('#next-q');
+      nextBtn.onclick = function () {
         if (state.currentIndex < state.questions.length - 1) {
           state.currentIndex++;
           render();
         } else {
+          nextBtn.disabled = true;
+          nextBtn.innerHTML = '<span class="spinner"></span> Mengirim jawaban...';
           submitQuiz_();
         }
       };
@@ -386,11 +441,11 @@
     }
 
     function submitQuiz_() {
-      google.script.run.withSuccessHandler(function (result) {
+      call_('kioskSubmitQuiz', [state.participationId, state.answers], function (result) {
         state.result = result;
         state.step = 'result';
         render();
-      }).kioskSubmitQuiz(state.participationId, state.answers);
+      });
     }
 
     /* ---------------- Result ---------------- */

@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@500;600;700&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root { --orange:#c2410c; --orange-dark:#9a3412; --emerald:#047857; --slate-800:#1e293b; --slate-700:#334155; --slate-500:#64748b; --slate-200:#e2e8f0; --slate-100:#f1f5f9; }
+    * { box-sizing:border-box; }
+    body { font-family:'Source Sans 3',sans-serif; background:var(--slate-100); color:var(--slate-700); margin:0; }
+    h1,h2,h3,.heading { font-family:'Lexend',sans-serif; }
+    .topbar { background:var(--slate-800); color:#fff; padding:14px 24px; display:flex; justify-content:space-between; align-items:center; }
+    .topbar h1 { font-size:18px; margin:0; }
+    .tabs { display:flex; gap:4px; background:#fff; border-bottom:1px solid var(--slate-200); padding:0 24px; overflow-x:auto; }
+    .tab { padding:14px 16px; cursor:pointer; font-weight:600; color:var(--slate-500); border-bottom:3px solid transparent; white-space:nowrap; }
+    .tab.active { color:var(--orange); border-color:var(--orange); }
+    .content { padding:24px; max-width:1100px; margin:0 auto; }
+    .card { background:#fff; border:1px solid var(--slate-200); border-radius:12px; padding:24px; margin-bottom:20px; }
+    table { width:100%; border-collapse:collapse; font-size:14px; }
+    th, td { text-align:left; padding:10px 8px; border-bottom:1px solid var(--slate-100); }
+    th { color:var(--slate-500); font-weight:600; }
+    .btn { display:inline-flex; align-items:center; gap:6px; padding:8px 16px; border-radius:8px; border:1px solid var(--slate-200); background:#fff; cursor:pointer; font-weight:600; font-size:14px; font-family:inherit; }
+    .btn-primary { background:var(--orange); color:#fff; border-color:var(--orange); }
+    .btn-sm { padding:4px 10px; font-size:13px; }
+    .btn-danger { color:#b91c1c; border-color:#fecaca; }
+    input, select, textarea { width:100%; padding:10px; border-radius:8px; border:1px solid var(--slate-200); font-family:inherit; font-size:14px; margin-bottom:12px; }
+    label { font-weight:600; font-size:13px; display:block; margin-bottom:4px; color:var(--slate-700); }
+    .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .modal-backdrop { position:fixed; inset:0; background:rgba(15,23,42,.5); display:flex; align-items:center; justify-content:center; padding:20px; z-index:10; }
+    .modal { background:#fff; border-radius:12px; padding:24px; max-width:520px; width:100%; max-height:90vh; overflow:auto; }
+    .stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:16px; }
+    .stat { background:var(--slate-100); border-radius:12px; padding:16px; }
+    .stat .num { font-size:28px; font-weight:700; color:var(--slate-800); }
+    .stat .label { font-size:13px; color:var(--slate-500); }
+    .badge { display:inline-block; padding:3px 10px; border-radius:999px; font-size:12px; font-weight:600; }
+    .badge.success { background:#d1fae5; color:#065f46; }
+    .badge.fail { background:#fee2e2; color:#991b1b; }
+    .toprow { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
+    .center { text-align:center; }
+    .options-row { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+    .options-row input:first-child { max-width:60px; margin:0; }
+    .options-row input:last-child { margin:0; }
+  </style>
+</head>
+<body>
+  <div id="login-screen" class="content" style="max-width:380px;margin-top:80px">
+    <div class="card center">
+      <h2>Login Admin</h2>
+      <div id="login-error" style="color:#b91c1c;font-size:14px;margin-bottom:8px"></div>
+      <label>Email</label>
+      <input type="email" id="login-email">
+      <label>Password</label>
+      <input type="password" id="login-password">
+      <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="doLogin()">Login</button>
+    </div>
+  </div>
+
+  <div id="admin-screen" style="display:none">
+    <div class="topbar">
+      <h1>Quiz SHE — Admin</h1>
+      <div>
+        <span id="admin-name" style="margin-right:16px;font-size:14px"></span>
+        <button class="btn btn-sm" onclick="logout()">Logout</button>
+      </div>
+    </div>
+    <div class="tabs" id="tabs"></div>
+    <div class="content" id="tab-content"></div>
+  </div>
+
+  <div id="modal-root"></div>
+
+  <script>
+    var TOKEN = '';
+    var TABS = [
+      { key: 'dashboard', label: 'Dashboard' },
+      { key: 'topics', label: 'Topik & Soal' },
+      { key: 'sessions', label: 'Session' },
+      { key: 'participations', label: 'Partisipasi' },
+      { key: 'employees', label: 'Karyawan' },
+      { key: 'companies', label: 'Perusahaan' },
+    ];
+    var activeTab = 'dashboard';
+    var cache = {};
+
+    function doLogin() {
+      var email = document.getElementById('login-email').value.trim();
+      var password = document.getElementById('login-password').value;
+      google.script.run
+        .withSuccessHandler(function (res) {
+          TOKEN = res.token;
+          document.getElementById('admin-name').innerText = res.name;
+          document.getElementById('login-screen').style.display = 'none';
+          document.getElementById('admin-screen').style.display = 'block';
+          renderTabs();
+          switchTab('dashboard');
+        })
+        .withFailureHandler(function (err) {
+          document.getElementById('login-error').innerText = err.message || String(err);
+        })
+        .adminLogin(email, password);
+    }
+
+    function logout() {
+      TOKEN = '';
+      location.reload();
+    }
+
+    function renderTabs() {
+      var el = document.getElementById('tabs');
+      el.innerHTML = TABS.map(function (t) {
+        return '<div class="tab' + (t.key === activeTab ? ' active' : '') + '" data-key="' + t.key + '">' + t.label + '</div>';
+      }).join('');
+      el.querySelectorAll('.tab').forEach(function (tabEl) {
+        tabEl.onclick = function () { switchTab(tabEl.getAttribute('data-key')); };
+      });
+    }
+
+    function switchTab(key) {
+      activeTab = key;
+      renderTabs();
+      var content = document.getElementById('tab-content');
+      content.innerHTML = '<p style="color:var(--slate-500)">Memuat...</p>';
+      if (key === 'dashboard') loadDashboard();
+      else if (key === 'topics') loadTopics();
+      else if (key === 'sessions') loadSessions();
+      else if (key === 'participations') loadParticipations();
+      else if (key === 'employees') loadEmployees();
+      else if (key === 'companies') loadCompanies();
+    }
+
+    function esc(s) { var d = document.createElement('div'); d.innerText = (s === undefined || s === null) ? '' : s; return d.innerHTML; }
+    function closeModal() { document.getElementById('modal-root').innerHTML = ''; }
+    function openModal(html) { document.getElementById('modal-root').innerHTML = '<div class="modal-backdrop" onclick="if(event.target===this) closeModal()"><div class="modal">' + html + '</div></div>'; }
+
+    /* ---------------- Dashboard ---------------- */
+    function loadDashboard() {
+      google.script.run.withSuccessHandler(function (d) {
+        var rows = d.perCompany.map(function (c) {
+          return '<tr><td>' + esc(c.name) + '</td><td>' + c.total + '</td><td>' + c.passed + '</td></tr>';
+        }).join('');
+        document.getElementById('tab-content').innerHTML =
+          '<div class="stat-grid">' +
+          '<div class="stat"><div class="num">' + d.totalEmployees + '</div><div class="label">Karyawan Aktif</div></div>' +
+          '<div class="stat"><div class="num">' + d.totalParticipations + '</div><div class="label">Total Partisipasi</div></div>' +
+          '<div class="stat"><div class="num">' + d.totalPassed + '</div><div class="label">Lulus</div></div>' +
+          '<div class="stat"><div class="num">' + d.passRate + '%</div><div class="label">Tingkat Kelulusan</div></div>' +
+          '</div>' +
+          '<div class="card" style="margin-top:20px"><h3>Rekap per Perusahaan</h3>' +
+          '<table><thead><tr><th>Perusahaan</th><th>Total</th><th>Lulus</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+      }).adminGetDashboard(TOKEN);
+    }
+
+    /* ---------------- Companies ---------------- */
+    function loadCompanies() {
+      google.script.run.withSuccessHandler(function (list) {
+        cache.companies = list;
+        var rows = list.map(function (c) {
+          return '<tr><td>' + esc(c.name) + '</td><td>' + esc(c.code) + '</td>' +
+            '<td><button class="btn btn-sm" onclick="editCompany(' + c.id + ')">Edit</button></td></tr>';
+        }).join('');
+        document.getElementById('tab-content').innerHTML =
+          '<div class="toprow"><h2>Perusahaan</h2><button class="btn btn-primary" onclick="editCompany()">+ Tambah</button></div>' +
+          '<div class="card"><table><thead><tr><th>Nama</th><th>Kode</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+      }).adminListCompanies(TOKEN);
+    }
+
+    function editCompany(id) {
+      var c = id ? cache.companies.filter(function (x) { return x.id === id; })[0] : { name: '', code: '' };
+      openModal(
+        '<h3>' + (id ? 'Edit' : 'Tambah') + ' Perusahaan</h3>' +
+        '<label>Nama</label><input id="f-name" value="' + esc(c.name) + '">' +
+        '<label>Kode</label><input id="f-code" value="' + esc(c.code) + '">' +
+        '<div style="display:flex;gap:8px;margin-top:12px">' +
+        '<button class="btn btn-primary" onclick="saveCompany(' + (id || 'null') + ')">Simpan</button>' +
+        '<button class="btn" onclick="closeModal()">Batal</button></div>'
+      );
+    }
+
+    function saveCompany(id) {
+      var data = { name: document.getElementById('f-name').value, code: document.getElementById('f-code').value };
+      if (id) data.id = id;
+      google.script.run.withSuccessHandler(function () { closeModal(); loadCompanies(); }).adminSaveCompany(TOKEN, data);
+    }
+
+    /* ---------------- Employees ---------------- */
+    function loadEmployees() {
+      google.script.run.withSuccessHandler(function (list) {
+        cache.employees = list;
+        var rows = list.map(function (e) {
+          return '<tr><td>' + esc(e.nik) + '</td><td>' + esc(e.nama) + '</td><td>' + esc(e.company_name) + '</td>' +
+            '<td><span class="badge ' + (e.status === 'aktif' ? 'success' : 'fail') + '">' + esc(e.status) + '</span></td>' +
+            '<td><button class="btn btn-sm" onclick="editEmployee(' + e.id + ')">Edit</button></td></tr>';
+        }).join('');
+        document.getElementById('tab-content').innerHTML =
+          '<div class="toprow"><h2>Karyawan</h2><button class="btn btn-primary" onclick="editEmployee()">+ Tambah</button></div>' +
+          '<div class="card"><table><thead><tr><th>NIK</th><th>Nama</th><th>Perusahaan</th><th>Status</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+      }).adminListEmployees(TOKEN);
+    }
+
+    function editEmployee(id) {
+      var e = id ? cache.employees.filter(function (x) { return x.id === id; })[0] : { nik:'', nama:'', company_id:'', jabatan:'', departemen:'', phone:'', status:'aktif' };
+      var companyOptions = (cache.companies || []).map(function (c) {
+        return '<option value="' + c.id + '"' + (String(e.company_id) === String(c.id) ? ' selected' : '') + '>' + esc(c.name) + '</option>';
+      }).join('');
+      openModal(
+        '<h3>' + (id ? 'Edit' : 'Tambah') + ' Karyawan</h3>' +
+        '<label>NIK</label><input id="f-nik" value="' + esc(e.nik) + '">' +
+        '<label>Nama</label><input id="f-nama" value="' + esc(e.nama) + '">' +
+        '<label>Perusahaan</label><select id="f-company">' + companyOptions + '</select>' +
+        '<label>Jabatan</label><input id="f-jabatan" value="' + esc(e.jabatan) + '">' +
+        '<label>Departemen</label><input id="f-departemen" value="' + esc(e.departemen) + '">' +
+        '<label>No. WhatsApp</label><input id="f-phone" value="' + esc(e.phone) + '">' +
+        '<label>Status</label><select id="f-status"><option value="aktif"' + (e.status === 'aktif' ? ' selected' : '') + '>Aktif</option><option value="nonaktif"' + (e.status === 'nonaktif' ? ' selected' : '') + '>Nonaktif</option></select>' +
+        '<div style="display:flex;gap:8px;margin-top:12px">' +
+        '<button class="btn btn-primary" onclick="saveEmployee(' + (id || 'null') + ')">Simpan</button>' +
+        '<button class="btn" onclick="closeModal()">Batal</button></div>'
+      );
+      if (!cache.companies) google.script.run.withSuccessHandler(function (list) { cache.companies = list; }).adminListCompanies(TOKEN);
+    }
+
+    function saveEmployee(id) {
+      var data = {
+        nik: document.getElementById('f-nik').value,
+        nama: document.getElementById('f-nama').value,
+        company_id: document.getElementById('f-company').value,
+        jabatan: document.getElementById('f-jabatan').value,
+        departemen: document.getElementById('f-departemen').value,
+        phone: document.getElementById('f-phone').value,
+        status: document.getElementById('f-status').value,
+      };
+      if (id) data.id = id;
+      google.script.run.withSuccessHandler(function () { closeModal(); loadEmployees(); }).adminSaveEmployee(TOKEN, data);
+    }
+
+    /* ---------------- Topics & Questions ---------------- */
+    function loadTopics() {
+      google.script.run.withSuccessHandler(function (list) {
+        cache.topics = list;
+        var rows = list.map(function (t) {
+          return '<tr><td>' + esc(t.code) + '</td><td>' + esc(t.title) + '</td><td>' + t.questions_count + '</td>' +
+            '<td>' + t.pass_threshold + '%</td>' +
+            '<td><button class="btn btn-sm" onclick="editTopic(' + t.id + ')">Edit</button> ' +
+            '<button class="btn btn-sm" onclick="manageQuestions(' + t.id + ',\'' + esc(t.title).replace(/'/g,"") + '\')">Bank Soal</button></td></tr>';
+        }).join('');
+        document.getElementById('tab-content').innerHTML =
+          '<div class="toprow"><h2>Topik</h2><button class="btn btn-primary" onclick="editTopic()">+ Tambah Topik</button></div>' +
+          '<div class="card"><table><thead><tr><th>Kode</th><th>Judul</th><th>Jml Soal</th><th>Ambang Lulus</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+      }).adminListTopics(TOKEN);
+    }
+
+    function editTopic(id) {
+      var t = id ? cache.topics.filter(function (x) { return x.id === id; })[0] : { code:'', title:'', description:'', material:'', pass_threshold:80, questions_per_attempt:5, min_material_seconds:'', time_limit_minutes:'', is_active:true };
+      openModal(
+        '<h3>' + (id ? 'Edit' : 'Tambah') + ' Topik</h3>' +
+        '<label>Kode</label><input id="f-code" value="' + esc(t.code) + '">' +
+        '<label>Judul</label><input id="f-title" value="' + esc(t.title) + '">' +
+        '<label>Deskripsi</label><textarea id="f-desc" rows="2">' + esc(t.description) + '</textarea>' +
+        '<label>Materi (boleh HTML)</label><textarea id="f-material" rows="5">' + esc(t.material) + '</textarea>' +
+        '<div class="grid2">' +
+        '<div><label>Ambang Lulus (%)</label><input type="number" id="f-threshold" value="' + esc(t.pass_threshold) + '"></div>' +
+        '<div><label>Jml Soal/Percobaan</label><input type="number" id="f-qpa" value="' + esc(t.questions_per_attempt) + '"></div>' +
+        '<div><label>Durasi Min. Baca (detik)</label><input type="number" id="f-minsec" value="' + esc(t.min_material_seconds) + '"></div>' +
+        '<div><label>Batas Waktu Kuis (menit)</label><input type="number" id="f-timelimit" value="' + esc(t.time_limit_minutes) + '"></div>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px;margin-top:12px">' +
+        '<button class="btn btn-primary" onclick="saveTopic(' + (id || 'null') + ')">Simpan</button>' +
+        '<button class="btn" onclick="closeModal()">Batal</button></div>'
+      );
+    }
+
+    function saveTopic(id) {
+      var data = {
+        code: document.getElementById('f-code').value,
+        title: document.getElementById('f-title').value,
+        description: document.getElementById('f-desc').value,
+        material: document.getElementById('f-material').value,
+        pass_threshold: Number(document.getElementById('f-threshold').value),
+        questions_per_attempt: Number(document.getElementById('f-qpa').value),
+        min_material_seconds: document.getElementById('f-minsec').value,
+        time_limit_minutes: document.getElementById('f-timelimit').value,
+        is_active: true,
+      };
+      if (id) data.id = id;
+      google.script.run.withSuccessHandler(function () { closeModal(); loadTopics(); }).adminSaveTopic(TOKEN, data);
+    }
+
+    function manageQuestions(topicId, topicTitle) {
+      google.script.run.withSuccessHandler(function (list) {
+        cache.questions = list;
+        renderQuestionsModal(topicId, topicTitle);
+      }).adminListQuestions(TOKEN, topicId);
+    }
+
+    function renderQuestionsModal(topicId, topicTitle) {
+      var rows = cache.questions.map(function (q) {
+        return '<tr><td>' + esc(q.question).slice(0, 50) + '</td><td>' + esc(q.correct_key) + '</td>' +
+          '<td><button class="btn btn-sm" onclick="editQuestion(' + topicId + ',' + q.id + ',\'' + esc(topicTitle).replace(/'/g,"") + '\')">Edit</button></td></tr>';
+      }).join('');
+      openModal(
+        '<h3>Bank Soal — ' + esc(topicTitle) + '</h3>' +
+        '<button class="btn btn-primary btn-sm" onclick="editQuestion(' + topicId + ',null,\'' + esc(topicTitle).replace(/'/g,"") + '\')">+ Tambah Soal</button>' +
+        '<table style="margin-top:12px"><thead><tr><th>Pertanyaan</th><th>Kunci</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>' +
+        '<div style="margin-top:12px"><button class="btn" onclick="closeModal()">Tutup</button></div>'
+      );
+    }
+
+    function editQuestion(topicId, id, topicTitle) {
+      var q = id ? cache.questions.filter(function (x) { return x.id === id; })[0] : null;
+      var options = q ? JSON.parse(q.options) : [{ key:'A', text:'' }, { key:'B', text:'' }, { key:'C', text:'' }, { key:'D', text:'' }];
+      var optRows = options.map(function (o, i) {
+        return '<div class="options-row"><input value="' + esc(o.key) + '" data-opt-key="' + i + '"><input value="' + esc(o.text) + '" placeholder="Teks jawaban" data-opt-text="' + i + '"></div>';
+      }).join('');
+
+      openModal(
+        '<h3>' + (id ? 'Edit' : 'Tambah') + ' Soal</h3>' +
+        '<label>Pertanyaan</label><textarea id="f-question" rows="2">' + esc(q ? q.question : '') + '</textarea>' +
+        '<label>Pilihan Jawaban</label><div id="options-wrap">' + optRows + '</div>' +
+        '<label>Kunci Jawaban Benar (huruf)</label><input id="f-correct" value="' + esc(q ? q.correct_key : 'A') + '">' +
+        '<div style="display:flex;gap:8px;margin-top:12px">' +
+        '<button class="btn btn-primary" onclick="saveQuestion(' + topicId + ',' + (id || 'null') + ',\'' + esc(topicTitle).replace(/'/g,"") + '\')">Simpan</button>' +
+        '<button class="btn" onclick="manageQuestions(' + topicId + ',\'' + esc(topicTitle).replace(/'/g,"") + '\')">Batal</button></div>'
+      );
+    }
+
+    function saveQuestion(topicId, id, topicTitle) {
+      var keys = document.querySelectorAll('[data-opt-key]');
+      var texts = document.querySelectorAll('[data-opt-text]');
+      var options = [];
+      for (var i = 0; i < keys.length; i++) {
+        options.push({ key: keys[i].value, text: texts[i].value });
+      }
+      var data = {
+        topic_id: topicId,
+        question: document.getElementById('f-question').value,
+        options: options,
+        correct_key: document.getElementById('f-correct').value,
+        is_active: true,
+      };
+      if (id) data.id = id;
+      google.script.run.withSuccessHandler(function () { manageQuestions(topicId, topicTitle); }).adminSaveQuestion(TOKEN, data);
+    }
+
+    /* ---------------- Sessions ---------------- */
+    function loadSessions() {
+      google.script.run.withSuccessHandler(function (list) {
+        cache.sessions = list;
+        var rows = list.map(function (s) {
+          return '<tr><td>' + esc(s.topic_title) + '</td><td>' + new Date(s.valid_from).toLocaleDateString('id-ID') + '</td>' +
+            '<td>' + new Date(s.valid_until).toLocaleDateString('id-ID') + '</td><td>' + esc(s.status) + '</td>' +
+            '<td><button class="btn btn-sm" onclick="editSession(' + s.id + ')">Edit</button></td></tr>';
+        }).join('');
+        document.getElementById('tab-content').innerHTML =
+          '<div class="toprow"><h2>Session</h2><button class="btn btn-primary" onclick="editSession()">+ Tambah Session</button></div>' +
+          '<div class="card"><table><thead><tr><th>Topik</th><th>Dari</th><th>Sampai</th><th>Status</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+      }).adminListSessions(TOKEN);
+
+      if (!cache.topics) google.script.run.withSuccessHandler(function (list) { cache.topics = list; }).adminListTopics(TOKEN);
+    }
+
+    function toLocalInput_(dateVal) {
+      var d = dateVal ? new Date(dateVal) : new Date();
+      var pad = function (n) { return String(n).padStart(2, '0'); };
+      return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    }
+
+    function editSession(id) {
+      var s = id ? cache.sessions.filter(function (x) { return x.id === id; })[0] : { topic_id:'', title:'', valid_from:new Date(), valid_until:new Date(Date.now()+7*86400000), status:'draft' };
+      var topicOptions = (cache.topics || []).map(function (t) {
+        return '<option value="' + t.id + '"' + (String(s.topic_id) === String(t.id) ? ' selected' : '') + '>' + esc(t.title) + '</option>';
+      }).join('');
+
+      openModal(
+        '<h3>' + (id ? 'Edit' : 'Tambah') + ' Session</h3>' +
+        '<label>Topik</label><select id="f-topic">' + topicOptions + '</select>' +
+        '<label>Judul (opsional)</label><input id="f-title" value="' + esc(s.title) + '">' +
+        '<div class="grid2">' +
+        '<div><label>Berlaku Dari</label><input type="datetime-local" id="f-from" value="' + toLocalInput_(s.valid_from) + '"></div>' +
+        '<div><label>Berlaku Sampai</label><input type="datetime-local" id="f-until" value="' + toLocalInput_(s.valid_until) + '"></div>' +
+        '</div>' +
+        '<label>Status</label><select id="f-status"><option value="draft"' + (s.status==='draft'?' selected':'') + '>Draft</option><option value="published"' + (s.status==='published'?' selected':'') + '>Published</option><option value="closed"' + (s.status==='closed'?' selected':'') + '>Closed</option></select>' +
+        '<div style="display:flex;gap:8px;margin-top:12px">' +
+        '<button class="btn btn-primary" onclick="saveSession(' + (id || 'null') + ')">Simpan</button>' +
+        '<button class="btn" onclick="closeModal()">Batal</button></div>'
+      );
+    }
+
+    function saveSession(id) {
+      var data = {
+        topic_id: document.getElementById('f-topic').value,
+        title: document.getElementById('f-title').value,
+        valid_from: new Date(document.getElementById('f-from').value),
+        valid_until: new Date(document.getElementById('f-until').value),
+        target_company_ids: [],
+        target_area: '',
+        status: document.getElementById('f-status').value,
+      };
+      if (id) data.id = id;
+      google.script.run.withSuccessHandler(function () { closeModal(); loadSessions(); }).adminSaveSession(TOKEN, data);
+    }
+
+    /* ---------------- Participations ---------------- */
+    function loadParticipations() {
+      google.script.run.withSuccessHandler(function (list) {
+        var rows = list.map(function (p) {
+          return '<tr><td>' + esc(p.employee_name) + '</td><td>' + esc(p.company_name) + '</td><td>' + esc(p.topic_title) + '</td>' +
+            '<td>' + p.score + '%</td><td><span class="badge ' + (p.passed ? 'success' : 'fail') + '">' + (p.passed ? 'Lulus' : 'Gagal') + '</span></td>' +
+            '<td>' + new Date(p.submitted_at).toLocaleString('id-ID') + '</td><td>' + esc(p.certificate_no) + '</td></tr>';
+        }).join('');
+        document.getElementById('tab-content').innerHTML =
+          '<h2>Partisipasi</h2>' +
+          '<div class="card"><table><thead><tr><th>Karyawan</th><th>Perusahaan</th><th>Topik</th><th>Skor</th><th>Status</th><th>Tanggal</th><th>No. Sertifikat</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+      }).adminListParticipations(TOKEN);
+    }
+
+    document.getElementById('login-password').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') doLogin();
+    });
+  </script>
+</body>
+</html>

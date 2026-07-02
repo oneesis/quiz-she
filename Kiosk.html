@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@500;600;700&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --orange: #c2410c;
+      --orange-dark: #9a3412;
+      --emerald: #047857;
+      --amber: #f59e0b;
+      --red: #b91c1c;
+      --slate-800: #1e293b;
+      --slate-700: #334155;
+      --slate-500: #64748b;
+      --slate-200: #e2e8f0;
+      --slate-100: #f1f5f9;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif;
+      background: var(--slate-100);
+      color: var(--slate-700);
+      margin: 0;
+      padding: 24px 16px 90px;
+    }
+    h1, h2, h3, .heading { font-family: 'Lexend', ui-sans-serif, sans-serif; }
+    .wrap { max-width: 640px; margin: 0 auto; }
+    .wrap.wide { max-width: 900px; }
+    .center { text-align: center; }
+    .brand h1 { font-size: 28px; font-weight: 700; color: var(--slate-800); margin: 0; }
+    .brand p { color: var(--slate-500); margin: 4px 0 0; }
+    .card {
+      background: #fff;
+      border: 1px solid var(--slate-200);
+      border-radius: 16px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+      padding: 32px;
+      margin-top: 24px;
+    }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      min-height: 60px; width: 100%;
+      border-radius: 12px; border: 2px solid transparent;
+      font-weight: 600; font-size: 18px; cursor: pointer;
+      transition: background-color .15s, transform .1s;
+      font-family: inherit;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary { background: var(--orange); color: #fff; }
+    .btn-primary:hover { background: var(--orange-dark); }
+    .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-outline { background: #fff; border-color: var(--slate-200); color: var(--slate-700); }
+    .btn-outline:hover { background: var(--slate-100); }
+    .btn-success { background: var(--emerald); color: #fff; }
+    .btn-row { display: flex; gap: 12px; margin-top: 16px; }
+    .btn-row .btn { flex: 1; }
+    input[type=text] {
+      width: 100%; text-align: center; font-size: 26px; letter-spacing: 4px;
+      padding: 16px; border-radius: 12px; border: 2px solid var(--slate-200);
+      min-height: 60px; font-family: inherit;
+    }
+    input[type=text]:focus { outline: none; border-color: var(--orange); }
+    label { display:block; text-align:center; font-weight:600; color: var(--slate-700); margin-bottom: 12px; font-size: 17px; }
+    .hint { text-align:center; color: var(--slate-500); font-size: 14px; margin-top: 8px; }
+    .error-box {
+      background: #fef2f2; border: 2px solid #fecaca; color: #991b1b;
+      border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; font-weight: 500;
+    }
+    .session-item {
+      display:flex; align-items:center; justify-content:space-between; gap:16px;
+      background:#fff; border:1px solid var(--slate-200); border-radius:16px; padding:20px; margin-top:16px;
+    }
+    .session-item h3 { margin:0; font-size:17px; color: var(--slate-800); }
+    .session-item p { margin:4px 0 0; color: var(--slate-500); font-size: 13px; }
+    .session-item .btn { width:auto; min-height:48px; padding: 0 20px; }
+    .progress-bar { height:8px; background:var(--slate-200); border-radius:99px; overflow:hidden; margin-top:8px; }
+    .progress-bar > div { height:100%; background:var(--orange); border-radius:99px; transition: width .3s; }
+    .progress-label { display:flex; justify-content:space-between; font-size:13px; font-weight:600; color: var(--slate-500); }
+    .option-btn {
+      width:100%; display:flex; align-items:center; gap:12px; text-align:left;
+      border:2px solid var(--slate-200); border-radius:12px; padding:16px; margin-bottom:10px;
+      background:#fff; cursor:pointer; font-family:inherit; font-size:16px; color: var(--slate-700);
+    }
+    .option-btn.selected { border-color: var(--orange); background:#fff7ed; color:#7c2d12; }
+    .option-key {
+      width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+      font-weight:700; font-size:14px; background: var(--slate-100); color: var(--slate-700); flex-shrink:0;
+    }
+    .option-btn.selected .option-key { background: var(--orange); color:#fff; }
+    .quiz-layout { display:flex; gap:20px; align-items:flex-start; flex-wrap:wrap-reverse; }
+    .quiz-main { flex:1; min-width: 280px; }
+    .quiz-side { width: 220px; }
+    .qnum-grid { display:grid; grid-template-columns: repeat(5, 1fr); gap:8px; margin-top:12px; }
+    .qnum-btn {
+      aspect-ratio:1; border-radius:8px; border:2px solid var(--slate-200); background:#fff;
+      font-weight:600; cursor:pointer; font-family:inherit; color: var(--slate-700);
+    }
+    .qnum-btn.current { border-color: var(--orange); color: var(--orange); }
+    .qnum-btn.answered { background: #10b981; border-color:#10b981; color:#fff; }
+    .qnum-btn.flagged { background: var(--amber); border-color: var(--amber); color:#fff; }
+    .legend { font-size:12px; color:var(--slate-500); display:grid; gap:6px; margin-top:10px; }
+    .legend span.dot { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:6px; vertical-align:middle; }
+    .icon-circle { width:64px; height:64px; margin:0 auto; }
+    .footer-note {
+      position: fixed; bottom:0; left:0; right:0; background:#fff; border-top:1px solid var(--slate-200);
+      padding:12px 16px; font-size:13px; color:var(--slate-500); text-align:center;
+    }
+    .badge { display:inline-block; background:#fff7ed; color:#9a3412; font-weight:600; font-size:13px; padding:4px 10px; border-radius:8px; }
+  </style>
+</head>
+<body>
+  <div class="wrap" id="wrap">
+    <div class="brand center">
+      <h1>Safety Talk Digital</h1>
+      <p>PT Energi Batubara Lestari</p>
+    </div>
+    <div id="progress"></div>
+    <div id="app"></div>
+  </div>
+
+  <div class="footer-note">
+    <strong>Ingat!</strong> Jangan menutup atau me-refresh halaman selama mengerjakan kuis. Butuh bantuan? Hubungi tim IT atau Trainer K3.
+  </div>
+
+  <script>
+    var state = {
+      step: 'nik',
+      employee: null,
+      sessions: [],
+      selectedSessionId: null,
+      topic: null,
+      participationId: null,
+      questions: [],
+      currentIndex: 0,
+      answers: {},
+      flagged: {},
+      result: null,
+      error: '',
+    };
+
+    var STEP_ORDER = ['confirm', 'session', 'material', 'quiz'];
+    var STEP_LABELS = { confirm: 'Konfirmasi', session: 'Pilih Topik', material: 'Baca Materi', quiz: 'Kerjakan Kuis' };
+
+    function render() {
+      renderProgress();
+      var app = document.getElementById('app');
+      app.innerHTML = '';
+      if (state.step === 'nik') app.appendChild(renderNik());
+      else if (state.step === 'confirm') app.appendChild(renderConfirm());
+      else if (state.step === 'session') app.appendChild(renderSession());
+      else if (state.step === 'material') app.appendChild(renderMaterial());
+      else if (state.step === 'quiz') app.appendChild(renderQuiz());
+      else if (state.step === 'result') app.appendChild(renderResult());
+      document.getElementById('wrap').classList.toggle('wide', state.step === 'quiz');
+    }
+
+    function renderProgress() {
+      var el = document.getElementById('progress');
+      var idx = STEP_ORDER.indexOf(state.step);
+      if (idx === -1) { el.innerHTML = ''; return; }
+      var pct = Math.round(((idx + 1) / STEP_ORDER.length) * 100);
+      el.innerHTML =
+        '<div style="margin-top:16px">' +
+        '<div class="progress-label"><span>Langkah ' + (idx + 1) + ' dari ' + STEP_ORDER.length + '</span><span>' + STEP_LABELS[state.step] + '</span></div>' +
+        '<div class="progress-bar"><div style="width:' + pct + '%"></div></div>' +
+        '</div>';
+    }
+
+    function errorBox() {
+      if (!state.error) return '';
+      return '<div class="error-box">' + escapeHtml_(state.error) + '</div>';
+    }
+
+    function escapeHtml_(s) {
+      var d = document.createElement('div');
+      d.innerText = s;
+      return d.innerHTML;
+    }
+
+    /* ---------------- NIK ---------------- */
+    function renderNik() {
+      var div = document.createElement('div');
+      div.className = 'card';
+      div.innerHTML =
+        errorBox() +
+        '<label for="nik-input">Masukkan NIK Anda</label>' +
+        '<input type="text" id="nik-input" inputmode="numeric" autofocus>' +
+        '<p class="hint">Ketik NIK sesuai kartu karyawan, lalu tekan Lanjut.</p>' +
+        '<button class="btn btn-primary" id="nik-submit" style="margin-top:16px">Lanjut</button>';
+
+      div.querySelector('#nik-submit').onclick = function () {
+        var nik = document.getElementById('nik-input').value.trim();
+        state.error = '';
+        google.script.run
+          .withSuccessHandler(function (employee) {
+            state.employee = employee;
+            state.step = 'confirm';
+            render();
+          })
+          .withFailureHandler(function (err) {
+            state.error = err.message || String(err);
+            render();
+          })
+          .kioskFindEmployee(nik);
+      };
+      return div;
+    }
+
+    /* ---------------- Confirm ---------------- */
+    function renderConfirm() {
+      var div = document.createElement('div');
+      div.className = 'card center';
+      var e = state.employee;
+      div.innerHTML =
+        '<p style="color:var(--slate-500)">Konfirmasi data Anda</p>' +
+        '<h2 style="margin:8px 0">' + escapeHtml_(e.nama) + '</h2>' +
+        '<p>' + escapeHtml_(e.company ? e.company.name : '-') + '</p>' +
+        '<p>' + escapeHtml_(e.jabatan || '-') + '</p>' +
+        '<div class="btn-row">' +
+        '<button class="btn btn-outline" id="not-me">Bukan Saya</button>' +
+        '<button class="btn btn-primary" id="confirm-me">Ya, Lanjut</button>' +
+        '</div>';
+
+      div.querySelector('#not-me').onclick = function () { location.reload(); };
+      div.querySelector('#confirm-me').onclick = function () {
+        state.step = 'session';
+        google.script.run.withSuccessHandler(function (sessions) {
+          state.sessions = sessions;
+          render();
+        }).kioskGetEligibleSessions(state.employee.id);
+        render();
+      };
+      return div;
+    }
+
+    /* ---------------- Session list ---------------- */
+    function renderSession() {
+      var div = document.createElement('div');
+      if (!state.sessions.length) {
+        div.innerHTML = '<div class="card center" style="color:var(--slate-500)">Memuat / tidak ada topik aktif untuk Anda saat ini.</div>';
+        return div;
+      }
+      state.sessions.forEach(function (s) {
+        var item = document.createElement('div');
+        item.className = 'session-item';
+        item.innerHTML =
+          '<div><h3>' + escapeHtml_(s.title || s.topic_title) + '</h3>' +
+          '<p>Berlaku sampai ' + new Date(s.valid_until).toLocaleString('id-ID') + '</p></div>' +
+          '<button class="btn ' + (s.already_passed ? 'btn-success' : 'btn-primary') + '">' + (s.already_passed ? 'Sudah Lulus' : 'Mulai') + '</button>';
+
+        item.querySelector('button').onclick = function () {
+          state.selectedSessionId = s.id;
+          if (s.already_passed) {
+            google.script.run.withSuccessHandler(function (result) {
+              state.result = result;
+              state.step = 'result';
+              render();
+            }).kioskGetExistingResult(s.id, state.employee.id);
+            return;
+          }
+          google.script.run.withSuccessHandler(function (topic) {
+            state.topic = topic;
+            state.materialStartedAt = Date.now();
+            state.step = 'material';
+            render();
+          }).kioskGetTopicForSession(s.id);
+        };
+        div.appendChild(item);
+      });
+      return div;
+    }
+
+    /* ---------------- Material ---------------- */
+    function renderMaterial() {
+      var div = document.createElement('div');
+      div.className = 'card';
+      var t = state.topic;
+      div.innerHTML =
+        '<h2>' + escapeHtml_(t.title) + '</h2>' +
+        '<div style="line-height:1.7;font-size:16px">' + t.material + '</div>' +
+        (t.min_material_seconds ? '<p class="hint">Mohon baca materi hingga selesai sebelum melanjutkan ke kuis.</p>' : '') +
+        '<button class="btn btn-primary" id="start-quiz" style="margin-top:20px">Mulai Kuis</button>';
+
+      div.querySelector('#start-quiz').onclick = function () {
+        var elapsed = (Date.now() - state.materialStartedAt) / 1000;
+        if (t.min_material_seconds && elapsed < Number(t.min_material_seconds)) {
+          state.error = 'Mohon baca materi hingga selesai sebelum melanjutkan.';
+          render();
+          return;
+        }
+        state.error = '';
+        google.script.run.withSuccessHandler(function (res) {
+          state.participationId = res.participationId;
+          state.questions = res.questions;
+          state.currentIndex = 0;
+          state.answers = {};
+          state.flagged = {};
+          state.step = 'quiz';
+          render();
+        }).kioskStartQuiz(state.selectedSessionId, state.employee.id);
+      };
+      return div;
+    }
+
+    /* ---------------- Quiz ---------------- */
+    function renderQuiz() {
+      var div = document.createElement('div');
+      div.className = 'quiz-layout';
+      var q = state.questions[state.currentIndex];
+      var isFlagged = !!state.flagged[q.id];
+
+      var main = document.createElement('div');
+      main.className = 'quiz-main card';
+      var optionsHtml = q.options.map(function (opt, i) {
+        var selected = state.answers[q.id] === opt.key;
+        return '<button class="option-btn' + (selected ? ' selected' : '') + '" data-key="' + opt.key + '">' +
+          '<span class="option-key">' + opt.key + '</span><span>' + escapeHtml_(opt.text) + '</span></button>';
+      }).join('');
+
+      main.innerHTML =
+        '<span class="badge">Soal ' + (state.currentIndex + 1) + ' dari ' + state.questions.length + '</span> ' +
+        (isFlagged ? '<span class="badge" style="background:#fef3c7;color:#92400e">Ditandai</span>' : '') +
+        '<h2 style="margin:16px 0">' + escapeHtml_(q.question) + '</h2>' +
+        '<div id="options">' + optionsHtml + '</div>' +
+        '<div class="btn-row">' +
+        '<button class="btn btn-outline" id="prev-q"' + (state.currentIndex === 0 ? ' disabled' : '') + '>Sebelumnya</button>' +
+        '<button class="btn btn-outline" id="flag-q">' + (isFlagged ? 'Batal Tandai' : 'Tandai') + '</button>' +
+        '<button class="btn btn-primary" id="next-q"' + (!state.answers[q.id] ? ' disabled' : '') + '>' +
+        (state.currentIndex === state.questions.length - 1 ? 'Selesai' : 'Selanjutnya') + '</button>' +
+        '</div>';
+
+      main.querySelectorAll('.option-btn').forEach(function (btn) {
+        btn.onclick = function () {
+          state.answers[q.id] = btn.getAttribute('data-key');
+          render();
+        };
+      });
+      main.querySelector('#prev-q').onclick = function () {
+        if (state.currentIndex > 0) { state.currentIndex--; render(); }
+      };
+      main.querySelector('#flag-q').onclick = function () {
+        if (isFlagged) delete state.flagged[q.id]; else state.flagged[q.id] = true;
+        render();
+      };
+      main.querySelector('#next-q').onclick = function () {
+        if (state.currentIndex < state.questions.length - 1) {
+          state.currentIndex++;
+          render();
+        } else {
+          submitQuiz_();
+        }
+      };
+
+      var side = document.createElement('div');
+      side.className = 'quiz-side card';
+      var grid = state.questions.map(function (qq, idx) {
+        var cls = 'qnum-btn';
+        if (idx === state.currentIndex) cls += ' current';
+        else if (state.flagged[qq.id]) cls += ' flagged';
+        else if (state.answers[qq.id]) cls += ' answered';
+        return '<button class="' + cls + '" data-idx="' + idx + '">' + (idx + 1) + '</button>';
+      }).join('');
+
+      side.innerHTML =
+        '<h3 style="margin:0 0 8px;font-size:14px;text-transform:uppercase;color:var(--slate-500)">Nomor Soal</h3>' +
+        '<div class="legend">' +
+        '<span><span class="dot" style="background:#10b981"></span>Sudah Dijawab</span>' +
+        '<span><span class="dot" style="background:var(--amber)"></span>Ditandai</span>' +
+        '<span><span class="dot" style="background:#fff;border:1px solid var(--slate-200)"></span>Belum Dijawab</span>' +
+        '</div>' +
+        '<div class="qnum-grid">' + grid + '</div>';
+
+      side.querySelectorAll('.qnum-btn').forEach(function (btn) {
+        btn.onclick = function () {
+          state.currentIndex = Number(btn.getAttribute('data-idx'));
+          render();
+        };
+      });
+
+      div.appendChild(main);
+      div.appendChild(side);
+      return div;
+    }
+
+    function submitQuiz_() {
+      google.script.run.withSuccessHandler(function (result) {
+        state.result = result;
+        state.step = 'result';
+        render();
+      }).kioskSubmitQuiz(state.participationId, state.answers);
+    }
+
+    /* ---------------- Result ---------------- */
+    function renderResult() {
+      var div = document.createElement('div');
+      div.className = 'card center';
+      var r = state.result;
+
+      if (r.passed) {
+        div.innerHTML =
+          '<svg class="icon-circle" viewBox="0 0 24 24" fill="none" stroke="#047857" stroke-width="2"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="m8.5 12.5 2.5 2.5 5-5"/></svg>' +
+          '<h2 style="color:#047857">Selamat, Anda Lulus!</h2>' +
+          '<p>Skor: ' + r.score + '%</p>' +
+          (r.certificateNo ? '<p style="color:var(--slate-500)">No. Sertifikat: <span style="font-family:monospace">' + r.certificateNo + '</span></p>' : '') +
+          (r.verificationToken ? '<a class="btn btn-success" style="margin-top:8px;text-decoration:none" href="' + getVerifyLink_(r.verificationToken) + '" target="_blank">Lihat Sertifikat</a>' : '');
+      } else {
+        div.innerHTML =
+          '<svg class="icon-circle" viewBox="0 0 24 24" fill="none" stroke="#b91c1c" stroke-width="2"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="m9.5 9.5 5 5m0-5-5 5"/></svg>' +
+          '<h2 style="color:#b91c1c">Belum Lulus</h2>' +
+          '<p>Skor: ' + r.score + '%. Silakan pelajari kembali materi dan coba lagi.</p>' +
+          '<button class="btn btn-primary" id="retry">Coba Lagi</button>';
+      }
+      div.innerHTML += '<button class="btn btn-outline" id="finish" style="margin-top:12px">Selesai</button>';
+
+      var retry = div.querySelector('#retry');
+      if (retry) {
+        retry.onclick = function () {
+          state.step = 'material';
+          state.materialStartedAt = Date.now();
+          render();
+        };
+      }
+      div.querySelector('#finish').onclick = function () { location.reload(); };
+      return div;
+    }
+
+    function getVerifyLink_(token) {
+      return window.location.href.split('?')[0] + '?page=verify&token=' + encodeURIComponent(token);
+    }
+
+    render();
+  </script>
+</body>
+</html>

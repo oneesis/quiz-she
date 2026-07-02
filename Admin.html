@@ -193,9 +193,39 @@
             '<td><button class="btn btn-sm" onclick="editEmployee(' + e.id + ')">Edit</button></td></tr>';
         }).join('');
         document.getElementById('tab-content').innerHTML =
-          '<div class="toprow"><h2>Karyawan</h2><button class="btn btn-primary" onclick="editEmployee()">+ Tambah</button></div>' +
+          '<div class="toprow"><h2>Karyawan</h2><div style="display:flex;gap:8px">' +
+          '<button class="btn" id="sync-btn" onclick="syncEmployees()">Sync dari HR Sheet</button>' +
+          '<button class="btn btn-primary" onclick="editEmployee()">+ Tambah</button></div></div>' +
+          '<div id="sync-result"></div>' +
           '<div class="card"><table><thead><tr><th>NIK</th><th>Nama</th><th>Perusahaan</th><th>Status</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>';
       }).adminListEmployees(TOKEN);
+    }
+
+    function syncEmployees() {
+      var btn = document.getElementById('sync-btn');
+      btn.disabled = true;
+      btn.innerText = 'Sinkronisasi...';
+      google.script.run
+        .withSuccessHandler(function (res) {
+          var warningsHtml = res.warnings.length
+            ? '<ul style="margin:8px 0 0;padding-left:20px;font-size:13px;color:var(--slate-500)">' +
+              res.warnings.slice(0, 20).map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('') +
+              (res.warnings.length > 20 ? '<li>... dan ' + (res.warnings.length - 20) + ' lainnya</li>' : '') +
+              '</ul>'
+            : '';
+          document.getElementById('sync-result').innerHTML =
+            '<div class="card" style="background:#f0fdf4;border-color:#bbf7d0">' +
+            '<strong>Sync selesai:</strong> ' + res.created + ' baru, ' + res.updated + ' diperbarui, ' + res.skipped + ' dilewati.' +
+            warningsHtml + '</div>';
+          loadEmployees();
+        })
+        .withFailureHandler(function (err) {
+          document.getElementById('sync-result').innerHTML =
+            '<div class="card" style="background:#fef2f2;border-color:#fecaca;color:#991b1b">Gagal sync: ' + esc(err.message || String(err)) + '</div>';
+          btn.disabled = false;
+          btn.innerText = 'Sync dari HR Sheet';
+        })
+        .adminSyncEmployees(TOKEN);
     }
 
     function editEmployee(id) {

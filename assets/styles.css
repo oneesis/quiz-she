@@ -216,60 +216,6 @@ h1.screen-title { font-family:'Archivo'; font-weight:800; font-size:26px; line-h
   .cert-side { justify-items:start; }
 }
 
-/* ---------- panel admin ---------- */
-.admin-app { max-width:720px; }
-.admin-topbar { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
-.admin-topbar__logout { width:auto; min-height:40px; padding:0 16px; font-size:14px; }
-
-.admin-tabs { display:flex; gap:6px; margin:18px 0 20px; border-bottom:2px solid var(--line); }
-.admin-tab {
-  border:none; background:none; padding:10px 4px; margin-right:18px;
-  font-family:'Barlow'; font-weight:700; font-size:14.5px; color:var(--steel);
-  cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px;
-}
-.admin-tab.is-active { color:var(--ink); border-color:var(--amber); }
-
-.admin-panel__head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
-.admin-btn-sm { width:auto; min-height:40px; padding:0 16px; font-size:14px; }
-.admin-danger { color:var(--alert); border-color:var(--alert); margin-top:14px; }
-
-.admin-list { display:grid; gap:10px; }
-.admin-row {
-  display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%;
-  padding:14px 16px; border:2px solid var(--line); border-radius:var(--r);
-  background:#fff; cursor:pointer; text-align:left; transition:border-color .15s;
-}
-.admin-row:hover { border-color:var(--amber); }
-.admin-row__main { display:grid; gap:3px; }
-.admin-row__title { font-family:'Archivo'; font-weight:700; font-size:15.5px; }
-.admin-row__meta { font-size:12.5px; color:var(--steel); }
-.admin-row__go { font-weight:700; color:var(--amber-deep); font-size:13px; flex:0 0 auto; }
-
-.status-pill { display:inline-block; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; }
-.status-pill--published { background:#e4f6ec; color:var(--go); }
-.status-pill--draft { background:#f3eee0; color:var(--amber-deep); }
-
-.admin-input, .admin-textarea {
-  width:100%; font-family:'Barlow'; font-size:15px; padding:12px 14px;
-  border:2px solid var(--line); border-radius:10px; background:var(--field);
-  color:var(--ink); outline:none; margin:0 0 16px; transition:border-color .15s, background .15s;
-}
-.admin-input:focus, .admin-textarea:focus { border-color:var(--amber); background:#fff; }
-.admin-textarea { font-family:'IBM Plex Mono',monospace; font-size:13px; resize:vertical; }
-select.admin-input { cursor:pointer; }
-
-.question-block { border:1.5px dashed var(--line); border-radius:var(--r); padding:14px 16px 4px; margin:0 0 16px; }
-.q-options { display:grid; gap:8px; margin-bottom:6px; }
-.q-option-row { display:flex; align-items:center; gap:10px; }
-.q-option-row input[type=radio] { flex:0 0 auto; width:18px; height:18px; accent-color:var(--amber-deep); }
-.q-option-row .admin-input { margin:0; }
-
-.admin-table-wrap { overflow-x:auto; border:1px solid var(--line); border-radius:var(--r); }
-.admin-table { width:100%; border-collapse:collapse; font-size:13px; white-space:nowrap; }
-.admin-table th, .admin-table td { padding:10px 14px; text-align:left; border-bottom:1px solid var(--line); }
-.admin-table th { background:var(--field); font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--steel); }
-.admin-table tbody tr:last-child td { border-bottom:none; }
-
 /* ---------- aksesibilitas ---------- */
 :focus-visible { outline:3px solid var(--amber-deep); outline-offset:2px; }
 @media (prefers-reduced-motion:reduce) {

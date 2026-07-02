@@ -5,6 +5,7 @@
    ============================================================ */
 (function () {
   const C = window.CONFIG;
+  let adminToken = null; // diisi admin.js setelah login; dikirim ke Apps Script untuk aksi admin
 
   // ---- penyimpanan aman (localStorage bila tersedia, jika tidak in-memory) ----
   const mem = {};
@@ -78,6 +79,7 @@
     async listParticipations() {
       return JSON.parse(store.get('participations') || '[]').slice().reverse();
     },
+    async listEmployees() { return window.SAMPLE.employees; },
 
     async listTopics() { return readOverride('admin_topics', window.SAMPLE.topics); },
     async saveTopic(topic) {
@@ -120,7 +122,7 @@
       const res = await fetch(C.appsScriptUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // hindari preflight CORS
-        body: JSON.stringify({ action, payload }),
+        body: JSON.stringify({ action, payload, adminToken }),
       });
       if (!res.ok) throw new Error('Gagal menyimpan ke server data');
       return res.json();
@@ -143,6 +145,10 @@
     },
     async listParticipations() {
       const data = await this._get({ action: 'participations' });
+      return Array.isArray(data) ? data : [];
+    },
+    async listEmployees() {
+      const data = await this._get({ action: 'employees', adminToken: adminToken || '' });
       return Array.isArray(data) ? data : [];
     },
 
@@ -170,6 +176,8 @@
     saveParticipation: (rec) => impl.saveParticipation(rec),
     findByToken: (t) => impl.findByToken(t),
     listParticipations: () => impl.listParticipations(),
+    listEmployees: () => impl.listEmployees(),
+    setAdminToken: (t) => { adminToken = t; },
     listTopics: () => impl.listTopics(),
     saveTopic: (t) => impl.saveTopic(t),
     deleteTopic: (code) => impl.deleteTopic(code),

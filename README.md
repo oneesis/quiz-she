@@ -33,13 +33,15 @@ NIK contoh: `02-010218-001` atau `SCI-001`.
 
 ```
 index.html             Kerangka semua layar kiosk
-admin.html              Panel admin (topik, sesi, laporan)
-assets/styles.css       Tampilan (identitas hazard-stripe, kartu sertifikat)
+admin.html              Panel admin (dashboard, topik, sesi, laporan, karyawan)
+assets/styles.css       Tampilan kiosk (identitas hazard-stripe, kartu sertifikat)
 assets/config.js        KONFIGURASI + konten kuis (topik, soal, sesi) + data contoh
 assets/api.js           Lapisan data: mode 'mock' & 'apps_script'
 assets/app.js           Alur aplikasi kiosk
 assets/admin.js         Alur panel admin
 ```
+
+Kiosk (`index.html`) dan Panel Admin (`admin.html`) sengaja pakai identitas visual berbeda: kiosk pakai `assets/styles.css` bertema "hazard stripe" untuk tablet muster point, sedangkan admin pakai [Tailwind CSS via CDN](https://tailwindcss.com) langsung di `admin.html` dengan tema navy/kuning ala dashboard SaaS korporat — tidak ada langkah build, tetap situs statis murni. Keduanya tetap berbagi `assets/config.js` dan `assets/api.js` yang sama.
 
 ---
 
@@ -66,10 +68,12 @@ Setelan umum di `CONFIG`:
 
 Buka `admin.html` (mis. `http://localhost:8080/admin.html` atau `https://<user>.github.io/<repo>/admin.html`). Tidak ada tautan ke sana dari kiosk — sengaja, supaya tidak muncul di layar tablet muster point. Password diatur di `CONFIG.admin.password` (`assets/config.js`).
 
-Tiga tab:
+Navigasi lewat sidebar kiri, lima menu:
+- **Dashboard** — kartu ringkasan (total karyawan, total topik, sesi aktif, total partisipasi, rata-rata skor, tingkat kelulusan) dan daftar aktivitas terbaru. Semua angka dihitung dari data nyata yang sudah tercatat — tidak ada data contoh/placeholder.
 - **Topik** — tambah/edit/hapus topik: kode, judul, ambang lulus, materi (HTML), dan bank soal (pertanyaan + 4 opsi + jawaban benar).
 - **Sesi** — jadwalkan topik untuk tampil di kiosk: rentang tanggal berlaku, target perusahaan (opsional), status `draft`/`published`. Hanya sesi `published` & masih dalam rentang tanggal yang muncul di kiosk.
-- **Laporan** — rekap semua partisipasi (nama, NIK, topik, skor, lulus/tidak, no. sertifikat), dengan tombol unduh CSV.
+- **Laporan** — ringkasan per perusahaan (jumlah peserta, lulus/belum, rata-rata skor, % kelulusan) di atas, lalu tabel detail per peserta yang bisa difilter per perusahaan, dengan tombol unduh CSV.
+- **Karyawan** — daftar seluruh karyawan (nama, NIK, perusahaan, jabatan, departemen) dengan pencarian. Baca saja — untuk mengubah roster, edit `SAMPLE.employees` di `config.js` (mode mock) atau tab `Master_Karyawan` di Sheet (mode apps_script).
 
 ---
 
@@ -88,8 +92,9 @@ Situs statis tidak bisa membaca/menulis Sheet privat sendiri secara aman. Jembat
    - `Partisipasi`: `waktu | nik | nama | perusahaan | topicCode | sessionId | attemptNo | score | passed | certificateNo | verificationToken`
    - `Topics`: `code | title | passThreshold | material | questionsJson`
    - `Sessions`: `id | topicCode | title | validFrom | validUntil | targetCompanies | status`
-3. **Deploy → New deployment → Web app**, *Execute as: Me*, *Who has access: Anyone*. Salin URL.
-4. Di `assets/config.js`: set `dataSource: 'apps_script'` dan tempel URL ke `appsScriptUrl`.
+3. **Project Settings → Script Properties**, tambah `ADMIN_TOKEN` dengan nilai **sama persis** dengan `CONFIG.admin.password` di `assets/config.js`. Ini dipakai server-side untuk menolak aksi admin (simpan/hapus topik & sesi, lihat daftar karyawan) dari siapa pun yang tidak login lewat `admin.html`.
+4. **Deploy → New deployment → Web app**, *Execute as: Me*, *Who has access: Anyone*. Salin URL.
+5. Di `assets/config.js`: set `dataSource: 'apps_script'` dan tempel URL ke `appsScriptUrl`.
 
 ### Contoh Apps Script
 
@@ -100,6 +105,10 @@ const RESULTS = 'Partisipasi';
 const TOPICS  = 'Topics';
 const SESSIONS = 'Sessions';
 
+function isAdmin(token) {
+  return !!token && token === PropertiesService.getScriptProperties().getProperty('ADMIN_TOKEN');
+}
+
 function doGet(e) {
   const a = e.parameter.action;
   if (a === 'employee')       return json(findEmployee(e.parameter.nik));
@@ -107,17 +116,30 @@ function doGet(e) {
   if (a === 'topics')         return json(listTopics());
   if (a === 'sessions')       return json(listSessions());
   if (a === 'participations') return json(listParticipations());
+  if (a === 'employees')      return isAdmin(e.parameter.adminToken) ? json(listEmployees()) : json([]);
   return json({});
 }
 function doPost(e) {
   const body = JSON.parse(e.postData.contents);
   const p = body.payload;
-  if (body.action === 'participation')  { appendResult(p); return json({ ok: true }); }
+  if (body.action === 'participation') { appendResult(p); return json({ ok: true }); }
+  if (!isAdmin(body.adminToken)) return json({ ok: false, error: 'unauthorized' });
   if (body.action === 'topic_save')     { saveRow(TOPICS, 'code', p.code, [p.code, p.title, p.passThreshold, p.material, JSON.stringify(p.questions)]); return json({ ok: true }); }
   if (body.action === 'topic_delete')   { deleteRow(TOPICS, 'code', p.code); return json({ ok: true }); }
   if (body.action === 'session_save')   { saveRow(SESSIONS, 'id', p.id, [p.id, p.topicCode, p.title, p.validFrom, p.validUntil, (p.targetCompanies || []).join(','), p.status]); return json({ ok: true }); }
   if (body.action === 'session_delete') { deleteRow(SESSIONS, 'id', p.id); return json({ ok: true }); }
   return json({ ok: false });
+}
+
+function listEmployees() {
+  const rows = SpreadsheetApp.openById(SS_ID).getSheetByName(ROSTER).getDataRange().getValues();
+  const head = rows.shift(); const c = n => head.indexOf(n);
+  // Sengaja tidak menyertakan "NO WHATSAPP" — daftar ini sudah lebih sensitif
+  // daripada lookup 1-NIK biasa, jangan tambah data pribadi yang tidak perlu.
+  return rows.map(r => ({
+    nik: String(r[c('NIK')]), nama: r[c('NAMA')], perusahaan: r[c('PERUSAHAAN')],
+    jabatan: r[c('JABATAN')], departemen: r[c('DEPARTEMEN')],
+  }));
 }
 
 function findEmployee(nik) {
@@ -203,7 +225,7 @@ function json(o) {
 
 - **Privasi roster.** Jangan publikasikan seluruh isi Sheet karyawan ke web publik. Dengan pola Apps Script di atas, yang keluar hanya data 1 orang saat NIK dicari — bukan seluruh daftar. Hindari menaruh NIK/no. HP di file yang di-commit publik.
 - **Keamanan login rendah.** "Login" hanya pencocokan NIK, tanpa password — memang sesuai kebutuhan P5M yang ringan, tapi bukan autentikasi kuat. Jangan pakai pola ini untuk data sensitif.
-- **Panel Admin bukan autentikasi aman.** `admin.html` dikunci dengan satu password yang dicek di browser (`CONFIG.admin.password` di `assets/config.js`) — siapa pun yang membuka file itu (mis. lewat "View Source" di GitHub Pages) bisa melihat password-nya. Cukup untuk mencegah orang iseng, bukan untuk melindungi data sensitif. Ganti passwordnya, dan kalau butuh keamanan lebih, taruh `admin.html` di balik autentikasi level hosting (bukan GitHub Pages publik) atau jangan sertakan di deployment publik sama sekali.
+- **Panel Admin bukan autentikasi aman.** `admin.html` dikunci dengan satu password yang dicek di browser (`CONFIG.admin.password` di `assets/config.js`) — siapa pun yang membuka file itu (mis. lewat "View Source" di GitHub Pages) bisa melihat password-nya. Mode `apps_script` menambah pengecekan `ADMIN_TOKEN` di sisi server untuk aksi tulis & daftar karyawan, tapi karena token yang dikirim **adalah** password yang sama yang tersimpan di `config.js` publik, ini hanya menaikkan sedikit dari "bisa ditulis siapa saja" menjadi "perlu tahu password yang sudah terpampang di source" — bukan keamanan yang sebenarnya. Cukup untuk mencegah orang iseng, bukan untuk melindungi data sensitif. Kalau butuh keamanan sungguhan, taruh `admin.html` di balik autentikasi level hosting (bukan GitHub Pages publik) atau bangun alur login yang tidak menyimpan rahasianya di kode klien.
 - **Tanpa Apps Script, hasil tidak terekam terpusat.** Mode `mock` menyimpan hasil hanya di browser perangkat itu (localStorage). Untuk rekap compliance lintas perangkat, sambungkan Apps Script.
 - **Verifikasi QR** di mode `mock` hanya berlaku di perangkat yang sama. Verifikasi lintas perangkat butuh Apps Script.
 - **PDF sertifikat** dibuat di browser (html2canvas + jsPDF); hasil mengikuti tampilan kartu di layar.

@@ -7,17 +7,24 @@
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
   const AUTH_KEY = 'admin_auth';
+  const PAGE_TITLES = { dashboard: 'Dashboard', topics: 'Topik', sessions: 'Sesi', reports: 'Laporan', employees: 'Karyawan' };
 
   let topics = [];
   let sessions = [];
   let editingTopicCode = null;   // null = topik baru
   let editingSessionId = null;   // null = sesi baru
   let qCount = 0;                // penomor blok soal di editor
+  let lastTab = 'dashboard';     // tab aktif terakhir, dipakai saat kembali dari editor
 
-  function show(id) {
-    $$('.screen').forEach(s => s.classList.remove('is-active'));
-    document.getElementById(id).classList.add('is-active');
+  function showPanel(id) {
+    $$('.admin-panel').forEach(p => p.classList.add('hidden'));
+    $('#' + id).classList.remove('hidden');
     window.scrollTo(0, 0);
+  }
+
+  function todayInRange(from, until) {
+    const now = new Date();
+    return now >= new Date(from + 'T00:00:00') && now <= new Date(until + 'T23:59:59');
   }
 
   // ============================================================
@@ -28,26 +35,31 @@
     const err = $('#admin-login-error');
     if (val !== C.admin.password) { err.textContent = 'Password salah.'; return; }
     err.textContent = '';
-    sessionStorage.setItem(AUTH_KEY, '1');
+    sessionStorage.setItem(AUTH_KEY, val); // dipakai lagi sbg adminToken kalau tab di-refresh
+    API.setAdminToken(val); // dikirim ke Apps Script untuk aksi admin (lihat README)
     $('#admin-password').value = '';
     openDashboard();
   }
   function doLogout() {
     sessionStorage.removeItem(AUTH_KEY);
-    show('admin-screen-login');
+    API.setAdminToken(null);
+    $('#admin-shell').classList.add('hidden');
+    $('#admin-login-view').classList.remove('hidden');
   }
 
   // ============================================================
-  // DASHBOARD + TABS
+  // SHELL + NAV
   // ============================================================
   async function openDashboard() {
-    show('admin-screen-dashboard');
+    $('#admin-login-view').classList.add('hidden');
+    $('#admin-shell').classList.remove('hidden');
     $('#reports-scope-note').textContent = API.mode === 'mock'
       ? 'Rekap partisipasi — mode demo, hanya tersimpan di browser ini.'
       : 'Rekap partisipasi dari Google Sheet.';
     await reloadData();
     renderTopicsList();
     renderSessionsList();
+    switchTab('dashboard');
   }
 
   async function reloadData() {
@@ -55,10 +67,79 @@
   }
 
   function switchTab(tab) {
-    $$('.admin-tab').forEach(b => b.classList.toggle('is-active', b.dataset.tab === tab));
-    $$('.admin-panel').forEach(p => { p.hidden = true; });
-    $('#panel-' + tab).hidden = false;
+    lastTab = tab;
+    $$('.nav-link').forEach(b => b.classList.toggle('is-active', b.dataset.tab === tab));
+    $('#admin-page-title').textContent = PAGE_TITLES[tab];
+    showPanel('panel-' + tab);
+    if (tab === 'dashboard') renderDashboardPanel();
     if (tab === 'reports') renderReports();
+    if (tab === 'employees') renderEmployees();
+  }
+
+  // ============================================================
+  // DASHBOARD
+  // ============================================================
+  function kpiCard(icon, label, value, note) {
+    return `
+      <div class="bg-white p-5 rounded-2xl border border-outline-variant card-shadow flex flex-col justify-between h-32">
+        <div class="flex justify-between items-start">
+          <span class="text-xs font-bold uppercase tracking-wide text-on-surface-variant">${label}</span>
+          <div class="p-2 bg-primary/10 rounded-lg text-primary"><span class="material-symbols-outlined">${icon}</span></div>
+        </div>
+        <div>
+          <span class="text-3xl font-extrabold text-primary">${value}</span>
+          <div class="text-xs text-on-surface-variant mt-1">${note}</div>
+        </div>
+      </div>`;
+  }
+
+  function initials(name) {
+    return (name || '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  }
+
+  async function renderDashboardPanel() {
+    const grid = $('#kpi-grid');
+    grid.innerHTML = '<p class="text-on-surface-variant col-span-full">Memuat…</p>';
+    const list = $('#recent-activity-list');
+    list.innerHTML = '';
+    try {
+      const [employees, participations] = await Promise.all([API.listEmployees(), API.listParticipations()]);
+      const activeSessions = sessions.filter(s => s.status === 'published' && todayInRange(s.validFrom, s.validUntil));
+      const total = participations.length;
+      const avgScore = total ? Math.round(participations.reduce((s, p) => s + (Number(p.score) || 0), 0) / total) : 0;
+      const passRate = total ? Math.round(participations.filter(p => p.passed).length / total * 100) : 0;
+
+      grid.innerHTML = [
+        kpiCard('group', 'Total Karyawan', employees.length, 'dari roster'),
+        kpiCard('menu_book', 'Total Topik', topics.length, (topics.reduce((s, t) => s + (t.questions || []).length, 0)) + ' soal total'),
+        kpiCard('event_available', 'Sesi Aktif', activeSessions.length, 'published & berlaku hari ini'),
+        kpiCard('fact_check', 'Total Partisipasi', total, 'seluruh percobaan tercatat'),
+        kpiCard('leaderboard', 'Rata-rata Skor', avgScore + '%', 'seluruh partisipasi'),
+        kpiCard('assignment_turned_in', 'Tingkat Kelulusan', passRate + '%', 'seluruh partisipasi'),
+      ].join('');
+
+      const recent = participations.slice(0, 6);
+      if (!recent.length) {
+        list.innerHTML = '<div class="p-6 text-on-surface-variant text-sm">Belum ada partisipasi tercatat.</div>';
+      } else {
+        list.innerHTML = recent.map(p => `
+          <div class="p-4 flex items-center justify-between hover:bg-surface-container-low transition-colors">
+            <div class="flex items-center gap-4">
+              <div class="w-10 h-10 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-sm">${escapeHtml(initials(p.nama))}</div>
+              <div>
+                <p class="font-bold text-sm text-on-surface">${escapeHtml(p.nama || '-')}</p>
+                <p class="text-xs text-on-surface-variant">${escapeHtml(p.perusahaan || '-')} · ${escapeHtml(p.topicCode || '-')}</p>
+              </div>
+            </div>
+            <div class="text-right">
+              <p class="font-bold text-sm ${p.passed ? 'text-green-600' : 'text-error'}">${p.score ?? '-'}%</p>
+              <p class="text-[11px] text-on-surface-variant">${p.submittedAt ? new Date(p.submittedAt).toLocaleString('id-ID') : '-'}</p>
+            </div>
+          </div>`).join('');
+      }
+    } catch (e) {
+      grid.innerHTML = '<p class="text-error col-span-full">Gagal memuat ringkasan.</p>';
+    }
   }
 
   // ============================================================
@@ -66,21 +147,18 @@
   // ============================================================
   function renderTopicsList() {
     const wrap = $('#topics-list');
-    if (!topics.length) { wrap.innerHTML = '<div class="empty">Belum ada topik. Klik "+ Topik Baru".</div>'; return; }
-    wrap.innerHTML = '';
-    topics.forEach(t => {
-      const row = document.createElement('button');
-      row.type = 'button';
-      row.className = 'admin-row';
-      row.innerHTML = `
-        <span class="admin-row__main">
-          <span class="admin-row__title">${escapeHtml(t.title)}</span>
-          <span class="admin-row__meta">${escapeHtml(t.code)} · ${(t.questions || []).length} soal · lulus ≥ ${t.passThreshold || C.passThresholdDefault}%</span>
-        </span>
-        <span class="admin-row__go">Edit →</span>`;
-      row.onclick = () => openTopicEditor(t);
-      wrap.appendChild(row);
-    });
+    if (!topics.length) { wrap.innerHTML = emptyState('Belum ada topik. Klik "+ Topik Baru".'); return; }
+    wrap.innerHTML = topics.map((t, i) => `
+      <button type="button" data-i="${i}" class="topic-card text-left bg-white p-5 rounded-2xl border border-outline-variant card-shadow hover:border-primary transition-colors">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p class="font-bold text-primary">${escapeHtml(t.title)}</p>
+            <p class="text-xs text-on-surface-variant mt-1">${escapeHtml(t.code)} · ${(t.questions || []).length} soal · lulus ≥ ${t.passThreshold || C.passThresholdDefault}%</p>
+          </div>
+          <span class="material-symbols-outlined text-on-surface-variant">chevron_right</span>
+        </div>
+      </button>`).join('');
+    $$('.topic-card', wrap).forEach(el => el.onclick = () => openTopicEditor(topics[Number(el.dataset.i)]));
   }
 
   function openTopicEditor(topic) {
@@ -95,32 +173,32 @@
     $('#questions-editor').innerHTML = '';
     qCount = 0;
     (topic ? topic.questions : [{ q: '', options: ['', '', '', ''], correct: 0 }]).forEach(addQuestionBlock);
-    show('admin-screen-topic-editor');
+    showPanel('panel-topic-editor');
   }
 
   function addQuestionBlock(question) {
     const idx = qCount++;
     const q = question || { q: '', options: ['', '', '', ''], correct: 0 };
     const wrap = document.createElement('fieldset');
-    wrap.className = 'question-block';
+    wrap.className = 'border border-outline-variant rounded-xl p-4 space-y-3';
     wrap.dataset.idx = idx;
     wrap.innerHTML = `
-      <label class="field-label">Pertanyaan</label>
-      <input class="admin-input q-text" value="${escapeAttr(q.q)}" required />
-      <div class="q-options">
+      <label class="block text-xs font-bold uppercase tracking-wide text-on-surface-variant">Pertanyaan</label>
+      <input class="admin-field q-text" value="${escapeAttr(q.q)}" required />
+      <div class="space-y-2">
         ${[0, 1, 2, 3].map(i => `
-          <label class="q-option-row">
-            <input type="radio" name="correct-${idx}" value="${i}" ${q.correct === i ? 'checked' : ''} />
-            <input class="admin-input q-option-text" placeholder="Opsi ${String.fromCharCode(65 + i)}" value="${escapeAttr(q.options[i] || '')}" required />
+          <label class="flex items-center gap-3">
+            <input type="radio" name="correct-${idx}" value="${i}" ${q.correct === i ? 'checked' : ''} class="w-4 h-4 accent-[#00468c]" />
+            <input class="admin-field q-option-text" placeholder="Opsi ${String.fromCharCode(65 + i)}" value="${escapeAttr(q.options[i] || '')}" required />
           </label>`).join('')}
       </div>
-      <button type="button" class="btn btn--ghost admin-btn-sm admin-danger btn-remove-question">Hapus Soal</button>`;
+      <button type="button" class="btn-remove-question text-error text-sm font-bold hover:underline">Hapus Soal</button>`;
     wrap.querySelector('.btn-remove-question').onclick = () => wrap.remove();
     $('#questions-editor').appendChild(wrap);
   }
 
   function collectQuestions() {
-    return $$('.question-block', $('#questions-editor')).map(block => {
+    return $$('fieldset', $('#questions-editor')).map(block => {
       const opts = $$('.q-option-text', block).map(i => i.value.trim());
       const correct = Number(block.querySelector('input[type=radio]:checked').value);
       return { q: $('.q-text', block).value.trim(), options: opts, correct };
@@ -143,7 +221,6 @@
     await reloadData();
     renderTopicsList();
     switchTab('topics');
-    show('admin-screen-dashboard');
   }
 
   async function deleteTopicConfirm() {
@@ -153,31 +230,36 @@
     await reloadData();
     renderTopicsList();
     switchTab('topics');
-    show('admin-screen-dashboard');
   }
 
   // ============================================================
   // TAB SESI
   // ============================================================
+  function pill(label, tone) {
+    const cls = tone === 'good' ? 'bg-green-100 text-green-700' : 'bg-secondary-container/25 text-on-secondary-container';
+    return `<span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-bold uppercase ${cls}">${escapeHtml(label)}</span>`;
+  }
+  const statusPill = (status) => pill(status, status === 'published' ? 'good' : 'plain');
+  const passPill = (passed) => pill(passed ? 'Lulus' : 'Belum lulus', passed ? 'good' : 'plain');
+
   function renderSessionsList() {
     const wrap = $('#sessions-list');
-    if (!sessions.length) { wrap.innerHTML = '<div class="empty">Belum ada sesi. Klik "+ Sesi Baru".</div>'; return; }
-    wrap.innerHTML = '';
-    sessions.forEach(s => {
+    if (!sessions.length) { wrap.innerHTML = emptyState('Belum ada sesi. Klik "+ Sesi Baru".'); return; }
+    wrap.innerHTML = sessions.map((s, i) => {
       const topic = topics.find(t => t.code === s.topicCode);
-      const row = document.createElement('button');
-      row.type = 'button';
-      row.className = 'admin-row';
-      row.innerHTML = `
-        <span class="admin-row__main">
-          <span class="admin-row__title">${escapeHtml(s.title || (topic ? topic.title : s.topicCode))}</span>
-          <span class="admin-row__meta">${escapeHtml(s.topicCode)} · ${s.validFrom} – ${s.validUntil} ·
-            <span class="status-pill status-pill--${s.status}">${s.status}</span></span>
-        </span>
-        <span class="admin-row__go">Edit →</span>`;
-      row.onclick = () => openSessionEditor(s);
-      wrap.appendChild(row);
-    });
+      return `
+        <button type="button" data-i="${i}" class="session-card text-left bg-white p-5 rounded-2xl border border-outline-variant card-shadow hover:border-primary transition-colors">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="font-bold text-primary">${escapeHtml(s.title || (topic ? topic.title : s.topicCode))}</p>
+              <p class="text-xs text-on-surface-variant mt-1">${escapeHtml(s.topicCode)} · ${s.validFrom} – ${s.validUntil}</p>
+              <div class="mt-2">${statusPill(s.status)}</div>
+            </div>
+            <span class="material-symbols-outlined text-on-surface-variant">chevron_right</span>
+          </div>
+        </button>`;
+    }).join('');
+    $$('.session-card', wrap).forEach(el => el.onclick = () => openSessionEditor(sessions[Number(el.dataset.i)]));
   }
 
   function openSessionEditor(session) {
@@ -193,7 +275,7 @@
     $('#s-companies').value = session ? (session.targetCompanies || []).join(', ') : '';
     $('#s-status').value = session ? session.status : 'draft';
     $('#btn-session-delete').hidden = !session;
-    show('admin-screen-session-editor');
+    showPanel('panel-session-editor');
   }
 
   async function saveSessionForm(ev) {
@@ -214,7 +296,6 @@
     await reloadData();
     renderSessionsList();
     switchTab('sessions');
-    show('admin-screen-dashboard');
   }
 
   async function deleteSessionConfirm() {
@@ -224,7 +305,6 @@
     await reloadData();
     renderSessionsList();
     switchTab('sessions');
-    show('admin-screen-dashboard');
   }
 
   // ============================================================
@@ -233,24 +313,68 @@
   let lastReports = [];
   async function renderReports() {
     const body = $('#reports-body');
-    body.innerHTML = '<tr><td colspan="8" class="muted">Memuat…</td></tr>';
+    body.innerHTML = `<tr><td colspan="8" class="px-6 py-4 text-on-surface-variant">Memuat…</td></tr>`;
     try {
       lastReports = await API.listParticipations();
-      if (!lastReports.length) { body.innerHTML = '<tr><td colspan="8" class="muted">Belum ada partisipasi tercatat.</td></tr>'; return; }
-      body.innerHTML = lastReports.map(p => `
-        <tr>
-          <td>${p.submittedAt ? new Date(p.submittedAt).toLocaleString('id-ID') : '-'}</td>
-          <td>${escapeHtml(p.nama || '-')}</td>
-          <td class="mono">${escapeHtml(p.nik || '-')}</td>
-          <td>${escapeHtml(p.perusahaan || '-')}</td>
-          <td>${escapeHtml(p.topicCode || '-')}</td>
-          <td>${p.score ?? '-'}%</td>
-          <td><span class="status-pill status-pill--${p.passed ? 'published' : 'draft'}">${p.passed ? 'Lulus' : 'Belum lulus'}</span></td>
-          <td class="mono">${escapeHtml(p.certificateNo || '-')}</td>
-        </tr>`).join('');
+      renderCompanySummary(lastReports);
+      populateCompanyFilter(lastReports);
+      renderReportsTable(lastReports);
     } catch (e) {
-      body.innerHTML = '<tr><td colspan="8" class="muted">Gagal memuat laporan.</td></tr>';
+      body.innerHTML = `<tr><td colspan="8" class="px-6 py-4 text-on-surface-variant">Gagal memuat laporan.</td></tr>`;
+      $('#company-summary-body').innerHTML = '';
     }
+  }
+
+  function renderReportsTable(list) {
+    const body = $('#reports-body');
+    if (!list.length) { body.innerHTML = `<tr><td colspan="8" class="px-6 py-4 text-on-surface-variant">Belum ada partisipasi tercatat.</td></tr>`; return; }
+    body.innerHTML = list.map(p => `
+      <tr>
+        <td class="px-6 py-3">${p.submittedAt ? new Date(p.submittedAt).toLocaleString('id-ID') : '-'}</td>
+        <td class="px-6 py-3 font-medium">${escapeHtml(p.nama || '-')}</td>
+        <td class="px-6 py-3 font-mono text-xs">${escapeHtml(p.nik || '-')}</td>
+        <td class="px-6 py-3">${escapeHtml(p.perusahaan || '-')}</td>
+        <td class="px-6 py-3">${escapeHtml(p.topicCode || '-')}</td>
+        <td class="px-6 py-3">${p.score ?? '-'}%</td>
+        <td class="px-6 py-3">${passPill(p.passed)}</td>
+        <td class="px-6 py-3 font-mono text-xs">${escapeHtml(p.certificateNo || '-')}</td>
+      </tr>`).join('');
+  }
+
+  function renderCompanySummary(list) {
+    const wrap = $('#company-summary-body');
+    if (!list.length) { wrap.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-on-surface-variant">Belum ada data.</td></tr>`; return; }
+    const byCompany = {};
+    list.forEach(p => {
+      const key = p.perusahaan || 'Tanpa perusahaan';
+      const g = byCompany[key] || (byCompany[key] = { total: 0, passed: 0, scoreSum: 0 });
+      g.total++;
+      g.scoreSum += Number(p.score) || 0;
+      if (p.passed) g.passed++;
+    });
+    wrap.innerHTML = Object.keys(byCompany).sort().map(name => {
+      const g = byCompany[name];
+      const avg = Math.round(g.scoreSum / g.total);
+      const rate = Math.round((g.passed / g.total) * 100);
+      return `<tr>
+        <td class="px-6 py-3 font-medium">${escapeHtml(name)}</td><td class="px-6 py-3">${g.total}</td><td class="px-6 py-3">${g.passed}</td>
+        <td class="px-6 py-3">${g.total - g.passed}</td><td class="px-6 py-3">${avg}%</td><td class="px-6 py-3 font-bold text-primary">${rate}%</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function populateCompanyFilter(list) {
+    const sel = $('#reports-company-filter');
+    const current = sel.value;
+    const companies = [...new Set(list.map(p => p.perusahaan).filter(Boolean))].sort();
+    sel.innerHTML = '<option value="">Semua perusahaan</option>' +
+      companies.map(c => `<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`).join('');
+    sel.value = companies.includes(current) ? current : '';
+  }
+
+  function applyCompanyFilter() {
+    const val = $('#reports-company-filter').value;
+    renderReportsTable(val ? lastReports.filter(p => p.perusahaan === val) : lastReports);
   }
 
   function exportCsv() {
@@ -266,9 +390,50 @@
     URL.revokeObjectURL(a.href);
   }
 
+  // ============================================================
+  // TAB KARYAWAN
+  // ============================================================
+  let lastEmployees = [];
+  async function renderEmployees() {
+    const body = $('#employees-body');
+    body.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-on-surface-variant">Memuat…</td></tr>`;
+    $('#employees-scope-note').textContent = API.mode === 'mock'
+      ? 'Daftar karyawan (baca saja) — dari assets/config.js (data contoh mode demo).'
+      : 'Daftar karyawan (baca saja) — dari Google Sheet Master_Karyawan.';
+    try {
+      lastEmployees = await API.listEmployees();
+      renderEmployeesTable(lastEmployees);
+    } catch (e) {
+      body.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-on-surface-variant">Gagal memuat daftar karyawan.</td></tr>`;
+    }
+  }
+
+  function renderEmployeesTable(list) {
+    const body = $('#employees-body');
+    if (!list.length) { body.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-on-surface-variant">Tidak ada karyawan yang cocok.</td></tr>`; return; }
+    body.innerHTML = list.map(e => `
+      <tr>
+        <td class="px-6 py-3 font-medium">${escapeHtml(e.nama || '-')}</td>
+        <td class="px-6 py-3 font-mono text-xs">${escapeHtml(e.nik || '-')}</td>
+        <td class="px-6 py-3">${escapeHtml(e.perusahaan || '-')}</td>
+        <td class="px-6 py-3">${escapeHtml(e.jabatan || '-')}</td>
+        <td class="px-6 py-3">${escapeHtml(e.departemen || '-')}</td>
+      </tr>`).join('');
+  }
+
+  function applyEmployeeSearch() {
+    const q = $('#employees-search').value.trim().toLowerCase();
+    if (!q) { renderEmployeesTable(lastEmployees); return; }
+    renderEmployeesTable(lastEmployees.filter(e =>
+      (e.nama || '').toLowerCase().includes(q) ||
+      (e.nik || '').toLowerCase().includes(q) ||
+      (e.perusahaan || '').toLowerCase().includes(q)));
+  }
+
   // ---- util ----
   function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
   function escapeAttr(s) { return escapeHtml(s); }
+  function emptyState(msg) { return `<div class="col-span-full text-center text-on-surface-variant py-10 border-2 border-dashed border-outline-variant rounded-2xl">${escapeHtml(msg)}</div>`; }
 
   // ============================================================
   // BINDING
@@ -277,27 +442,31 @@
     $('#btn-admin-login').onclick = doLogin;
     $('#admin-password').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
     $('#btn-admin-logout').onclick = doLogout;
-    $$('.admin-tab').forEach(b => b.onclick = () => switchTab(b.dataset.tab));
+    $$('.nav-link').forEach(b => b.onclick = () => switchTab(b.dataset.tab));
 
     $('#btn-new-topic').onclick = () => openTopicEditor(null);
     $('#topic-form').addEventListener('submit', saveTopicForm);
-    $('#btn-topic-cancel').onclick = () => show('admin-screen-dashboard');
+    $('#btn-topic-cancel').onclick = () => switchTab('topics');
+    $('#btn-topic-back').onclick = () => switchTab('topics');
     $('#btn-add-question').onclick = () => addQuestionBlock(null);
     $('#btn-topic-delete').onclick = deleteTopicConfirm;
 
     $('#btn-new-session').onclick = () => openSessionEditor(null);
     $('#session-form').addEventListener('submit', saveSessionForm);
-    $('#btn-session-cancel').onclick = () => show('admin-screen-dashboard');
+    $('#btn-session-cancel').onclick = () => switchTab('sessions');
+    $('#btn-session-back').onclick = () => switchTab('sessions');
     $('#btn-session-delete').onclick = deleteSessionConfirm;
 
     $('#btn-export-csv').onclick = exportCsv;
+    $('#reports-company-filter').onchange = applyCompanyFilter;
+    $('#employees-search').addEventListener('input', applyEmployeeSearch);
   }
 
   document.addEventListener('DOMContentLoaded', () => {
     $$('[data-org-name]').forEach(el => el.textContent = C.org.name);
-    $$('[data-org-short]').forEach(el => el.textContent = C.org.short);
+    $$('[data-org-subtitle]').forEach(el => el.textContent = C.org.subtitle);
     bind();
-    if (sessionStorage.getItem(AUTH_KEY) === '1') openDashboard();
-    else show('admin-screen-login');
+    const savedToken = sessionStorage.getItem(AUTH_KEY);
+    if (savedToken) { API.setAdminToken(savedToken); openDashboard(); }
   });
 })();

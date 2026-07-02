@@ -1,166 +1,311 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <title>Panel Admin — Safety Talk Digital</title>
-  <link rel="stylesheet" href="assets/styles.css" />
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Panel Admin — LMS K3 EBL</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          primary: '#003063',
+          'primary-container': '#00468c',
+          'on-primary': '#ffffff',
+          secondary: '#7c5800',
+          'secondary-container': '#feb700',
+          'on-secondary-container': '#6b4b00',
+          surface: '#f7f9fb',
+          'on-surface': '#191c1e',
+          'on-surface-variant': '#424751',
+          'outline-variant': '#c2c6d2',
+          'surface-container': '#eceef0',
+          'surface-container-low': '#f2f4f6',
+          error: '#ba1a1a',
+          'error-container': '#ffdad6',
+          'on-error-container': '#93000a',
+        },
+      },
+    },
+  };
+</script>
+<style>
+  body { font-family: 'Inter', sans-serif; }
+  .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; font-size: 20px; vertical-align: middle; }
+  .card-shadow { box-shadow: 0 4px 6px -1px rgba(0,0,0,.1); }
+  .nav-link.is-active { background: #00468c; color: #fff; font-weight: 700; }
+  .nav-link:not(.is-active) { color: rgba(255,255,255,.7); }
+  .nav-link:not(.is-active):hover { background: rgba(255,255,255,.1); color: #fff; }
+  .admin-field {
+    width: 100%; padding: 10px 14px; background: #fff; color: #191c1e;
+    border: 1px solid #c2c6d2; border-radius: 8px; font: inherit; font-size: 14px;
+    outline: none; transition: box-shadow .15s, border-color .15s;
+  }
+  .admin-field:focus { border-color: #003063; box-shadow: 0 0 0 2px rgba(0,48,99,.25); }
+</style>
 </head>
-<body>
-  <main class="app admin-app">
-    <header class="masthead">
-      <div class="masthead__stripe"></div>
-      <div class="masthead__bar">
-        <div class="badge" data-org-short>PT EBL</div>
-        <div class="masthead__txt">
-          <div class="masthead__title" data-org-name>PT Energi Batubara Lestari</div>
-          <div class="masthead__sub">Panel Admin · Safety Talk Digital</div>
-        </div>
-      </div>
-    </header>
+<body class="bg-surface text-on-surface">
 
-    <div class="stage">
-
-      <!-- LOGIN ADMIN -->
-      <section class="screen" id="admin-screen-login">
-        <span class="eyebrow">Admin</span>
-        <h1 class="screen-title">Masuk Panel Admin</h1>
-        <p class="lead">Kelola topik, jadwal sesi, dan laporan partisipasi.</p>
-        <label class="field-label" for="admin-password">Password Admin</label>
-        <input class="nik-field" id="admin-password" type="password" autocomplete="off" />
-        <div class="error" id="admin-login-error" role="alert"></div>
-        <div class="stack">
-          <button class="btn btn--primary" id="btn-admin-login">Masuk</button>
-          <a class="btn btn--ghost" href="index.html">← Kembali ke Kiosk</a>
-        </div>
-      </section>
-
-      <!-- DASHBOARD -->
-      <section class="screen" id="admin-screen-dashboard">
-        <div class="admin-topbar">
-          <div>
-            <span class="eyebrow">Admin</span>
-            <h1 class="screen-title">Dashboard</h1>
-          </div>
-          <button class="btn btn--ghost admin-topbar__logout" id="btn-admin-logout">Keluar</button>
-        </div>
-
-        <nav class="admin-tabs">
-          <button class="admin-tab is-active" data-tab="topics">Topik</button>
-          <button class="admin-tab" data-tab="sessions">Sesi</button>
-          <button class="admin-tab" data-tab="reports">Laporan</button>
-        </nav>
-
-        <!-- TAB: TOPIK -->
-        <div class="admin-panel" id="panel-topics">
-          <div class="admin-panel__head">
-            <p class="muted">Materi &amp; bank soal per topik Safety Talk.</p>
-            <button class="btn btn--primary admin-btn-sm" id="btn-new-topic">+ Topik Baru</button>
-          </div>
-          <div class="admin-list" id="topics-list"></div>
-        </div>
-
-        <!-- TAB: SESI -->
-        <div class="admin-panel" id="panel-sessions" hidden>
-          <div class="admin-panel__head">
-            <p class="muted">Jadwal terbit topik. Hanya sesi <strong>published</strong> &amp; berlaku yang tampil di kiosk.</p>
-            <button class="btn btn--primary admin-btn-sm" id="btn-new-session">+ Sesi Baru</button>
-          </div>
-          <div class="admin-list" id="sessions-list"></div>
-        </div>
-
-        <!-- TAB: LAPORAN -->
-        <div class="admin-panel" id="panel-reports" hidden>
-          <div class="admin-panel__head">
-            <p class="muted" id="reports-scope-note">Rekap partisipasi.</p>
-            <button class="btn btn--ghost admin-btn-sm" id="btn-export-csv">Unduh CSV</button>
-          </div>
-          <div class="admin-table-wrap">
-            <table class="admin-table" id="reports-table">
-              <thead>
-                <tr>
-                  <th>Waktu</th><th>Nama</th><th>NIK</th><th>Perusahaan</th>
-                  <th>Topik</th><th>Skor</th><th>Status</th><th>No. Sertifikat</th>
-                </tr>
-              </thead>
-              <tbody id="reports-body"></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- EDITOR TOPIK -->
-      <section class="screen" id="admin-screen-topic-editor">
-        <span class="eyebrow" id="topic-editor-eyebrow">Topik</span>
-        <h1 class="screen-title" id="topic-editor-title">Topik Baru</h1>
-        <form id="topic-form">
-          <label class="field-label" for="t-code">Kode Topik (unik)</label>
-          <input class="admin-input" id="t-code" placeholder="mis. ST-APD" required />
-
-          <label class="field-label" for="t-title">Judul</label>
-          <input class="admin-input" id="t-title" required />
-
-          <label class="field-label" for="t-threshold">Ambang Lulus (%)</label>
-          <input class="admin-input" id="t-threshold" type="number" min="0" max="100" value="80" required />
-
-          <label class="field-label" for="t-material">Materi (HTML diperbolehkan)</label>
-          <textarea class="admin-textarea" id="t-material" rows="8" required></textarea>
-
-          <div class="admin-panel__head">
-            <label class="field-label" style="margin:0">Bank Soal</label>
-            <button type="button" class="btn btn--ghost admin-btn-sm" id="btn-add-question">+ Soal</button>
-          </div>
-          <div id="questions-editor"></div>
-
-          <div class="btn-row" style="margin-top:24px">
-            <button type="button" class="btn btn--ghost" id="btn-topic-cancel">Batal</button>
-            <button type="submit" class="btn btn--primary">Simpan Topik</button>
-          </div>
-          <button type="button" class="btn btn--ghost admin-danger" id="btn-topic-delete" hidden>Hapus Topik</button>
-        </form>
-      </section>
-
-      <!-- EDITOR SESI -->
-      <section class="screen" id="admin-screen-session-editor">
-        <span class="eyebrow" id="session-editor-eyebrow">Sesi</span>
-        <h1 class="screen-title" id="session-editor-title">Sesi Baru</h1>
-        <form id="session-form">
-          <label class="field-label" for="s-topic">Topik</label>
-          <select class="admin-input" id="s-topic" required></select>
-
-          <label class="field-label" for="s-title">Judul Sesi (opsional)</label>
-          <input class="admin-input" id="s-title" placeholder="kosongkan = pakai judul topik" />
-
-          <div class="btn-row">
-            <div style="flex:1">
-              <label class="field-label" for="s-from">Berlaku Dari</label>
-              <input class="admin-input" id="s-from" type="date" required />
-            </div>
-            <div style="flex:1">
-              <label class="field-label" for="s-until">Berlaku Sampai</label>
-              <input class="admin-input" id="s-until" type="date" required />
-            </div>
-          </div>
-
-          <label class="field-label" for="s-companies">Target Perusahaan (opsional, pisah koma — kosong = semua)</label>
-          <input class="admin-input" id="s-companies" placeholder="mis. PT OFN, PT SCI" />
-
-          <label class="field-label" for="s-status">Status</label>
-          <select class="admin-input" id="s-status">
-            <option value="draft">Draft (belum tampil di kiosk)</option>
-            <option value="published">Published (tampil di kiosk)</option>
-          </select>
-
-          <div class="btn-row" style="margin-top:24px">
-            <button type="button" class="btn btn--ghost" id="btn-session-cancel">Batal</button>
-            <button type="submit" class="btn btn--primary">Simpan Sesi</button>
-          </div>
-          <button type="button" class="btn btn--ghost admin-danger" id="btn-session-delete" hidden>Hapus Sesi</button>
-        </form>
-      </section>
-
+  <!-- LOGIN -->
+  <div id="admin-login-view" class="min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-sm bg-white rounded-2xl border border-outline-variant card-shadow p-8">
+      <h1 class="text-2xl font-extrabold text-primary">LMS K3 EBL</h1>
+      <p class="text-sm text-on-surface-variant mb-6">Panel Admin · Safety Talk Digital</p>
+      <label class="block text-xs font-bold uppercase tracking-wide text-on-surface-variant mb-1" for="admin-password">Password Admin</label>
+      <input id="admin-password" type="password" autocomplete="off"
+        class="w-full px-4 py-3 mb-2 bg-surface-container-low border border-outline-variant rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" />
+      <div id="admin-login-error" class="text-error text-sm font-semibold min-h-[20px] mb-2"></div>
+      <button id="btn-admin-login" class="w-full py-3 bg-secondary-container text-primary font-bold rounded-lg hover:brightness-95 active:scale-[.99] transition mb-3">Masuk</button>
+      <a href="index.html" class="block text-center text-sm text-on-surface-variant hover:text-primary">← Kembali ke Kiosk</a>
     </div>
-  </main>
+  </div>
+
+  <!-- DASHBOARD SHELL -->
+  <div id="admin-shell" class="hidden">
+    <aside class="h-screen w-64 fixed left-0 top-0 bg-primary card-shadow flex flex-col py-6 px-4 overflow-y-auto z-50">
+      <div class="mb-8 px-2">
+        <h1 class="text-xl font-extrabold text-white">LMS K3 EBL</h1>
+        <p class="text-xs text-white/60" data-org-subtitle>Panel Admin</p>
+      </div>
+      <nav class="flex-1 space-y-1">
+        <button data-tab="dashboard" class="nav-link is-active flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-colors">
+          <span class="material-symbols-outlined">dashboard</span><span class="text-sm">Dashboard</span>
+        </button>
+        <button data-tab="topics" class="nav-link flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-colors">
+          <span class="material-symbols-outlined">menu_book</span><span class="text-sm">Topik</span>
+        </button>
+        <button data-tab="sessions" class="nav-link flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-colors">
+          <span class="material-symbols-outlined">calendar_month</span><span class="text-sm">Sesi</span>
+        </button>
+        <button data-tab="reports" class="nav-link flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-colors">
+          <span class="material-symbols-outlined">bar_chart</span><span class="text-sm">Laporan</span>
+        </button>
+        <button data-tab="employees" class="nav-link flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-colors">
+          <span class="material-symbols-outlined">group</span><span class="text-sm">Karyawan</span>
+        </button>
+      </nav>
+      <div class="pt-4 mt-4 border-t border-white/10">
+        <button id="btn-admin-logout" class="flex items-center gap-3 w-full px-3 py-2.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
+          <span class="material-symbols-outlined">logout</span><span class="text-sm">Keluar</span>
+        </button>
+      </div>
+    </aside>
+
+    <main class="ml-64 flex flex-col min-h-screen">
+      <header class="sticky top-0 h-16 bg-white border-b border-outline-variant flex items-center justify-between px-8 z-40">
+        <h2 id="admin-page-title" class="text-lg font-bold text-primary">Dashboard</h2>
+        <a href="index.html" class="text-sm text-primary font-bold hover:underline">Buka Kiosk →</a>
+      </header>
+
+      <div class="p-8 space-y-6 flex-1 max-w-6xl">
+
+        <!-- PANEL: DASHBOARD -->
+        <section id="panel-dashboard" class="admin-panel space-y-6">
+          <div>
+            <h2 class="text-2xl font-extrabold text-primary">Ringkasan</h2>
+            <p class="text-on-surface-variant" data-org-name>PT Energi Batubara Lestari</p>
+          </div>
+          <div id="kpi-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+          <div class="bg-white rounded-2xl border border-outline-variant card-shadow overflow-hidden">
+            <div class="px-6 py-4 border-b border-outline-variant bg-surface-container-low">
+              <h3 class="font-bold text-primary">Aktivitas Terbaru</h3>
+            </div>
+            <div id="recent-activity-list" class="divide-y divide-outline-variant"></div>
+          </div>
+        </section>
+
+        <!-- PANEL: TOPIK -->
+        <section id="panel-topics" class="admin-panel hidden space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-2xl font-extrabold text-primary">Topik</h2>
+              <p class="text-on-surface-variant text-sm">Materi &amp; bank soal per topik Safety Talk.</p>
+            </div>
+            <button id="btn-new-topic" class="flex items-center gap-2 px-4 py-2.5 bg-secondary-container text-primary font-bold rounded-lg hover:brightness-95 transition">
+              <span class="material-symbols-outlined text-[18px]">add</span>Topik Baru
+            </button>
+          </div>
+          <div id="topics-list" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+        </section>
+
+        <!-- PANEL: SESI -->
+        <section id="panel-sessions" class="admin-panel hidden space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-2xl font-extrabold text-primary">Sesi</h2>
+              <p class="text-on-surface-variant text-sm">Hanya sesi <strong>published</strong> &amp; berlaku yang tampil di kiosk.</p>
+            </div>
+            <button id="btn-new-session" class="flex items-center gap-2 px-4 py-2.5 bg-secondary-container text-primary font-bold rounded-lg hover:brightness-95 transition">
+              <span class="material-symbols-outlined text-[18px]">add</span>Sesi Baru
+            </button>
+          </div>
+          <div id="sessions-list" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+        </section>
+
+        <!-- PANEL: LAPORAN -->
+        <section id="panel-reports" class="admin-panel hidden space-y-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-2xl font-extrabold text-primary">Laporan</h2>
+              <p class="text-on-surface-variant text-sm" id="reports-scope-note">Rekap partisipasi.</p>
+            </div>
+            <button id="btn-export-csv" class="flex items-center gap-2 px-4 py-2.5 border border-outline-variant bg-white text-primary font-bold rounded-lg hover:bg-surface-container-low transition">
+              <span class="material-symbols-outlined text-[18px]">download</span>Unduh CSV
+            </button>
+          </div>
+
+          <div class="bg-white rounded-2xl border border-outline-variant card-shadow overflow-hidden">
+            <div class="px-6 py-4 border-b border-outline-variant bg-surface-container-low">
+              <h3 class="font-bold text-primary">Ringkasan per Perusahaan</h3>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="bg-surface-container-low text-left text-xs uppercase tracking-wide text-on-surface-variant">
+                    <th class="px-6 py-3">Perusahaan</th><th class="px-6 py-3">Peserta</th><th class="px-6 py-3">Lulus</th>
+                    <th class="px-6 py-3">Belum Lulus</th><th class="px-6 py-3">Rata-rata Skor</th><th class="px-6 py-3">% Lulus</th>
+                  </tr>
+                </thead>
+                <tbody id="company-summary-body" class="divide-y divide-outline-variant"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between">
+            <h3 class="font-bold text-primary">Detail per Peserta</h3>
+            <select id="reports-company-filter" class="px-3 py-2 bg-white border border-outline-variant rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+              <option value="">Semua perusahaan</option>
+            </select>
+          </div>
+          <div class="bg-white rounded-2xl border border-outline-variant card-shadow overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm whitespace-nowrap">
+                <thead>
+                  <tr class="bg-surface-container-low text-left text-xs uppercase tracking-wide text-on-surface-variant">
+                    <th class="px-6 py-3">Waktu</th><th class="px-6 py-3">Nama</th><th class="px-6 py-3">NIK</th><th class="px-6 py-3">Perusahaan</th>
+                    <th class="px-6 py-3">Topik</th><th class="px-6 py-3">Skor</th><th class="px-6 py-3">Status</th><th class="px-6 py-3">No. Sertifikat</th>
+                  </tr>
+                </thead>
+                <tbody id="reports-body" class="divide-y divide-outline-variant"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- PANEL: KARYAWAN -->
+        <section id="panel-employees" class="admin-panel hidden space-y-4">
+          <div>
+            <h2 class="text-2xl font-extrabold text-primary">Karyawan</h2>
+            <p class="text-on-surface-variant text-sm" id="employees-scope-note">Daftar karyawan (baca saja).</p>
+          </div>
+          <div class="relative max-w-md">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
+            <input id="employees-search" placeholder="Cari nama, NIK, atau perusahaan…"
+              class="w-full pl-10 pr-4 py-2.5 bg-white border border-outline-variant rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" />
+          </div>
+          <div class="bg-white rounded-2xl border border-outline-variant card-shadow overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="bg-surface-container-low text-left text-xs uppercase tracking-wide text-on-surface-variant">
+                    <th class="px-6 py-3">Nama</th><th class="px-6 py-3">NIK</th><th class="px-6 py-3">Perusahaan</th><th class="px-6 py-3">Jabatan</th><th class="px-6 py-3">Departemen</th>
+                  </tr>
+                </thead>
+                <tbody id="employees-body" class="divide-y divide-outline-variant"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- PANEL: EDITOR TOPIK -->
+        <section id="panel-topic-editor" class="admin-panel hidden space-y-4 max-w-2xl">
+          <div class="flex items-center gap-3">
+            <button id="btn-topic-back" class="p-2 hover:bg-surface-container rounded-lg"><span class="material-symbols-outlined">arrow_back</span></button>
+            <h2 id="topic-editor-title" class="text-2xl font-extrabold text-primary">Topik Baru</h2>
+          </div>
+          <form id="topic-form" class="bg-white rounded-2xl border border-outline-variant card-shadow p-6 space-y-4">
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wide text-on-surface-variant mb-1" for="t-code">Kode Topik (unik)</label>
+              <input class="admin-field" id="t-code" placeholder="mis. ST-APD" required />
+            </div>
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wide text-on-surface-variant mb-1" for="t-title">Judul</label>
+              <input class="admin-field" id="t-title" required />
+            </div>
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wide text-on-surface-variant mb-1" for="t-threshold">Ambang Lulus (%)</label>
+              <input class="admin-field" id="t-threshold" type="number" min="0" max="100" value="80" required />
+            </div>
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wide text-on-surface-variant mb-1" for="t-material">Materi (HTML diperbolehkan)</label>
+              <textarea class="admin-field font-mono text-xs" id="t-material" rows="8" required></textarea>
+            </div>
+            <div class="flex items-center justify-between pt-2">
+              <h3 class="font-bold text-primary">Bank Soal</h3>
+              <button type="button" id="btn-add-question" class="flex items-center gap-1 px-3 py-1.5 border border-outline-variant rounded-lg text-sm font-bold text-primary hover:bg-surface-container-low">
+                <span class="material-symbols-outlined text-[16px]">add</span>Soal
+              </button>
+            </div>
+            <div id="questions-editor" class="space-y-4"></div>
+
+            <div class="flex gap-3 pt-4">
+              <button type="button" id="btn-topic-cancel" class="flex-1 py-3 border border-outline-variant rounded-lg font-bold hover:bg-surface-container-low transition">Batal</button>
+              <button type="submit" class="flex-1 py-3 bg-secondary-container text-primary font-bold rounded-lg hover:brightness-95 transition">Simpan Topik</button>
+            </div>
+            <button type="button" id="btn-topic-delete" hidden class="w-full py-2 text-error font-bold hover:bg-error-container/40 rounded-lg transition">Hapus Topik</button>
+          </form>
+        </section>
+
+        <!-- PANEL: EDITOR SESI -->
+        <section id="panel-session-editor" class="admin-panel hidden space-y-4 max-w-xl">
+          <div class="flex items-center gap-3">
+            <button id="btn-session-back" class="p-2 hover:bg-surface-container rounded-lg"><span class="material-symbols-outlined">arrow_back</span></button>
+            <h2 id="session-editor-title" class="text-2xl font-extrabold text-primary">Sesi Baru</h2>
+          </div>
+          <form id="session-form" class="bg-white rounded-2xl border border-outline-variant card-shadow p-6 space-y-4">
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wide text-on-surface-variant mb-1" for="s-topic">Topik</label>
+              <select class="admin-field" id="s-topic" required></select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wide text-on-surface-variant mb-1" for="s-title">Judul Sesi (opsional)</label>
+              <input class="admin-field" id="s-title" placeholder="kosongkan = pakai judul topik" />
+            </div>
+            <div class="flex gap-4">
+              <div class="flex-1">
+                <label class="block text-xs font-bold uppercase tracking-wide text-on-surface-variant mb-1" for="s-from">Berlaku Dari</label>
+                <input class="admin-field" id="s-from" type="date" required />
+              </div>
+              <div class="flex-1">
+                <label class="block text-xs font-bold uppercase tracking-wide text-on-surface-variant mb-1" for="s-until">Berlaku Sampai</label>
+                <input class="admin-field" id="s-until" type="date" required />
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wide text-on-surface-variant mb-1" for="s-companies">Target Perusahaan (pisah koma — kosong = semua)</label>
+              <input class="admin-field" id="s-companies" placeholder="mis. PT OFN, PT SCI" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wide text-on-surface-variant mb-1" for="s-status">Status</label>
+              <select class="admin-field" id="s-status">
+                <option value="draft">Draft (belum tampil di kiosk)</option>
+                <option value="published">Published (tampil di kiosk)</option>
+              </select>
+            </div>
+            <div class="flex gap-3 pt-2">
+              <button type="button" id="btn-session-cancel" class="flex-1 py-3 border border-outline-variant rounded-lg font-bold hover:bg-surface-container-low transition">Batal</button>
+              <button type="submit" class="flex-1 py-3 bg-secondary-container text-primary font-bold rounded-lg hover:brightness-95 transition">Simpan Sesi</button>
+            </div>
+            <button type="button" id="btn-session-delete" hidden class="w-full py-2 text-error font-bold hover:bg-error-container/40 rounded-lg transition">Hapus Sesi</button>
+          </form>
+        </section>
+
+      </div>
+    </main>
+  </div>
 
   <script src="assets/config.js"></script>
   <script src="assets/api.js"></script>

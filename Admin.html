@@ -438,11 +438,28 @@
     }
 
     function saveSession(id) {
+      var topicId = document.getElementById('f-topic').value;
+      var validFrom = new Date(document.getElementById('f-from').value);
+      var validUntil = new Date(document.getElementById('f-until').value);
+
+      if (!topicId) {
+        alert('Pilih topik dulu sebelum menyimpan session.');
+        return;
+      }
+      if (isNaN(validFrom.getTime()) || isNaN(validUntil.getTime())) {
+        alert('Tanggal "Berlaku Dari"/"Berlaku Sampai" belum diisi atau tidak valid. Isi keduanya dulu.');
+        return;
+      }
+      if (validUntil < validFrom) {
+        alert('Tanggal "Berlaku Sampai" tidak boleh sebelum "Berlaku Dari".');
+        return;
+      }
+
       var data = {
-        topic_id: document.getElementById('f-topic').value,
+        topic_id: topicId,
         title: document.getElementById('f-title').value,
-        valid_from: new Date(document.getElementById('f-from').value),
-        valid_until: new Date(document.getElementById('f-until').value),
+        valid_from: validFrom,
+        valid_until: validUntil,
         target_company_ids: [],
         target_area: '',
         status: document.getElementById('f-status').value,

@@ -46,7 +46,23 @@
     API.setAdminToken(null);
     $('#admin-shell').classList.add('hidden');
     $('#admin-login-view').classList.remove('hidden');
+    clearTimeout(idleTimer);
   }
+
+  // ============================================================
+  // AUTO-LOGOUT SAAT IDLE (keamanan -- PC admin bisa dipakai bersama)
+  // ============================================================
+  const IDLE_MS = 15 * 60 * 1000; // 15 menit tanpa aktivitas
+  let idleTimer = null;
+  function resetIdleTimer() {
+    if ($('#admin-shell').classList.contains('hidden')) return;
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      doLogout();
+      alert('Sesi admin berakhir otomatis karena tidak ada aktivitas selama 15 menit.');
+    }, IDLE_MS);
+  }
+  ['mousemove', 'keydown', 'click', 'touchstart'].forEach(evt => document.addEventListener(evt, resetIdleTimer));
 
   // ============================================================
   // SHELL + NAV
@@ -54,6 +70,7 @@
   async function openDashboard() {
     $('#admin-login-view').classList.add('hidden');
     $('#admin-shell').classList.remove('hidden');
+    resetIdleTimer();
     $('#reports-scope-note').textContent = API.mode === 'mock'
       ? 'Rekap partisipasi — mode demo, hanya tersimpan di browser ini.'
       : 'Rekap partisipasi dari Google Sheet.';
@@ -64,6 +81,10 @@
     await reloadData();
     renderTopicsList();
     renderSessionsList();
+    // reloadData() baru selesai sekarang -- render ulang Dashboard supaya kartu
+    // "Total Topik"/"Sesi Aktif" tidak nyangkut di 0 (dihitung dari topics/sessions
+    // yang saat render pertama di atas masih kosong).
+    if (lastTab === 'dashboard') renderDashboardPanel();
   }
 
   async function reloadData() {
@@ -107,7 +128,12 @@
     const list = $('#recent-activity-list');
     list.innerHTML = '';
     try {
-      const [employees, participations] = await Promise.all([API.listEmployees(), API.listParticipations()]);
+      // Pakai cache yang sudah ada kalau tab Karyawan/Laporan sudah pernah
+      // dibuka sebelumnya -- hindari fetch ulang data yang sama tiap kali
+      // admin bolak-balik ke Dashboard (Apps Script lambat per panggilan).
+      if (!lastEmployees.length) lastEmployees = await API.listEmployees();
+      if (!lastReports.length) lastReports = await API.listParticipations();
+      const employees = lastEmployees, participations = lastReports;
       const activeSessions = sessions.filter(s => s.status === 'published' && todayInRange(s.validFrom, s.validUntil));
       const total = participations.length;
       const avgScore = total ? Math.round(participations.reduce((s, p) => s + (Number(p.score) || 0), 0) / total) : 0;
@@ -141,9 +167,41 @@
             </div>
           </div>`).join('');
       }
+      renderTrendChart(participations);
     } catch (e) {
       grid.innerHTML = '<p class="text-error col-span-full">Gagal memuat ringkasan.</p>';
     }
+  }
+
+  function renderTrendChart(participations) {
+    const wrap = $('#trend-chart');
+    const now = new Date();
+    const months = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push({ key: d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'), label: d.toLocaleDateString('id-ID', { month: 'short', year: '2-digit' }) });
+    }
+    const byMonth = {};
+    participations.forEach(p => {
+      if (!p.submittedAt) return;
+      const d = new Date(p.submittedAt);
+      const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+      const g = byMonth[key] || (byMonth[key] = { total: 0, passed: 0 });
+      g.total++;
+      if (p.passed) g.passed++;
+    });
+    wrap.innerHTML = months.map(m => {
+      const g = byMonth[m.key] || { total: 0, passed: 0 };
+      const rate = g.total ? Math.round(g.passed / g.total * 100) : 0;
+      return `
+        <div class="flex items-center gap-3">
+          <span class="w-14 text-xs text-on-surface-variant">${m.label}</span>
+          <div class="flex-1 bg-surface-container-low rounded-full h-4 overflow-hidden">
+            <div class="bg-primary h-full rounded-full" style="width:${rate}%"></div>
+          </div>
+          <span class="w-28 text-xs text-right text-on-surface-variant">${rate}% (${g.total} peserta)</span>
+        </div>`;
+    }).join('');
   }
 
   // ============================================================
@@ -176,6 +234,7 @@
     setImagePreview(topic ? topic.materialImage : '');
     $('#csv-import-status').textContent = '';
     $('#btn-topic-delete').hidden = !topic;
+    $('#btn-topic-duplicate').hidden = !topic;
     $('#questions-editor').innerHTML = '';
     qCount = 0;
     (topic ? topic.questions : [{ q: '', options: ['', '', '', ''], correct: 0 }]).forEach(addQuestionBlock);
@@ -240,6 +299,29 @@
       alert('Gagal menyimpan topik. Periksa koneksi lalu coba lagi.');
     } finally {
       btn.disabled = false;
+    }
+  }
+
+  async function duplicateTopicConfirm() {
+    if (!editingTopicCode) return;
+    const src = topics.find(t => t.code === editingTopicCode);
+    if (!src) return;
+    const input = prompt('Kode topik baru untuk hasil duplikat:', src.code + '-COPY');
+    if (!input) return;
+    const code = input.trim();
+    if (!code) return;
+    if (topics.some(t => t.code === code)) { alert(`Kode topik "${code}" sudah dipakai topik lain. Pakai kode yang berbeda.`); return; }
+    const copy = {
+      code, title: src.title + ' (Copy)', passThreshold: src.passThreshold,
+      material: src.material, materialImage: src.materialImage, questions: src.questions,
+    };
+    try {
+      await API.saveTopic(copy);
+      await reloadData();
+      renderTopicsList();
+      openTopicEditor(topics.find(t => t.code === code));
+    } catch (e) {
+      alert('Gagal menduplikat topik. Periksa koneksi lalu coba lagi.');
     }
   }
 
@@ -381,6 +463,8 @@
   }
   const statusPill = (status) => pill(status, status === 'published' ? 'good' : 'plain');
   const passPill = (passed) => pill(passed ? 'Lulus' : 'Belum lulus', passed ? 'good' : 'plain');
+  const expiredPill = () => `<span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-error-container text-on-error-container">Kedaluwarsa</span>`;
+  const isExpired = (s) => new Date() > new Date(s.validUntil + 'T23:59:59');
 
   function renderSessionsList() {
     const wrap = $('#sessions-list');
@@ -393,7 +477,7 @@
             <div>
               <p class="font-bold text-primary">${escapeHtml(s.title || (topic ? topic.title : s.topicCode))}</p>
               <p class="text-xs text-on-surface-variant mt-1">${escapeHtml(s.topicCode)} · ${s.validFrom} – ${s.validUntil}</p>
-              <div class="mt-2">${statusPill(s.status)}</div>
+              <div class="mt-2 flex gap-2">${statusPill(s.status)}${s.status === 'published' && isExpired(s) ? expiredPill() : ''}</div>
             </div>
             <span class="material-symbols-outlined text-on-surface-variant">chevron_right</span>
           </div>
@@ -566,13 +650,21 @@
     sel.value = values.includes(current) ? current : '';
   }
 
-  function applyReportFilters() {
+  function getFilteredReports() {
     const company = $('#reports-company-filter').value;
     const topic = $('#reports-topic-filter').value;
+    const from = $('#reports-from').value;
+    const until = $('#reports-until').value;
     let filtered = lastReports;
     if (company) filtered = filtered.filter(p => p.perusahaan === company);
     if (topic) filtered = filtered.filter(p => p.topicCode === topic);
-    renderReportsTable(filtered);
+    if (from) filtered = filtered.filter(p => p.submittedAt && new Date(p.submittedAt) >= new Date(from + 'T00:00:00'));
+    if (until) filtered = filtered.filter(p => p.submittedAt && new Date(p.submittedAt) <= new Date(until + 'T23:59:59'));
+    return filtered;
+  }
+
+  function applyReportFilters() {
+    renderReportsTable(getFilteredReports());
   }
 
   function downloadCsv(rows, cols, filename) {
@@ -587,9 +679,10 @@
   }
 
   function exportCsv() {
-    if (!lastReports.length) { alert('Tidak ada data untuk diunduh.'); return; }
+    const rows = getFilteredReports();
+    if (!rows.length) { alert('Tidak ada data untuk diunduh.'); return; }
     const cols = ['submittedAt', 'nama', 'nik', 'perusahaan', 'topicCode', 'sessionId', 'attemptNo', 'score', 'passed', 'certificateNo', 'verificationToken'];
-    downloadCsv(lastReports, cols, `laporan-sharing-session-${new Date().toISOString().slice(0, 10)}.csv`);
+    downloadCsv(rows, cols, `laporan-sharing-session-${new Date().toISOString().slice(0, 10)}.csv`);
   }
 
   // ============================================================
@@ -636,11 +729,14 @@
         return;
       }
       body.innerHTML = lastMissingList.map(e => {
+        const missing = isMissingNik(e);
         const attempts = forSession.filter(p => p.nik === e.nik).sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
-        const status = attempts.length ? `Sudah coba, skor terakhir ${attempts[0].score}%` : 'Belum coba';
-        return `<tr>
-          <td class="px-6 py-3 font-medium"><button type="button" class="history-link text-primary hover:underline" data-nik="${escapeAttr(e.nik)}" data-nama="${escapeAttr(e.nama)}">${escapeHtml(e.nama || '-')}</button></td>
-          <td class="px-6 py-3 font-mono text-xs">${escapeHtml(e.nik || '-')}</td>
+        const status = missing ? 'NIK belum diisi di roster' : (attempts.length ? `Sudah coba, skor terakhir ${attempts[0].score}%` : 'Belum coba');
+        return `<tr class="${missing ? 'bg-error-container/20' : ''}">
+          <td class="px-6 py-3 font-medium">${missing
+            ? escapeHtml(e.nama || '-')
+            : `<button type="button" class="history-link text-primary hover:underline" data-nik="${escapeAttr(e.nik)}" data-nama="${escapeAttr(e.nama)}">${escapeHtml(e.nama || '-')}</button>`}</td>
+          <td class="px-6 py-3 font-mono text-xs">${missing ? '<span class="text-error font-bold">Kosong</span>' : escapeHtml(e.nik)}</td>
           <td class="px-6 py-3">${escapeHtml(e.perusahaan || '-')}</td>
           <td class="px-6 py-3">${escapeHtml(e.jabatan || '-')}</td>
           <td class="px-6 py-3">${escapeHtml(status)}</td>
@@ -706,17 +802,27 @@
     }
   }
 
+  const isMissingNik = (e) => !e.nik || e.nik === '-';
+
   function renderEmployeesTable(list) {
     const body = $('#employees-body');
+    const missingCount = list.filter(isMissingNik).length;
+    $('#employees-missing-nik-note').textContent = missingCount
+      ? `${missingCount} karyawan belum punya NIK di roster — tidak bisa login kiosk sampai dilengkapi.` : '';
     if (!list.length) { body.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-on-surface-variant">Tidak ada karyawan yang cocok.</td></tr>`; return; }
-    body.innerHTML = list.map(e => `
-      <tr>
-        <td class="px-6 py-3 font-medium"><button type="button" class="history-link text-primary hover:underline" data-nik="${escapeAttr(e.nik)}" data-nama="${escapeAttr(e.nama)}">${escapeHtml(e.nama || '-')}</button></td>
-        <td class="px-6 py-3 font-mono text-xs">${escapeHtml(e.nik || '-')}</td>
+    body.innerHTML = list.map(e => {
+      const missing = isMissingNik(e);
+      return `
+      <tr class="${missing ? 'bg-error-container/20' : ''}">
+        <td class="px-6 py-3 font-medium">${missing
+          ? escapeHtml(e.nama || '-')
+          : `<button type="button" class="history-link text-primary hover:underline" data-nik="${escapeAttr(e.nik)}" data-nama="${escapeAttr(e.nama)}">${escapeHtml(e.nama || '-')}</button>`}</td>
+        <td class="px-6 py-3 font-mono text-xs">${missing ? '<span class="text-error font-bold">Kosong</span>' : escapeHtml(e.nik)}</td>
         <td class="px-6 py-3">${escapeHtml(e.perusahaan || '-')}</td>
         <td class="px-6 py-3">${escapeHtml(e.jabatan || '-')}</td>
         <td class="px-6 py-3">${escapeHtml(e.departemen || '-')}</td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
     $$('.history-link', body).forEach(b => b.onclick = () => openEmployeeHistory(b.dataset.nik, b.dataset.nama));
   }
 
@@ -749,6 +855,7 @@
     $('#btn-topic-back').onclick = () => switchTab('topics');
     $('#btn-add-question').onclick = () => addQuestionBlock(null);
     $('#btn-topic-delete').onclick = deleteTopicConfirm;
+    $('#btn-topic-duplicate').onclick = duplicateTopicConfirm;
     $('#t-image').addEventListener('change', handleImageFileChange);
     $('#btn-remove-image').onclick = () => setImagePreview('');
     $('#btn-download-csv-template').onclick = downloadCsvTemplate;
@@ -764,6 +871,8 @@
     $('#btn-export-csv').onclick = exportCsv;
     $('#reports-company-filter').onchange = applyReportFilters;
     $('#reports-topic-filter').onchange = applyReportFilters;
+    $('#reports-from').onchange = applyReportFilters;
+    $('#reports-until').onchange = applyReportFilters;
     $('#missing-session-select').addEventListener('change', (e) => computeMissingReport(e.target.value));
     $('#btn-export-missing-csv').onclick = exportMissingCsv;
     $('#employees-search').addEventListener('input', applyEmployeeSearch);

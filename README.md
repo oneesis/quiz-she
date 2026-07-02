@@ -139,6 +139,19 @@ function isAdmin(token) {
   return !!token && token === PropertiesService.getScriptProperties().getProperty('ADMIN_TOKEN');
 }
 
+// Cache singkat (script-wide) untuk data yang jarang berubah -- tiap
+// panggilan Apps Script itu lambat (~1-3 detik) karena overhead platform,
+// jadi hindari scan ulang sheet penuh kalau data yang sama baru diminta.
+function cacheGet_(key) {
+  try { return CacheService.getScriptCache().get(key); } catch (e) { return null; }
+}
+function cachePut_(key, value, ttlSeconds) {
+  try { CacheService.getScriptCache().put(key, value, ttlSeconds); } catch (e) { /* diabaikan */ }
+}
+function cacheClear_(key) {
+  try { CacheService.getScriptCache().remove(key); } catch (e) { /* diabaikan */ }
+}
+
 function doGet(e) {
   const a = e.parameter.action;
   if (a === 'employee')       return json(findEmployee(e.parameter.nik));
@@ -157,10 +170,10 @@ function doPost(e) {
   const p = body.payload;
   if (body.action === 'participation') { return json({ ok: true, certificateNo: appendResult(p) }); }
   if (!isAdmin(body.adminToken)) return json({ ok: false, error: 'unauthorized' });
-  if (body.action === 'topic_save')     { saveRow(TOPICS, 'code', p.code, { code: p.code, title: p.title, passThreshold: p.passThreshold, material: p.material, materialImage: p.materialImage, questionsJson: JSON.stringify(p.questions) }); return json({ ok: true }); }
-  if (body.action === 'topic_delete')   { deleteRow(TOPICS, 'code', p.code); return json({ ok: true }); }
-  if (body.action === 'session_save')   { saveRow(SESSIONS, 'id', p.id, { id: p.id, topicCode: p.topicCode, title: p.title, validFrom: p.validFrom, validUntil: p.validUntil, targetCompanies: (p.targetCompanies || []).join(','), status: p.status }); return json({ ok: true }); }
-  if (body.action === 'session_delete') { deleteRow(SESSIONS, 'id', p.id); return json({ ok: true }); }
+  if (body.action === 'topic_save')     { saveRow(TOPICS, 'code', p.code, { code: p.code, title: p.title, passThreshold: p.passThreshold, material: p.material, materialImage: p.materialImage, questionsJson: JSON.stringify(p.questions) }); cacheClear_('topics_v1'); return json({ ok: true }); }
+  if (body.action === 'topic_delete')   { deleteRow(TOPICS, 'code', p.code); cacheClear_('topics_v1'); return json({ ok: true }); }
+  if (body.action === 'session_save')   { saveRow(SESSIONS, 'id', p.id, { id: p.id, topicCode: p.topicCode, title: p.title, validFrom: p.validFrom, validUntil: p.validUntil, targetCompanies: (p.targetCompanies || []).join(','), status: p.status }); cacheClear_('sessions_v1'); return json({ ok: true }); }
+  if (body.action === 'session_delete') { deleteRow(SESSIONS, 'id', p.id); cacheClear_('sessions_v1'); return json({ ok: true }); }
   if (body.action === 'upload_image')   { return json({ ok: true, url: uploadImage_(p) }); }
   return json({ ok: false });
 }
@@ -187,14 +200,20 @@ function getUploadsFolder_() {
 }
 
 function listEmployees() {
+  const cached = cacheGet_('employees_v1');
+  if (cached) return JSON.parse(cached);
   const rows = SpreadsheetApp.openById(SS_ID).getSheetByName(ROSTER).getDataRange().getValues();
   const head = rows.shift(); const c = n => head.indexOf(n);
   // Sengaja tidak menyertakan "NO WHATSAPP" — daftar ini sudah lebih sensitif
   // daripada lookup 1-NIK biasa, jangan tambah data pribadi yang tidak perlu.
-  return rows.map(r => ({
-    nik: String(r[c('NIK')]), nama: r[c('NAMA')], perusahaan: r[c('PERUSAHAAN')],
+  // Karyawan tanpa NIK TETAP disertakan (bukan difilter) supaya admin bisa
+  // melihat & melengkapi datanya lewat tab Karyawan di panel admin.
+  const out = rows.map(r => ({
+    nik: String(r[c('NIK')] || '').trim(), nama: r[c('NAMA')], perusahaan: r[c('PERUSAHAAN')],
     jabatan: r[c('JABATAN')], departemen: r[c('DEPARTEMEN')],
-  }));
+  })).filter(e => e.nama);
+  cachePut_('employees_v1', JSON.stringify(out), 120);
+  return out;
 }
 
 function findEmployee(nik) {
@@ -273,23 +292,31 @@ function listParticipations() {
   })).reverse();
 }
 function listTopics() {
+  const cached = cacheGet_('topics_v1');
+  if (cached) return JSON.parse(cached);
   const rows = SpreadsheetApp.openById(SS_ID).getSheetByName(TOPICS).getDataRange().getValues();
   const head = rows.shift(); const c = n => head.indexOf(n);
-  return rows.map(r => ({
+  const out = rows.map(r => ({
     code: r[c('code')], title: r[c('title')], passThreshold: r[c('passThreshold')],
     material: r[c('material')], materialImage: r[c('materialImage')],
     questions: JSON.parse(r[c('questionsJson')] || '[]'),
   }));
+  cachePut_('topics_v1', JSON.stringify(out), 60);
+  return out;
 }
 function listSessions() {
+  const cached = cacheGet_('sessions_v1');
+  if (cached) return JSON.parse(cached);
   const rows = SpreadsheetApp.openById(SS_ID).getSheetByName(SESSIONS).getDataRange().getValues();
   const head = rows.shift(); const c = n => head.indexOf(n);
-  return rows.map(r => ({
+  const out = rows.map(r => ({
     id: r[c('id')], topicCode: r[c('topicCode')], title: r[c('title')],
     validFrom: r[c('validFrom')], validUntil: r[c('validUntil')],
     targetCompanies: String(r[c('targetCompanies')] || '').split(',').map(s => s.trim()).filter(Boolean),
     status: r[c('status')],
   }));
+  cachePut_('sessions_v1', JSON.stringify(out), 60);
+  return out;
 }
 // Simpan (tambah/timpa) baris berdasarkan kolom kunci, mengisi tiap kolom
 // sesuai NAMA header (bukan posisi). valuesByName: { namaKolom: nilai, ... }

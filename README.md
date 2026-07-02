@@ -152,6 +152,19 @@ function cacheClear_(key) {
   try { CacheService.getScriptCache().remove(key); } catch (e) { /* diabaikan */ }
 }
 
+// Sheet mengetik ulang teks "2026-07-01" yang ditulis lewat form admin
+// menjadi sel bertipe Date secara otomatis -- getValues() lalu mengembalikan
+// objek Date asli (bukan teksnya), yang kalau dikirim sebagai JSON jadi
+// "2026-07-01T07:00:00.000Z". Kode kiosk/admin menempelkan "T00:00:00" di
+// belakang validFrom/validUntil untuk parsing tanggal; ditempel ke string
+// yang sudah lengkap begini jadi Invalid Date, sesi pun dianggap tidak aktif
+// selamanya. Normalisasi ke "yyyy-MM-dd" polos di sini, satu tempat, supaya
+// semua pemanggil (kiosk & admin) selalu terima format yang konsisten.
+function toDateStr_(v) {
+  if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  return String(v || '').slice(0, 10);
+}
+
 function doGet(e) {
   const a = e.parameter.action;
   if (a === 'employee')       return json(findEmployee(e.parameter.nik));
@@ -311,7 +324,7 @@ function listSessions() {
   const head = rows.shift(); const c = n => head.indexOf(n);
   const out = rows.map(r => ({
     id: r[c('id')], topicCode: r[c('topicCode')], title: r[c('title')],
-    validFrom: r[c('validFrom')], validUntil: r[c('validUntil')],
+    validFrom: toDateStr_(r[c('validFrom')]), validUntil: toDateStr_(r[c('validUntil')]),
     targetCompanies: String(r[c('targetCompanies')] || '').split(',').map(s => s.trim()).filter(Boolean),
     status: r[c('status')],
   }));

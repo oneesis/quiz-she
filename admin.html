@@ -162,28 +162,52 @@
             </button>
           </div>
 
-          <div class="bg-white rounded-2xl border border-outline-variant card-shadow overflow-hidden">
-            <div class="px-6 py-4 border-b border-outline-variant bg-surface-container-low">
-              <h3 class="font-bold text-primary">Ringkasan per Perusahaan</h3>
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="bg-white rounded-2xl border border-outline-variant card-shadow overflow-hidden">
+              <div class="px-6 py-4 border-b border-outline-variant bg-surface-container-low">
+                <h3 class="font-bold text-primary">Ringkasan per Perusahaan</h3>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                  <thead>
+                    <tr class="bg-surface-container-low text-left text-xs uppercase tracking-wide text-on-surface-variant">
+                      <th class="px-4 py-3">Perusahaan</th><th class="px-4 py-3">Peserta</th><th class="px-4 py-3">Lulus</th>
+                      <th class="px-4 py-3">Belum</th><th class="px-4 py-3">Rata-rata</th><th class="px-4 py-3">% Lulus</th>
+                    </tr>
+                  </thead>
+                  <tbody id="company-summary-body" class="divide-y divide-outline-variant"></tbody>
+                </table>
+              </div>
             </div>
-            <div class="overflow-x-auto">
-              <table class="w-full text-sm">
-                <thead>
-                  <tr class="bg-surface-container-low text-left text-xs uppercase tracking-wide text-on-surface-variant">
-                    <th class="px-6 py-3">Perusahaan</th><th class="px-6 py-3">Peserta</th><th class="px-6 py-3">Lulus</th>
-                    <th class="px-6 py-3">Belum Lulus</th><th class="px-6 py-3">Rata-rata Skor</th><th class="px-6 py-3">% Lulus</th>
-                  </tr>
-                </thead>
-                <tbody id="company-summary-body" class="divide-y divide-outline-variant"></tbody>
-              </table>
+
+            <div class="bg-white rounded-2xl border border-outline-variant card-shadow overflow-hidden">
+              <div class="px-6 py-4 border-b border-outline-variant bg-surface-container-low">
+                <h3 class="font-bold text-primary">Ringkasan per Topik</h3>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                  <thead>
+                    <tr class="bg-surface-container-low text-left text-xs uppercase tracking-wide text-on-surface-variant">
+                      <th class="px-4 py-3">Topik</th><th class="px-4 py-3">Peserta</th><th class="px-4 py-3">Lulus</th>
+                      <th class="px-4 py-3">Belum</th><th class="px-4 py-3">Rata-rata</th><th class="px-4 py-3">% Lulus</th>
+                    </tr>
+                  </thead>
+                  <tbody id="topic-summary-body" class="divide-y divide-outline-variant"></tbody>
+                </table>
+              </div>
             </div>
           </div>
 
-          <div class="flex items-center justify-between">
+          <div class="flex items-center justify-between flex-wrap gap-2">
             <h3 class="font-bold text-primary">Detail per Peserta</h3>
-            <select id="reports-company-filter" class="px-3 py-2 bg-white border border-outline-variant rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary">
-              <option value="">Semua perusahaan</option>
-            </select>
+            <div class="flex gap-2">
+              <select id="reports-topic-filter" class="px-3 py-2 bg-white border border-outline-variant rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                <option value="">Semua topik</option>
+              </select>
+              <select id="reports-company-filter" class="px-3 py-2 bg-white border border-outline-variant rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                <option value="">Semua perusahaan</option>
+              </select>
+            </div>
           </div>
           <div class="bg-white rounded-2xl border border-outline-variant card-shadow overflow-hidden">
             <div class="overflow-x-auto">

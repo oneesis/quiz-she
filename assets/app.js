@@ -190,9 +190,10 @@
 
   function renderQuestion() {
     const item = S.served[S.idx];
+    const answeredCount = S.answers.filter(a => a !== null).length;
     $('#quiz-topic-label').textContent = S.topic.title;
-    $('#quiz-progress-label').textContent = `Soal ${S.idx + 1}/${S.served.length}`;
-    $('#quiz-progress-bar').style.width = ((S.idx + 1) / S.served.length * 100) + '%';
+    $('#quiz-progress-label').textContent = `Terjawab ${answeredCount}/${S.served.length} · Soal ${S.idx + 1}`;
+    $('#quiz-progress-bar').style.width = (answeredCount / S.served.length * 100) + '%';
     $('#quiz-question').textContent = item.q;
     const opts = $('#quiz-options');
     opts.innerHTML = '';

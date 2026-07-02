@@ -440,11 +440,14 @@
     try {
       lastReports = await API.listParticipations();
       renderCompanySummary(lastReports);
-      populateCompanyFilter(lastReports);
+      renderTopicSummary(lastReports);
+      populateFilter('#reports-company-filter', lastReports, p => p.perusahaan, 'Semua perusahaan');
+      populateFilter('#reports-topic-filter', lastReports, p => p.topicCode, 'Semua topik');
       renderReportsTable(lastReports);
     } catch (e) {
       body.innerHTML = `<tr><td colspan="8" class="px-6 py-4 text-on-surface-variant">Gagal memuat laporan.</td></tr>`;
       $('#company-summary-body').innerHTML = '';
+      $('#topic-summary-body').innerHTML = '';
     }
   }
 
@@ -464,40 +467,57 @@
       </tr>`).join('');
   }
 
-  function renderCompanySummary(list) {
-    const wrap = $('#company-summary-body');
-    if (!list.length) { wrap.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-on-surface-variant">Belum ada data.</td></tr>`; return; }
-    const byCompany = {};
+  function buildSummary(list, keyFn, fallbackLabel) {
+    const groups = {};
     list.forEach(p => {
-      const key = p.perusahaan || 'Tanpa perusahaan';
-      const g = byCompany[key] || (byCompany[key] = { total: 0, passed: 0, scoreSum: 0 });
+      const key = keyFn(p) || fallbackLabel;
+      const g = groups[key] || (groups[key] = { total: 0, passed: 0, scoreSum: 0 });
       g.total++;
       g.scoreSum += Number(p.score) || 0;
       if (p.passed) g.passed++;
     });
-    wrap.innerHTML = Object.keys(byCompany).sort().map(name => {
-      const g = byCompany[name];
+    return groups;
+  }
+
+  function renderSummaryTable(elId, groups) {
+    const wrap = $(elId);
+    const names = Object.keys(groups).sort();
+    if (!names.length) { wrap.innerHTML = `<tr><td colspan="6" class="px-4 py-3 text-on-surface-variant">Belum ada data.</td></tr>`; return; }
+    wrap.innerHTML = names.map(name => {
+      const g = groups[name];
       const avg = Math.round(g.scoreSum / g.total);
       const rate = Math.round((g.passed / g.total) * 100);
       return `<tr>
-        <td class="px-6 py-3 font-medium">${escapeHtml(name)}</td><td class="px-6 py-3">${g.total}</td><td class="px-6 py-3">${g.passed}</td>
-        <td class="px-6 py-3">${g.total - g.passed}</td><td class="px-6 py-3">${avg}%</td><td class="px-6 py-3 font-bold text-primary">${rate}%</td>
+        <td class="px-4 py-3 font-medium">${escapeHtml(name)}</td><td class="px-4 py-3">${g.total}</td><td class="px-4 py-3">${g.passed}</td>
+        <td class="px-4 py-3">${g.total - g.passed}</td><td class="px-4 py-3">${avg}%</td><td class="px-4 py-3 font-bold text-primary">${rate}%</td>
       </tr>`;
     }).join('');
   }
 
-  function populateCompanyFilter(list) {
-    const sel = $('#reports-company-filter');
-    const current = sel.value;
-    const companies = [...new Set(list.map(p => p.perusahaan).filter(Boolean))].sort();
-    sel.innerHTML = '<option value="">Semua perusahaan</option>' +
-      companies.map(c => `<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`).join('');
-    sel.value = companies.includes(current) ? current : '';
+  function renderCompanySummary(list) {
+    renderSummaryTable('#company-summary-body', buildSummary(list, p => p.perusahaan, 'Tanpa perusahaan'));
   }
 
-  function applyCompanyFilter() {
-    const val = $('#reports-company-filter').value;
-    renderReportsTable(val ? lastReports.filter(p => p.perusahaan === val) : lastReports);
+  function renderTopicSummary(list) {
+    renderSummaryTable('#topic-summary-body', buildSummary(list, p => p.topicCode, 'Tanpa topik'));
+  }
+
+  function populateFilter(selId, list, keyFn, allLabel) {
+    const sel = $(selId);
+    const current = sel.value;
+    const values = [...new Set(list.map(keyFn).filter(Boolean))].sort();
+    sel.innerHTML = `<option value="">${allLabel}</option>` +
+      values.map(v => `<option value="${escapeAttr(v)}">${escapeHtml(v)}</option>`).join('');
+    sel.value = values.includes(current) ? current : '';
+  }
+
+  function applyReportFilters() {
+    const company = $('#reports-company-filter').value;
+    const topic = $('#reports-topic-filter').value;
+    let filtered = lastReports;
+    if (company) filtered = filtered.filter(p => p.perusahaan === company);
+    if (topic) filtered = filtered.filter(p => p.topicCode === topic);
+    renderReportsTable(filtered);
   }
 
   function exportCsv() {
@@ -586,7 +606,8 @@
     $('#btn-session-delete').onclick = deleteSessionConfirm;
 
     $('#btn-export-csv').onclick = exportCsv;
-    $('#reports-company-filter').onchange = applyCompanyFilter;
+    $('#reports-company-filter').onchange = applyReportFilters;
+    $('#reports-topic-filter').onchange = applyReportFilters;
     $('#employees-search').addEventListener('input', applyEmployeeSearch);
   }
 

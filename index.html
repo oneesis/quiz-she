@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>Safety Talk Digital — PT EBL</title>
+  <meta name="description" content="Safety Talk / P5M digital: baca materi, kerjakan kuis, dapatkan sertifikat." />
+  <link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="masthead">
+      <div class="masthead__stripe"></div>
+      <div class="masthead__bar">
+        <div class="badge" data-org-short>PT EBL</div>
+        <div class="masthead__txt">
+          <div class="masthead__title" data-org-name>PT Energi Batubara Lestari</div>
+          <div class="masthead__sub" data-org-subtitle>Safety Talk Digital · P5M</div>
+        </div>
+      </div>
+    </header>
+
+    <div class="stage">
+
+      <!-- 1. LOGIN -->
+      <section class="screen" id="screen-login">
+        <span class="eyebrow">Masuk</span>
+        <h1 class="screen-title">Mulai Safety Talk</h1>
+        <p class="lead">Masukkan NIK kamu untuk memulai sesi hari ini.</p>
+        <label class="field-label" for="nik-input">Nomor Induk Karyawan (NIK)</label>
+        <input class="nik-field" id="nik-input" inputmode="text" autocomplete="off"
+               placeholder="mis. 02-010218-001" aria-describedby="login-error" />
+        <div class="error" id="login-error" role="alert"></div>
+        <div class="stack">
+          <button class="btn btn--primary" id="btn-login">Masuk</button>
+        </div>
+        <div class="demo-hint" id="demo-hint" hidden></div>
+      </section>
+
+      <!-- 2. KONFIRMASI -->
+      <section class="screen" id="screen-confirm">
+        <span class="eyebrow">Konfirmasi</span>
+        <h1 class="screen-title">Benar ini kamu?</h1>
+        <p class="lead">Periksa data di bawah sebelum lanjut.</p>
+        <div id="confirm-body"></div>
+        <div class="btn-row">
+          <button class="btn btn--ghost" id="btn-confirm-no">Bukan saya</button>
+          <button class="btn btn--primary" id="btn-confirm-yes">Ya, lanjut</button>
+        </div>
+      </section>
+
+      <!-- 3. PILIH SESSION -->
+      <section class="screen" id="screen-sessions">
+        <span class="eyebrow">Pilih sesi</span>
+        <h1 class="screen-title">Safety Talk aktif</h1>
+        <p class="lead">Pilih sesi yang akan kamu ikuti.</p>
+        <div class="session-list" id="session-list"></div>
+        <div class="stack">
+          <button class="btn btn--ghost" data-back-login>Keluar</button>
+        </div>
+      </section>
+
+      <!-- 4. MATERI -->
+      <section class="screen" id="screen-material">
+        <span class="eyebrow">Materi</span>
+        <h1 class="screen-title" id="material-title"></h1>
+        <div class="material" id="material-body"></div>
+        <div class="btn-row">
+          <button class="btn btn--ghost" id="btn-material-back">Kembali</button>
+          <button class="btn btn--primary" id="btn-start-quiz">Mulai Kuis</button>
+        </div>
+      </section>
+
+      <!-- 5. KUIS -->
+      <section class="screen" id="screen-quiz">
+        <div class="progress"><div class="progress__bar" id="quiz-progress-bar"></div></div>
+        <div class="quiz-count" id="quiz-count"></div>
+        <p class="quiz-question" id="quiz-question"></p>
+        <div class="options" id="quiz-options"></div>
+        <div class="btn-row">
+          <button class="btn btn--ghost" id="btn-prev" hidden>← Sebelumnya</button>
+          <button class="btn btn--primary" id="btn-next">Lanjut →</button>
+        </div>
+      </section>
+
+      <!-- 6. HASIL -->
+      <section class="screen" id="screen-result">
+        <div class="result" id="result-body"></div>
+        <p id="result-note"></p>
+        <div class="stack">
+          <button class="btn btn--go" id="btn-cert" hidden>Lihat Sertifikat</button>
+          <button class="btn btn--primary" id="btn-retry" hidden>Baca Ulang & Coba Lagi</button>
+          <button class="btn btn--ghost" data-back-login>Selesai</button>
+        </div>
+      </section>
+
+      <!-- 7. SERTIFIKAT -->
+      <section class="screen" id="screen-certificate">
+        <span class="eyebrow">Sertifikat</span>
+        <h1 class="screen-title">Bukti Safety Talk</h1>
+        <div class="cert-shell">
+          <div class="certificate" id="certificate">
+            <div class="certificate__head">
+              <div class="certificate__kicker">Sertifikat Keikutsertaan Safety Talk</div>
+              <div class="certificate__h" data-org-name>PT Energi Batubara Lestari</div>
+              <div class="certificate__org">Program P5M · Safety, Health &amp; Environment</div>
+            </div>
+            <div class="certificate__body">
+              <div class="cert-fields">
+                <div class="cert-field"><span>Nama</span><strong id="cert-name"></strong></div>
+                <div class="cert-field"><span>NIK</span><strong class="mono" id="cert-nik"></strong></div>
+                <div class="cert-field"><span>Perusahaan</span><strong id="cert-company"></strong></div>
+                <div class="cert-field"><span>Topik</span><strong id="cert-topic"></strong></div>
+                <div class="cert-field"><span>Tanggal</span><strong id="cert-date"></strong></div>
+                <div class="cert-field"><span>Skor</span><strong id="cert-score"></strong></div>
+              </div>
+              <div class="cert-side">
+                <div class="cert-qr" id="cert-qr"></div>
+                <div class="cert-stamp">LULUS</div>
+              </div>
+            </div>
+            <div class="certificate__foot">
+              <span>No. Sertifikat</span>
+              <span class="certificate__no" id="cert-no"></span>
+            </div>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn--ghost" id="btn-cert-done">Selesai</button>
+          <button class="btn btn--primary" id="btn-download">Unduh PDF</button>
+        </div>
+      </section>
+
+      <!-- VERIFIKASI (dibuka dari QR) -->
+      <section class="screen" id="screen-verify">
+        <span class="eyebrow">Verifikasi</span>
+        <h1 class="screen-title">Cek Keaslian Sertifikat</h1>
+        <div id="verify-body"></div>
+        <div class="stack">
+          <button class="btn btn--ghost" id="btn-verify-close">Tutup</button>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- pustaka: QR + PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <!-- aplikasi -->
+  <script src="assets/config.js"></script>
+  <script src="assets/api.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>

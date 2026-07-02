@@ -6,6 +6,27 @@
   <title>Safety Talk Digital — PT EBL</title>
   <meta name="description" content="Safety Talk / P5M digital: baca materi, kerjakan kuis, dapatkan sertifikat." />
   <link rel="stylesheet" href="assets/styles.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#003063', 'primary-container': '#00468c', 'on-primary': '#ffffff',
+            secondary: '#7c5800', 'secondary-container': '#feb700', 'on-secondary-container': '#6b4b00',
+            surface: '#f7f9fb', 'on-surface': '#191c1e', 'on-surface-variant': '#424751',
+            'outline-variant': '#c2c6d2', 'surface-container': '#eceef0', 'surface-container-low': '#f2f4f6',
+            'surface-container-highest': '#e0e3e5', error: '#ba1a1a', 'error-container': '#ffdad6',
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    body.mode-focus .masthead { display: none; }
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; vertical-align: middle; }
+  </style>
 </head>
 <body>
   <main class="app">
@@ -73,24 +94,75 @@
 
       <!-- 5. KUIS -->
       <section class="screen" id="screen-quiz">
-        <div class="progress"><div class="progress__bar" id="quiz-progress-bar"></div></div>
-        <div class="quiz-count" id="quiz-count"></div>
-        <p class="quiz-question" id="quiz-question"></p>
-        <div class="options" id="quiz-options"></div>
-        <div class="btn-row">
-          <button class="btn btn--ghost" id="btn-prev" hidden>← Sebelumnya</button>
-          <button class="btn btn--primary" id="btn-next">Lanjut →</button>
+        <div class="bg-primary text-white rounded-2xl p-4 mb-4">
+          <div class="flex items-center justify-between text-xs font-bold uppercase tracking-wide text-white/70">
+            <span id="quiz-topic-label">Topik</span>
+            <span id="quiz-progress-label">Soal 1/5</span>
+          </div>
+          <div class="w-full h-2 bg-white/20 rounded-full overflow-hidden mt-2">
+            <div id="quiz-progress-bar" class="h-full bg-secondary-container transition-all duration-300" style="width:0%"></div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-outline-variant shadow-[0_4px_6px_-1px_rgba(0,0,0,.1)] p-5 mb-4">
+          <p id="quiz-question" class="text-lg font-bold text-on-surface leading-snug mb-4"></p>
+          <div id="quiz-options" class="flex flex-col gap-3"></div>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-outline-variant shadow-[0_4px_6px_-1px_rgba(0,0,0,.1)] p-4 mb-4">
+          <p class="text-xs font-bold uppercase tracking-wide text-on-surface-variant mb-3">Navigasi Soal</p>
+          <div id="quiz-nav-grid" class="grid grid-cols-5 gap-2"></div>
+          <div class="flex items-center gap-4 mt-3 text-xs text-on-surface-variant">
+            <span id="quiz-nav-answered">Terjawab: 0</span>
+            <span id="quiz-nav-remaining">Sisa: 0</span>
+          </div>
+          <p id="quiz-incomplete-warning" class="hidden text-xs font-bold text-error mt-2"></p>
+        </div>
+
+        <div class="flex gap-3">
+          <button id="btn-prev" class="hidden flex-1 py-3 border border-outline-variant rounded-xl font-bold text-primary hover:bg-surface-container-low transition-colors">← Sebelumnya</button>
+          <button id="btn-next" class="flex-1 py-3 bg-secondary-container text-primary rounded-xl font-bold hover:brightness-95 transition">Lanjut →</button>
         </div>
       </section>
 
       <!-- 6. HASIL -->
       <section class="screen" id="screen-result">
-        <div class="result" id="result-body"></div>
-        <p id="result-note"></p>
-        <div class="stack">
-          <button class="btn btn--go" id="btn-cert" hidden>Lihat Sertifikat</button>
-          <button class="btn btn--primary" id="btn-retry" hidden>Baca Ulang & Coba Lagi</button>
-          <button class="btn btn--ghost" data-back-login>Selesai</button>
+        <div class="bg-white rounded-2xl border border-outline-variant shadow-[0_4px_6px_-1px_rgba(0,0,0,.1)] p-6 flex flex-col items-center text-center">
+          <div class="relative w-40 h-40 mb-4">
+            <svg class="w-full h-full -rotate-90" viewbox="0 0 200 200">
+              <circle cx="100" cy="100" fill="transparent" r="90" stroke="currentColor" stroke-width="14" class="text-surface-container-highest"></circle>
+              <circle cx="100" cy="100" fill="transparent" r="90" stroke="currentColor" stroke-width="14" stroke-linecap="round"
+                id="result-gauge-circle" class="text-secondary-container" style="stroke-dasharray:565.5; stroke-dashoffset:565.5; transition:stroke-dashoffset 1s cubic-bezier(.4,0,.2,1)"></circle>
+            </svg>
+            <div class="absolute inset-0 flex flex-col items-center justify-center">
+              <span id="result-score-num" class="text-4xl font-extrabold text-primary">0</span>
+              <span class="text-[10px] uppercase tracking-widest text-on-surface-variant font-bold">Skor Akhir</span>
+            </div>
+          </div>
+          <div id="result-status-pill" class="px-4 py-1 rounded-full flex items-center gap-1 mb-3 font-bold text-xs uppercase tracking-wide"></div>
+          <h2 id="result-heading" class="text-xl font-extrabold text-primary mb-1"></h2>
+          <p id="result-note" class="text-on-surface-variant text-sm"></p>
+        </div>
+
+        <div class="grid grid-cols-3 gap-3 mt-4">
+          <div class="bg-white rounded-xl border border-outline-variant p-3 text-center">
+            <p class="text-[10px] uppercase tracking-wide text-on-surface-variant font-bold mb-1">Benar</p>
+            <p id="result-correct" class="text-xl font-extrabold text-primary"></p>
+          </div>
+          <div class="bg-white rounded-xl border border-outline-variant p-3 text-center">
+            <p class="text-[10px] uppercase tracking-wide text-on-surface-variant font-bold mb-1">Salah</p>
+            <p id="result-wrong" class="text-xl font-extrabold text-error"></p>
+          </div>
+          <div class="bg-white rounded-xl border border-outline-variant p-3 text-center">
+            <p class="text-[10px] uppercase tracking-wide text-on-surface-variant font-bold mb-1">Durasi</p>
+            <p id="result-duration" class="text-xl font-extrabold text-on-surface"></p>
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-3 mt-5">
+          <button id="btn-cert" class="hidden py-3 bg-secondary-container text-primary rounded-xl font-bold hover:brightness-95 transition">Lihat Sertifikat</button>
+          <button id="btn-retry" class="hidden py-3 bg-primary text-white rounded-xl font-bold hover:brightness-110 transition">Baca Ulang & Coba Lagi</button>
+          <button data-back-login class="py-3 border border-outline-variant rounded-xl font-bold text-primary hover:bg-surface-container-low transition">Selesai</button>
         </div>
       </section>
 

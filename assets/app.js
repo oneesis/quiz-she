@@ -33,6 +33,7 @@
     el.classList.add('is-active');
     el.scrollTop = 0;
     window.scrollTo(0, 0);
+    document.body.classList.toggle('mode-focus', id === 'screen-quiz');
     resetIdle();
   }
 
@@ -156,34 +157,73 @@
     S.answers = new Array(S.served.length).fill(null);
     S.idx = 0;
     S.attemptNo += 1;
+    S.startedAt = Date.now();
     renderQuestion();
     show('screen-quiz');
   }
 
   function renderQuestion() {
     const item = S.served[S.idx];
-    $('#quiz-progress-bar').style.width = ((S.idx) / S.served.length * 100) + '%';
-    $('#quiz-count').textContent = `Soal ${S.idx + 1} dari ${S.served.length}`;
+    $('#quiz-topic-label').textContent = S.topic.title;
+    $('#quiz-progress-label').textContent = `Soal ${S.idx + 1}/${S.served.length}`;
+    $('#quiz-progress-bar').style.width = ((S.idx + 1) / S.served.length * 100) + '%';
     $('#quiz-question').textContent = item.q;
     const opts = $('#quiz-options');
     opts.innerHTML = '';
     item.options.forEach((o, i) => {
+      const selected = S.answers[S.idx] === i;
       const b = document.createElement('button');
-      b.className = 'option' + (S.answers[S.idx] === i ? ' is-selected' : '');
-      b.innerHTML = `<span class="option__key">${String.fromCharCode(65 + i)}</span><span>${o.text}</span>`;
+      b.className = selected
+        ? 'flex items-center gap-3 p-4 rounded-xl border-2 border-primary bg-primary/5 text-left'
+        : 'flex items-center gap-3 p-4 rounded-xl border border-outline-variant hover:border-primary hover:bg-surface-container-low text-left transition-colors';
+      b.innerHTML = `
+        <span class="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg font-bold ${selected ? 'bg-primary text-white' : 'border border-outline-variant bg-white text-on-surface'}">${String.fromCharCode(65 + i)}</span>
+        <span class="text-on-surface ${selected ? 'font-semibold' : ''}">${o.text}</span>
+        ${selected ? '<span class="material-symbols-outlined text-primary ml-auto">check_circle</span>' : ''}`;
       b.onclick = () => { S.answers[S.idx] = i; renderQuestion(); };
       opts.appendChild(b);
     });
-    const next = $('#btn-next');
-    next.disabled = S.answers[S.idx] === null;
-    next.textContent = S.idx === S.served.length - 1 ? 'Selesai & Nilai' : 'Lanjut →';
-    $('#btn-prev').hidden = S.idx === 0;
+
+    $('#btn-prev').classList.toggle('hidden', S.idx === 0);
+    $('#btn-next').textContent = S.idx === S.served.length - 1 ? 'Selesai & Nilai' : 'Lanjut →';
+
+    renderNavGrid();
+  }
+
+  function renderNavGrid() {
+    const grid = $('#quiz-nav-grid');
+    grid.innerHTML = '';
+    S.served.forEach((_, i) => {
+      const answered = S.answers[i] !== null;
+      const isCurrent = i === S.idx;
+      const b = document.createElement('button');
+      let cls = 'aspect-square rounded-lg flex items-center justify-center font-bold text-sm transition-colors ';
+      if (isCurrent) cls += 'bg-primary text-white ring-2 ring-primary/30';
+      else if (answered) cls += 'bg-emerald-100 text-emerald-800 border border-emerald-200 hover:bg-emerald-200';
+      else cls += 'bg-surface-container-low text-on-surface-variant border border-outline-variant hover:bg-surface-container-high';
+      b.className = cls;
+      b.textContent = i + 1;
+      b.onclick = () => { S.idx = i; renderQuestion(); };
+      grid.appendChild(b);
+    });
+    const answeredCount = S.answers.filter(a => a !== null).length;
+    $('#quiz-nav-answered').textContent = `Terjawab: ${answeredCount}`;
+    $('#quiz-nav-remaining').textContent = `Sisa: ${S.served.length - answeredCount}`;
+    $('#quiz-incomplete-warning').classList.add('hidden');
   }
 
   function nextQuestion() {
-    if (S.answers[S.idx] === null) return;
-    if (S.idx < S.served.length - 1) { S.idx++; renderQuestion(); }
-    else { grade(); }
+    if (S.idx < S.served.length - 1) { S.idx++; renderQuestion(); return; }
+    const unanswered = S.answers.map((a, i) => (a === null ? i : -1)).filter(i => i >= 0);
+    if (unanswered.length) {
+      S.idx = unanswered[0];
+      renderQuestion();
+      const warn = $('#quiz-incomplete-warning');
+      warn.textContent = `Masih ada ${unanswered.length} soal belum dijawab. Klik nomornya di navigasi soal.`;
+      warn.classList.remove('hidden');
+      return;
+    }
+    grade();
   }
   function prevQuestion() { if (S.idx > 0) { S.idx--; renderQuestion(); } }
 
@@ -193,7 +233,9 @@
   async function grade() {
     let correct = 0;
     S.served.forEach((item, i) => { if (item.options[S.answers[i]] && item.options[S.answers[i]].correct) correct++; });
+    S.correctCount = correct;
     S.score = Math.round(correct / S.served.length * 100);
+    S.durationMs = Date.now() - S.startedAt;
     const threshold = S.topic.passThreshold || C.passThresholdDefault;
     S.passed = S.score >= threshold;
 
@@ -222,20 +264,38 @@
     show('screen-result');
   }
 
+  function fmtDuration(ms) {
+    const s = Math.round(ms / 1000);
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  }
+
   function renderResult(threshold) {
-    const el = $('#result-body');
-    const gaugeColor = S.passed ? 'var(--go)' : 'var(--alert)';
-    el.innerHTML = `
-      <div class="gauge" style="--val:${S.score};--gc:${gaugeColor}">
-        <div class="gauge__inner"><span class="gauge__num">${S.score}<small>%</small></span></div>
-      </div>
-      <div class="result-status ${S.passed ? 'is-pass' : 'is-fail'}">${S.passed ? 'LULUS' : 'BELUM LULUS'}</div>
-      <p class="muted">Ambang lulus ${threshold}% · percobaan ke-${S.attemptNo}</p>`;
-    $('#btn-cert').hidden = !S.passed;
-    $('#btn-retry').hidden = S.passed;
+    const total = S.served.length;
+    const circumference = 565.5; // 2 * PI * r(90), lihat svg di index.html
+
+    $('#result-score-num').textContent = S.score;
+    const circle = $('#result-gauge-circle');
+    circle.classList.toggle('text-secondary-container', S.passed);
+    circle.classList.toggle('text-error', !S.passed);
+    circle.style.strokeDashoffset = String(circumference);
+    requestAnimationFrame(() => { circle.style.strokeDashoffset = String(circumference * (1 - S.score / 100)); });
+
+    const pill = $('#result-status-pill');
+    pill.className = 'px-4 py-1 rounded-full flex items-center gap-1 mb-3 font-bold text-xs uppercase tracking-wide ' +
+      (S.passed ? 'bg-green-100 text-green-700' : 'bg-error-container text-error');
+    pill.innerHTML = `<span class="material-symbols-outlined text-[16px]">${S.passed ? 'check_circle' : 'cancel'}</span>${S.passed ? 'Lulus' : 'Belum Lulus'}`;
+
+    $('#result-heading').textContent = S.passed ? `Selamat, ${S.employee.nama}!` : `Belum Lulus, ${S.employee.nama}`;
     $('#result-note').textContent = S.passed
-      ? 'Selamat! Sertifikat kamu sudah terbit.'
-      : 'Belum mencapai ambang lulus. Baca ulang materi lalu coba lagi.';
+      ? `Kamu berhasil menyelesaikan ${S.topic.title} dengan skor di atas ambang lulus ${threshold}%.`
+      : `Skor belum mencapai ambang lulus ${threshold}%. Baca ulang materi lalu coba lagi.`;
+
+    $('#result-correct').textContent = `${S.correctCount}/${total}`;
+    $('#result-wrong').textContent = total - S.correctCount;
+    $('#result-duration').textContent = fmtDuration(S.durationMs);
+
+    $('#btn-cert').classList.toggle('hidden', !S.passed);
+    $('#btn-retry').classList.toggle('hidden', S.passed);
   }
 
   // ============================================================

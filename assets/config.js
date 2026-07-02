@@ -15,7 +15,7 @@ window.CONFIG = {
   org: {
     name: 'PT Energi Batubara Lestari',
     short: 'PT EBL',
-    subtitle: 'Safety Talk Digital · P5M',
+    subtitle: 'Sharing Session',
   },
 
   passThresholdDefault: 80,   // % kelulusan default bila topik tidak menyetel
@@ -97,7 +97,7 @@ Tidur cukup sebelum shift, manfaatkan waktu istirahat, dan hindari kafein berleb
 
   // Session = jadwal terbit dari sebuah topik. Hanya 'published' & masih berlaku yang tampil.
   sessions: [
-    { id: 'S-001', topicCode: 'ST-APD', title: 'P5M Hari Ini — APD di Area Tambang', validFrom: '2025-01-01', validUntil: '2030-12-31', targetCompanies: [], status: 'published' },
-    { id: 'S-002', topicCode: 'ST-FTG', title: 'P5M Hari Ini — Manajemen Kelelahan', validFrom: '2025-01-01', validUntil: '2030-12-31', targetCompanies: [], status: 'published' },
+    { id: 'S-001', topicCode: 'ST-APD', title: 'Sharing Session Hari Ini — APD di Area Tambang', validFrom: '2025-01-01', validUntil: '2030-12-31', targetCompanies: [], status: 'published' },
+    { id: 'S-002', topicCode: 'ST-FTG', title: 'Sharing Session Hari Ini — Manajemen Kelelahan', validFrom: '2025-01-01', validUntil: '2030-12-31', targetCompanies: [], status: 'published' },
   ],
 };

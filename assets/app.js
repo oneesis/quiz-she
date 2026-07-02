@@ -1,5 +1,5 @@
 /* ============================================================
-   ALUR APLIKASI SAFETY TALK
+   ALUR APLIKASI SHARING SESSION
    ============================================================ */
 (function () {
   const C = window.CONFIG;
@@ -121,7 +121,7 @@
     try {
       const sessions = await API.activeSessions(S.employee);
       if (!sessions.length) {
-        wrap.innerHTML = '<div class="empty">Belum ada sesi Safety Talk yang aktif hari ini. Silakan hubungi petugas SHE.</div>';
+        wrap.innerHTML = '<div class="empty">Belum ada Sharing Session yang aktif hari ini. Silakan hubungi petugas SHE.</div>';
         return;
       }
       const existingResults = await Promise.all(sessions.map(s => API.findExisting(S.employee.nik, s.id)));

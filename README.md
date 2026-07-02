@@ -1,6 +1,6 @@
-# Safety Talk Digital — PT EBL
+# Sharing Session Digital — PT EBL
 
-Aplikasi statis (HTML/CSS/JS murni) pengganti Safety Talk / P5M. Pekerja masuk pakai **NIK**, membaca materi, mengerjakan kuis singkat, dan bila lulus langsung mendapat **sertifikat digital ber-QR**. Cocok dipasang di tablet muster point atau dibuka via HP.
+Aplikasi statis (HTML/CSS/JS murni) untuk Sharing Session. Pekerja masuk pakai **NIK**, membaca materi, mengerjakan kuis singkat, dan bila lulus langsung mendapat **sertifikat digital ber-QR**. Cocok dipasang di tablet muster point atau dibuka via HP.
 
 Tidak butuh server aplikasi. Bisa langsung di-hosting di **GitHub Pages**.
 
@@ -221,7 +221,7 @@ function appendResult(p) {
 }
 function nextCertNo_(sheet, perusahaan) {
   const tz = Session.getScriptTimeZone();
-  const suffix = '/ST/' + companyCode_(perusahaan) + '/' + Utilities.formatDate(new Date(), tz, 'MM/yy');
+  const suffix = '/SS/' + companyCode_(perusahaan) + '/' + Utilities.formatDate(new Date(), tz, 'MM/yy');
   const rows = sheet.getDataRange().getValues();
   const head = rows.length ? rows.shift() : [];
   const ci = head.indexOf('certificateNo');
@@ -319,7 +319,7 @@ function json(o) {
 ## Batasan yang perlu kamu tahu (jujur)
 
 - **Privasi roster.** Jangan publikasikan seluruh isi Sheet karyawan ke web publik. Dengan pola Apps Script di atas, aksi publik (`employee`, `verify`, `existing`) hanya membalas data 1 orang/1 sesi — bukan seluruh daftar. Aksi yang membongkar banyak data sekaligus (`employees`, `participations`) mensyaratkan `adminToken` yang cocok. Hindari menaruh NIK/no. HP di file yang di-commit publik.
-- **Keamanan login rendah.** "Login" hanya pencocokan NIK, tanpa password — memang sesuai kebutuhan P5M yang ringan, tapi bukan autentikasi kuat. Jangan pakai pola ini untuk data sensitif.
+- **Keamanan login rendah.** "Login" hanya pencocokan NIK, tanpa password — memang sesuai kebutuhan kiosk yang ringan, tapi bukan autentikasi kuat. Jangan pakai pola ini untuk data sensitif.
 - **Panel Admin bukan autentikasi aman.** `admin.html` dikunci dengan satu password yang dicek di browser (`CONFIG.admin.password` di `assets/config.js`) — siapa pun yang membuka file itu (mis. lewat "View Source" di GitHub Pages) bisa melihat password-nya. Mode `apps_script` menambah pengecekan `ADMIN_TOKEN` di sisi server untuk aksi tulis & daftar karyawan, tapi karena token yang dikirim **adalah** password yang sama yang tersimpan di `config.js` publik, ini hanya menaikkan sedikit dari "bisa ditulis siapa saja" menjadi "perlu tahu password yang sudah terpampang di source" — bukan keamanan yang sebenarnya. Cukup untuk mencegah orang iseng, bukan untuk melindungi data sensitif. Kalau butuh keamanan sungguhan, taruh `admin.html` di balik autentikasi level hosting (bukan GitHub Pages publik) atau bangun alur login yang tidak menyimpan rahasianya di kode klien.
 - **Tanpa Apps Script, hasil tidak terekam terpusat.** Mode `mock` menyimpan hasil hanya di browser perangkat itu (localStorage). Untuk rekap compliance lintas perangkat, sambungkan Apps Script.
 - **Verifikasi QR** di mode `mock` hanya berlaku di perangkat yang sama. Verifikasi lintas perangkat butuh Apps Script.

@@ -37,14 +37,14 @@
     return n;
   }
 
-  // "001/ST/OFN/07/26" -- dipakai mockApi (penomoran lokal per perangkat).
+  // "001/SS/OFN/07/26" -- dipakai mockApi (penomoran lokal per perangkat).
   // Mode apps_script: nomor ini dihitung di server (lihat README) supaya
   // konsisten walau dipakai dari banyak kiosk sekaligus.
   function buildCertNo(perusahaan) {
     const now = new Date();
     const mm = String(now.getMonth() + 1).padStart(2, '0');
     const yy = String(now.getFullYear()).slice(-2);
-    return `${String(nextSeq(perusahaan)).padStart(3, '0')}/ST/${companyCode(perusahaan)}/${mm}/${yy}`;
+    return `${String(nextSeq(perusahaan)).padStart(3, '0')}/SS/${companyCode(perusahaan)}/${mm}/${yy}`;
   }
 
   // Konten kuis (topik + sesi) berasal dari config.js sebagai bawaan, tapi bisa

@@ -473,6 +473,7 @@
       populateFilter('#reports-company-filter', lastReports, p => p.perusahaan, 'Semua perusahaan');
       populateFilter('#reports-topic-filter', lastReports, p => p.topicCode, 'Semua topik');
       renderReportsTable(lastReports);
+      renderMissingReport();
     } catch (e) {
       body.innerHTML = `<tr><td colspan="8" class="px-6 py-4 text-on-surface-variant">Gagal memuat laporan.</td></tr>`;
       $('#company-summary-body').innerHTML = '';
@@ -486,7 +487,7 @@
     body.innerHTML = list.map(p => `
       <tr>
         <td class="px-6 py-3">${p.submittedAt ? new Date(p.submittedAt).toLocaleString('id-ID') : '-'}</td>
-        <td class="px-6 py-3 font-medium">${escapeHtml(p.nama || '-')}</td>
+        <td class="px-6 py-3 font-medium"><button type="button" class="history-link text-primary hover:underline" data-nik="${escapeAttr(p.nik)}" data-nama="${escapeAttr(p.nama)}">${escapeHtml(p.nama || '-')}</button></td>
         <td class="px-6 py-3 font-mono text-xs">${escapeHtml(p.nik || '-')}</td>
         <td class="px-6 py-3">${escapeHtml(p.perusahaan || '-')}</td>
         <td class="px-6 py-3">${escapeHtml(p.topicCode || '-')}</td>
@@ -494,6 +495,7 @@
         <td class="px-6 py-3">${passPill(p.passed)}</td>
         <td class="px-6 py-3 font-mono text-xs">${escapeHtml(p.certificateNo || '-')}</td>
       </tr>`).join('');
+    $$('.history-link', body).forEach(b => b.onclick = () => openEmployeeHistory(b.dataset.nik, b.dataset.nama));
   }
 
   function buildSummary(list, keyFn, fallbackLabel) {
@@ -549,18 +551,118 @@
     renderReportsTable(filtered);
   }
 
-  function exportCsv() {
-    if (!lastReports.length) { alert('Tidak ada data untuk diunduh.'); return; }
-    const cols = ['submittedAt', 'nama', 'nik', 'perusahaan', 'topicCode', 'sessionId', 'attemptNo', 'score', 'passed', 'certificateNo', 'verificationToken'];
+  function downloadCsv(rows, cols, filename) {
     const csvEscape = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const lines = [cols.join(',')].concat(lastReports.map(p => cols.map(c => csvEscape(p[c])).join(',')));
+    const lines = [cols.join(',')].concat(rows.map(r => cols.map(c => csvEscape(r[c])).join(',')));
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `laporan-sharing-session-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(a.href);
   }
+
+  function exportCsv() {
+    if (!lastReports.length) { alert('Tidak ada data untuk diunduh.'); return; }
+    const cols = ['submittedAt', 'nama', 'nik', 'perusahaan', 'topicCode', 'sessionId', 'attemptNo', 'score', 'passed', 'certificateNo', 'verificationToken'];
+    downloadCsv(lastReports, cols, `laporan-sharing-session-${new Date().toISOString().slice(0, 10)}.csv`);
+  }
+
+  // ============================================================
+  // LAPORAN: BELUM LULUS PER SESI
+  // ============================================================
+  let lastMissingList = [];
+
+  async function renderMissingReport() {
+    const sel = $('#missing-session-select');
+    if (!sessions.length) {
+      sel.innerHTML = '<option value="">— belum ada sesi —</option>';
+      $('#missing-report-body').innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-on-surface-variant">Belum ada sesi.</td></tr>`;
+      $('#missing-count').textContent = '-';
+      return;
+    }
+    const current = sel.value;
+    sel.innerHTML = sessions.map(s => {
+      const topic = topics.find(t => t.code === s.topicCode);
+      return `<option value="${escapeAttr(s.id)}">${escapeHtml(s.title || (topic ? topic.title : s.topicCode))}</option>`;
+    }).join('');
+    sel.value = sessions.some(s => s.id === current) ? current : sessions[0].id;
+    await computeMissingReport(sel.value);
+  }
+
+  async function computeMissingReport(sessionId) {
+    const body = $('#missing-report-body');
+    body.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-on-surface-variant">Memuat…</td></tr>`;
+    try {
+      const session = sessions.find(s => s.id === sessionId);
+      if (!session) { body.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-on-surface-variant">Sesi tidak ditemukan.</td></tr>`; return; }
+      if (!lastEmployees.length) lastEmployees = await API.listEmployees();
+      if (!lastReports.length) lastReports = await API.listParticipations();
+
+      const scope = (session.targetCompanies || []).length
+        ? lastEmployees.filter(e => session.targetCompanies.includes(e.perusahaan))
+        : lastEmployees;
+      const forSession = lastReports.filter(p => p.sessionId === sessionId);
+      const passedNiks = new Set(forSession.filter(p => p.passed).map(p => p.nik));
+      lastMissingList = scope.filter(e => !passedNiks.has(e.nik));
+
+      $('#missing-count').textContent = `${lastMissingList.length} dari ${scope.length} karyawan dalam cakupan belum lulus`;
+      if (!lastMissingList.length) {
+        body.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-green-700 font-bold">Semua karyawan dalam cakupan sudah lulus.</td></tr>`;
+        return;
+      }
+      body.innerHTML = lastMissingList.map(e => {
+        const attempts = forSession.filter(p => p.nik === e.nik).sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
+        const status = attempts.length ? `Sudah coba, skor terakhir ${attempts[0].score}%` : 'Belum coba';
+        return `<tr>
+          <td class="px-6 py-3 font-medium"><button type="button" class="history-link text-primary hover:underline" data-nik="${escapeAttr(e.nik)}" data-nama="${escapeAttr(e.nama)}">${escapeHtml(e.nama || '-')}</button></td>
+          <td class="px-6 py-3 font-mono text-xs">${escapeHtml(e.nik || '-')}</td>
+          <td class="px-6 py-3">${escapeHtml(e.perusahaan || '-')}</td>
+          <td class="px-6 py-3">${escapeHtml(e.jabatan || '-')}</td>
+          <td class="px-6 py-3">${escapeHtml(status)}</td>
+        </tr>`;
+      }).join('');
+      $$('.history-link', body).forEach(b => b.onclick = () => openEmployeeHistory(b.dataset.nik, b.dataset.nama));
+    } catch (e) {
+      body.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-error">Gagal memuat. Periksa koneksi lalu coba lagi.</td></tr>`;
+    }
+  }
+
+  function exportMissingCsv() {
+    if (!lastMissingList.length) { alert('Tidak ada data untuk diunduh.'); return; }
+    const cols = ['nama', 'nik', 'perusahaan', 'jabatan', 'departemen'];
+    const sessionTitle = $('#missing-session-select option:checked').textContent.trim();
+    downloadCsv(lastMissingList, cols, `belum-lulus-${sessionTitle.replace(/[^a-z0-9]+/gi, '-')}.csv`);
+  }
+
+  // ============================================================
+  // RIWAYAT KARYAWAN (modal, dipakai dari Laporan & Karyawan)
+  // ============================================================
+  async function openEmployeeHistory(nik, nama) {
+    $('#history-modal-name').textContent = nama || nik;
+    $('#history-modal-nik').textContent = nik;
+    const body = $('#history-modal-body');
+    body.innerHTML = '<p class="p-6 text-on-surface-variant text-sm">Memuat…</p>';
+    $('#employee-history-modal').classList.remove('hidden');
+    try {
+      if (!lastReports.length) lastReports = await API.listParticipations();
+      const rows = lastReports.filter(p => p.nik === nik)
+        .sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
+      if (!rows.length) { body.innerHTML = '<p class="p-6 text-on-surface-variant text-sm">Belum ada riwayat percobaan.</p>'; return; }
+      body.innerHTML = rows.map(p => `
+        <div class="p-4">
+          <div class="flex items-center justify-between gap-2">
+            <span class="font-bold text-sm">${escapeHtml(p.topicCode || '-')}</span>
+            ${passPill(p.passed)}
+          </div>
+          <p class="text-xs text-on-surface-variant mt-1">${p.submittedAt ? new Date(p.submittedAt).toLocaleString('id-ID') : '-'} · Percobaan ke-${p.attemptNo ?? '-'} · Skor ${p.score ?? '-'}%</p>
+          ${p.certificateNo ? `<p class="text-xs font-mono text-primary mt-1">No. Sertifikat: ${escapeHtml(p.certificateNo)}</p>` : ''}
+        </div>`).join('');
+    } catch (e) {
+      body.innerHTML = '<p class="p-6 text-error text-sm">Gagal memuat riwayat.</p>';
+    }
+  }
+  function closeEmployeeHistory() { $('#employee-history-modal').classList.add('hidden'); }
 
   // ============================================================
   // TAB KARYAWAN
@@ -585,12 +687,13 @@
     if (!list.length) { body.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-on-surface-variant">Tidak ada karyawan yang cocok.</td></tr>`; return; }
     body.innerHTML = list.map(e => `
       <tr>
-        <td class="px-6 py-3 font-medium">${escapeHtml(e.nama || '-')}</td>
+        <td class="px-6 py-3 font-medium"><button type="button" class="history-link text-primary hover:underline" data-nik="${escapeAttr(e.nik)}" data-nama="${escapeAttr(e.nama)}">${escapeHtml(e.nama || '-')}</button></td>
         <td class="px-6 py-3 font-mono text-xs">${escapeHtml(e.nik || '-')}</td>
         <td class="px-6 py-3">${escapeHtml(e.perusahaan || '-')}</td>
         <td class="px-6 py-3">${escapeHtml(e.jabatan || '-')}</td>
         <td class="px-6 py-3">${escapeHtml(e.departemen || '-')}</td>
       </tr>`).join('');
+    $$('.history-link', body).forEach(b => b.onclick = () => openEmployeeHistory(b.dataset.nik, b.dataset.nama));
   }
 
   function applyEmployeeSearch() {
@@ -637,7 +740,12 @@
     $('#btn-export-csv').onclick = exportCsv;
     $('#reports-company-filter').onchange = applyReportFilters;
     $('#reports-topic-filter').onchange = applyReportFilters;
+    $('#missing-session-select').addEventListener('change', (e) => computeMissingReport(e.target.value));
+    $('#btn-export-missing-csv').onclick = exportMissingCsv;
     $('#employees-search').addEventListener('input', applyEmployeeSearch);
+
+    $('#btn-history-close').onclick = closeEmployeeHistory;
+    $('#employee-history-modal').addEventListener('click', (e) => { if (e.target.id === 'employee-history-modal') closeEmployeeHistory(); });
   }
 
   document.addEventListener('DOMContentLoaded', () => {

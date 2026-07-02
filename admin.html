@@ -198,6 +198,32 @@
             </div>
           </div>
 
+          <div class="bg-white rounded-2xl border border-outline-variant card-shadow overflow-hidden">
+            <div class="px-6 py-4 border-b border-outline-variant bg-surface-container-low flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <h3 class="font-bold text-primary">Belum Lulus per Sesi</h3>
+                <p class="text-xs text-on-surface-variant mt-0.5" id="missing-count">-</p>
+              </div>
+              <div class="flex gap-2">
+                <select id="missing-session-select" class="px-3 py-2 bg-white border border-outline-variant rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"></select>
+                <button id="btn-export-missing-csv" class="flex items-center gap-1 px-3 py-2 border border-outline-variant bg-white text-primary font-bold rounded-lg text-sm hover:bg-surface-container-low transition">
+                  <span class="material-symbols-outlined text-[16px]">download</span>CSV
+                </button>
+              </div>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="bg-surface-container-low text-left text-xs uppercase tracking-wide text-on-surface-variant">
+                    <th class="px-6 py-3">Nama</th><th class="px-6 py-3">NIK</th><th class="px-6 py-3">Perusahaan</th>
+                    <th class="px-6 py-3">Jabatan</th><th class="px-6 py-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody id="missing-report-body" class="divide-y divide-outline-variant"></tbody>
+              </table>
+            </div>
+          </div>
+
           <div class="flex items-center justify-between flex-wrap gap-2">
             <h3 class="font-bold text-primary">Detail per Peserta</h3>
             <div class="flex gap-2">
@@ -354,6 +380,22 @@
 
       </div>
     </main>
+  </div>
+
+  <!-- MODAL: RIWAYAT KARYAWAN -->
+  <div id="employee-history-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+    <div class="bg-white rounded-2xl max-w-lg w-full max-h-[80vh] overflow-y-auto">
+      <div class="px-6 py-4 border-b border-outline-variant flex items-center justify-between sticky top-0 bg-white">
+        <div>
+          <h3 class="font-bold text-primary" id="history-modal-name">-</h3>
+          <p class="text-xs text-on-surface-variant font-mono" id="history-modal-nik">-</p>
+        </div>
+        <button type="button" id="btn-history-close" class="p-2 hover:bg-surface-container rounded-lg">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div id="history-modal-body" class="divide-y divide-outline-variant"></div>
+    </div>
   </div>
 
   <script src="assets/config.js"></script>

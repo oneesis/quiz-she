@@ -412,10 +412,34 @@
     $('#s-title').value = session ? (session.title || '') : '';
     $('#s-from').value = session ? session.validFrom : new Date().toISOString().slice(0, 10);
     $('#s-until').value = session ? session.validUntil : '';
-    $('#s-companies').value = session ? (session.targetCompanies || []).join(', ') : '';
     $('#s-status').value = session ? session.status : 'draft';
     $('#btn-session-delete').hidden = !session;
+    populateCompanyCheckboxes(session ? (session.targetCompanies || []) : []);
     showPanel('panel-session-editor');
+  }
+
+  // Daftar centang perusahaan diisi dari roster karyawan (bukan diketik manual)
+  // supaya tidak ada typo yang bikin target sesi diam-diam tidak kena siapa-siapa.
+  async function populateCompanyCheckboxes(selected) {
+    const wrap = $('#s-companies-list');
+    wrap.innerHTML = '<p class="text-xs text-on-surface-variant">Memuat daftar perusahaan…</p>';
+    try {
+      if (!lastEmployees.length) lastEmployees = await API.listEmployees();
+      // gabung dengan yang sudah dipilih sebelumnya, kalau-kalau ada nama
+      // perusahaan lama yang sudah tidak ada lagi di roster saat ini
+      const companies = [...new Set([...lastEmployees.map(e => e.perusahaan), ...selected].filter(Boolean))].sort();
+      if (!companies.length) {
+        wrap.innerHTML = '<p class="text-xs text-on-surface-variant">Belum ada data perusahaan di roster karyawan.</p>';
+        return;
+      }
+      wrap.innerHTML = companies.map(c => `
+        <label class="flex items-center gap-2 text-sm">
+          <input type="checkbox" class="s-company-checkbox w-4 h-4 accent-[#00468c]" value="${escapeAttr(c)}" ${selected.includes(c) ? 'checked' : ''} />
+          ${escapeHtml(c)}
+        </label>`).join('');
+    } catch (e) {
+      wrap.innerHTML = '<p class="text-xs text-error">Gagal memuat daftar perusahaan.</p>';
+    }
   }
 
   async function saveSessionForm(ev) {
@@ -429,7 +453,7 @@
       topicCode,
       title: $('#s-title').value.trim(),
       validFrom, validUntil,
-      targetCompanies: $('#s-companies').value.split(',').map(s => s.trim()).filter(Boolean),
+      targetCompanies: $$('.s-company-checkbox:checked').map(cb => cb.value),
       status: $('#s-status').value,
     };
     const btn = $('#session-form button[type=submit]');

@@ -229,14 +229,13 @@ function listEmployees() {
   return out;
 }
 
+// Dipanggil di SETIAP login kiosk -- dulu scan ulang seluruh roster tiap
+// kali. Pakai cache yang sama dengan listEmployees() supaya login
+// berturut-turut (kiosk ramai) baca dari cache, bukan scan sheet lagi.
 function findEmployee(nik) {
-  const rows = SpreadsheetApp.openById(SS_ID).getSheetByName(ROSTER).getDataRange().getValues();
-  const head = rows.shift(); const c = n => head.indexOf(n);
-  const hit = rows.find(r => String(r[c('NIK')]).trim() === String(nik).trim());
-  return hit ? {
-    nik: String(hit[c('NIK')]), nama: hit[c('NAMA')], perusahaan: hit[c('PERUSAHAAN')],
-    jabatan: hit[c('JABATAN')], departemen: hit[c('DEPARTEMEN')],
-  } : {};
+  const key = String(nik || '').trim();
+  const hit = listEmployees().find(e => e.nik === key);
+  return hit || {};
 }
 // Nomor sertifikat dihitung & baris ditulis dalam satu lock supaya dua
 // kiosk yang submit bersamaan tidak pernah dapat nomor yang sama.
@@ -250,6 +249,7 @@ function appendResult(p) {
       new Date(), p.nik, p.nama, p.perusahaan, p.topicCode, p.sessionId,
       p.attemptNo, p.score, p.passed, certificateNo, p.verificationToken, p.answerBreakdown || '',
     ]);
+    cacheClear_('results_lite_v1'); // baris baru ditulis -- cache lama sudah basi
     return certificateNo;
   } finally {
     lock.releaseLock();
@@ -267,13 +267,34 @@ function nextCertNo_(sheet, perusahaan) {
 function companyCode_(perusahaan) {
   return String(perusahaan || '').replace(/^PT\s+/i, '').trim().split(/\s+/)[0].toUpperCase() || 'NA';
 }
-function findByToken(token) {
+
+// Versi ringan RESULTS (tanpa answerBreakdown yang bisa besar) buat dua
+// lookup ber-frekuensi tinggi dari kiosk: findExisting dipanggil SEKALI PER
+// SESI tiap login (paralel), findByToken tiap buka link verifikasi QR.
+// Tanpa cache ini keduanya scan ulang seluruh sheet Partisipasi tiap
+// panggilan -- salah satu penyebab utama kiosk terasa lambat. TTL pendek
+// (15 detik) supaya tetap cukup segar, di-clear paksa tiap ada hasil baru
+// lewat appendResult().
+function getResultsLite_() {
+  const cached = cacheGet_('results_lite_v1');
+  if (cached) return JSON.parse(cached);
   const rows = SpreadsheetApp.openById(SS_ID).getSheetByName(RESULTS).getDataRange().getValues();
   const head = rows.shift(); const c = n => head.indexOf(n);
-  const hit = rows.find(r => r[c('verificationToken')] === token);
+  const out = rows.map(r => ({
+    nik: String(r[c('nik')]), nama: r[c('nama')], perusahaan: r[c('perusahaan')],
+    sessionId: String(r[c('sessionId')]), passed: r[c('passed')], score: r[c('score')],
+    certificateNo: r[c('certificateNo')], verificationToken: r[c('verificationToken')],
+    submittedAt: r[c('waktu')],
+  }));
+  cachePut_('results_lite_v1', JSON.stringify(out), 15);
+  return out;
+}
+
+function findByToken(token) {
+  const hit = getResultsLite_().find(r => r.verificationToken === token);
   return hit ? {
-    nama: hit[c('nama')], nik: hit[c('nik')], perusahaan: hit[c('perusahaan')],
-    certificateNo: hit[c('certificateNo')], score: hit[c('score')], verificationToken: token,
+    nama: hit.nama, nik: hit.nik, perusahaan: hit.perusahaan,
+    certificateNo: hit.certificateNo, score: hit.score, verificationToken: token,
   } : {};
 }
 
@@ -281,17 +302,14 @@ function findByToken(token) {
 // supaya karyawan yang sudah lulus tidak perlu mengulang kuis, cukup lihat
 // sertifikat lamanya. Hanya balas data 1 orang (bukan seluruh tabel).
 function findExisting(nik, sessionId) {
-  const rows = SpreadsheetApp.openById(SS_ID).getSheetByName(RESULTS).getDataRange().getValues();
-  const head = rows.shift(); const c = n => head.indexOf(n);
-  const hits = rows.filter(r =>
-    String(r[c('nik')]).trim() === String(nik).trim() &&
-    String(r[c('sessionId')]) === String(sessionId) &&
-    r[c('passed')]);
+  const key = String(nik).trim();
+  const hits = getResultsLite_().filter(r =>
+    r.nik.trim() === key && r.sessionId === String(sessionId) && r.passed);
   if (!hits.length) return {};
   const hit = hits[hits.length - 1];
   return {
-    score: hit[c('score')], certificateNo: hit[c('certificateNo')],
-    verificationToken: hit[c('verificationToken')], submittedAt: hit[c('waktu')],
+    score: hit.score, certificateNo: hit.certificateNo,
+    verificationToken: hit.verificationToken, submittedAt: hit.submittedAt,
   };
 }
 function listParticipations() {

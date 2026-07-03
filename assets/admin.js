@@ -668,28 +668,44 @@
     scoped.forEach(p => {
       (p.answerBreakdown || []).forEach(item => {
         const key = (p.topicCode || '-') + '::' + item.q;
-        const g = groups[key] || (groups[key] = { topicCode: p.topicCode, q: item.q, served: 0, wrong: 0 });
+        const g = groups[key] || (groups[key] = { topicCode: p.topicCode, q: item.q, served: 0, wrong: 0, correctText: '', choiceCounts: {} });
         g.served++;
         if (!item.correct) g.wrong++;
+        if (item.correctText && !g.correctText) g.correctText = item.correctText;
+        // Percobaan dari sebelum fitur ini diperluas cuma punya {q, correct}
+        // (tanpa "chosen") -- tetap ikut kehitung di served/wrong, cuma tidak
+        // nambah ke hitungan jawaban terbanyak dipilih.
+        if (item.chosen) g.choiceCounts[item.chosen] = (g.choiceCounts[item.chosen] || 0) + 1;
       });
     });
     const rows = Object.values(groups)
-      .map(g => ({ ...g, wrongRate: Math.round((g.wrong / g.served) * 100) }))
+      .map(g => {
+        let topChoice = '-', topCount = 0;
+        Object.entries(g.choiceCounts).forEach(([text, count]) => { if (count > topCount) { topChoice = text; topCount = count; } });
+        return { ...g, wrongRate: Math.round((g.wrong / g.served) * 100), topChoice, topChoiceCount: topCount };
+      })
       .sort((a, b) => b.wrongRate - a.wrongRate || b.served - a.served);
 
     const wrap = $('#question-analytics-body');
     if (!rows.length) {
-      wrap.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-on-surface-variant">Belum ada data untuk sesi ini. Analitik dihitung dari percobaan kuis setelah fitur ini aktif.</td></tr>`;
+      wrap.innerHTML = `<tr><td colspan="7" class="px-6 py-4 text-on-surface-variant">Belum ada data untuk sesi ini. Analitik dihitung dari percobaan kuis setelah fitur ini aktif.</td></tr>`;
       return;
     }
-    wrap.innerHTML = rows.slice(0, 25).map(r => `
+    wrap.innerHTML = rows.slice(0, 25).map(r => {
+      // jawaban terbanyak dipilih BEDA dari jawaban benar -- sinyal kuat ada
+      // miskonsepsi umum, bukan cuma soal susah biasa.
+      const isMisconception = r.topChoice !== '-' && r.topChoice !== r.correctText;
+      return `
       <tr>
         <td class="px-6 py-3">${escapeHtml(r.topicCode || '-')}</td>
         <td class="px-6 py-3">${escapeHtml(r.q)}</td>
         <td class="px-6 py-3">${r.served}</td>
         <td class="px-6 py-3">${r.wrong}</td>
         <td class="px-6 py-3 font-bold ${r.wrongRate >= 50 ? 'text-error' : 'text-primary'}">${r.wrongRate}%</td>
-      </tr>`).join('');
+        <td class="px-6 py-3 ${isMisconception ? 'text-error font-semibold' : ''}">${escapeHtml(r.topChoice)}${r.topChoiceCount ? ` (${r.topChoiceCount}x)` : ''}</td>
+        <td class="px-6 py-3 text-green-700">${escapeHtml(r.correctText || '-')}</td>
+      </tr>`;
+    }).join('');
   }
 
   function populateFilter(selId, list, keyFn, allLabel) {

@@ -355,13 +355,16 @@
 
   async function grade() {
     let correct = 0;
-    // Rincian benar/salah per soal (dikunci ke teks soal, bukan indeks --
-    // soal yang tampil beda2 tiap percobaan karena diacak dari bank soal)
-    // dipakai admin buat lihat soal mana yang paling sering salah dijawab.
+    // Rincian per soal (dikunci ke teks soal, bukan indeks -- soal & urutan
+    // opsi diacak beda2 tiap percobaan) dipakai admin buat lihat soal mana
+    // yang paling sering salah, jawaban apa yang paling banyak dipilih, dan
+    // apa jawaban yang benar -- bukan cuma persentase salah tanpa konteks.
     const answerBreakdown = S.served.map((item, i) => {
-      const ok = !!(item.options[S.answers[i]] && item.options[S.answers[i]].correct);
+      const chosen = item.options[S.answers[i]];
+      const correctOpt = item.options.find(o => o.correct);
+      const ok = !!(chosen && chosen.correct);
       if (ok) correct++;
-      return { q: item.q, correct: ok };
+      return { q: item.q, chosen: chosen ? chosen.text : null, correct: ok, correctText: correctOpt ? correctOpt.text : null };
     });
     S.correctCount = correct;
     S.score = Math.round(correct / S.served.length * 100);

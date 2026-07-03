@@ -23,9 +23,14 @@
     window.scrollTo(0, 0);
   }
 
+  // validFrom/validUntil bisa "yyyy-MM-dd" (sesi lama, sepanjang hari) atau
+  // "yyyy-MM-ddTHH:mm" (sesi baru, jam spesifik). String tanggal-polos
+  // ditambahi jam default (awal/akhir hari) biar bisa dibandingkan sama rata.
   function todayInRange(from, until) {
     const now = new Date();
-    return now >= new Date(from + 'T00:00:00') && now <= new Date(until + 'T23:59:59');
+    const f = new Date(from.length > 10 ? from : from + 'T00:00:00');
+    const u = new Date(until.length > 10 ? until : until + 'T23:59:59');
+    return now >= f && now <= u;
   }
 
   // ============================================================
@@ -479,7 +484,19 @@
   const statusPill = (status) => pill(status, status === 'published' ? 'good' : 'plain');
   const passPill = (passed) => pill(passed ? 'Lulus' : 'Belum lulus', passed ? 'good' : 'plain');
   const expiredPill = () => `<span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-error-container text-on-error-container">Kedaluwarsa</span>`;
-  const isExpired = (s) => new Date() > new Date(s.validUntil + 'T23:59:59');
+  const isExpired = (s) => new Date() > new Date(s.validUntil.length > 10 ? s.validUntil : s.validUntil + 'T23:59:59');
+
+  // validFrom/validUntil "yyyy-MM-dd" (sesi lama, sepanjang hari) atau
+  // "yyyy-MM-ddTHH:mm" (sesi baru, jam spesifik) -- tampilkan jam cuma
+  // kalau memang diisi.
+  function fmtSessionDate(v) {
+    if (!v) return '-';
+    const hasTime = v.length > 10;
+    const d = new Date(hasTime ? v : v + 'T00:00:00');
+    const datePart = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+    if (!hasTime) return datePart;
+    return `${datePart}, ${d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`;
+  }
 
   function renderSessionsList() {
     const wrap = $('#sessions-list');
@@ -491,7 +508,7 @@
           <div class="flex items-start justify-between gap-3">
             <div>
               <p class="font-bold text-primary">${escapeHtml(s.title || (topic ? topic.title : s.topicCode))}</p>
-              <p class="text-xs text-on-surface-variant mt-1">${escapeHtml(s.topicCode)} · ${s.validFrom} – ${s.validUntil}</p>
+              <p class="text-xs text-on-surface-variant mt-1">${escapeHtml(s.topicCode)} · ${fmtSessionDate(s.validFrom)} – ${fmtSessionDate(s.validUntil)}</p>
               <div class="mt-2 flex gap-2">${statusPill(s.status)}${s.status === 'published' && isExpired(s) ? expiredPill() : ''}</div>
             </div>
             <span class="material-symbols-outlined text-on-surface-variant">chevron_right</span>
@@ -499,6 +516,18 @@
         </button>`;
     }).join('');
     $$('.session-card', wrap).forEach(el => el.onclick = () => openSessionEditor(sessions[Number(el.dataset.i)]));
+  }
+
+  // <input type=datetime-local> butuh "yyyy-MM-ddTHH:mm" persis -- tanggal
+  // polos dari sesi lama ditambahi jam default (awal hari utk "dari", akhir
+  // hari utk "sampai") biar konsisten dgn cara todayInRange menafsirkannya.
+  function toDatetimeLocalValue(v, endOfDay) {
+    if (!v) return '';
+    return v.length > 10 ? v : v + (endOfDay ? 'T23:59' : 'T00:00');
+  }
+  function localDatetimeValue(d) {
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
 
   function openSessionEditor(session) {
@@ -509,8 +538,9 @@
     if (!topics.length) sel.innerHTML = '<option value="">— buat topik dulu —</option>';
     sel.value = session ? session.topicCode : (topics[0] ? topics[0].code : '');
     $('#s-title').value = session ? (session.title || '') : '';
-    $('#s-from').value = session ? session.validFrom : new Date().toISOString().slice(0, 10);
-    $('#s-until').value = session ? session.validUntil : '';
+    const endOfToday = new Date(); endOfToday.setHours(23, 59, 0, 0);
+    $('#s-from').value = session ? toDatetimeLocalValue(session.validFrom, false) : localDatetimeValue(new Date());
+    $('#s-until').value = session ? toDatetimeLocalValue(session.validUntil, true) : localDatetimeValue(endOfToday);
     $('#s-status').value = session ? session.status : 'draft';
     $('#btn-session-delete').hidden = !session;
     populateCompanyCheckboxes(session ? (session.targetCompanies || []) : []);

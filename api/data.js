@@ -53,10 +53,15 @@ function clients() {
 // tidak akan coba "pintar" mengubah teks tanggal jadi sel bertipe Date).
 function serialToDateStr(v) {
   if (typeof v === 'number') {
+    // Sel legacy bertipe Date (dari sebelum tulis pakai RAW) -- jam-nya
+    // tidak pernah bermakna (selalu tengah malam), jadi aman disederhanakan
+    // jadi tanggal polos.
     const ms = Date.UTC(1899, 11, 30) + v * 86400000;
     return new Date(ms).toISOString().slice(0, 10);
   }
-  return String(v || '').slice(0, 10);
+  // String ditulis apa adanya (RAW) -- BUKAN dipotong ke 10 karakter, supaya
+  // "yyyy-MM-ddTHH:mm" (sesi dengan jam spesifik) tidak kehilangan jamnya.
+  return String(v || '');
 }
 
 function jakartaParts(date) {

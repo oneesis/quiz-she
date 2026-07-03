@@ -18,10 +18,14 @@
     },
   };
 
+  // validFrom/validUntil bisa "yyyy-MM-dd" (sesi lama, sepanjang hari) atau
+  // "yyyy-MM-ddTHH:mm" (sesi baru, jam spesifik lewat <input type=datetime-local>).
+  // String tanggal-polos ditambahi jam default (awal/akhir hari) supaya dua
+  // format itu bisa dibandingkan dengan cara yang sama.
   function todayInRange(from, until) {
     const now = new Date();
-    const f = new Date(from + 'T00:00:00');
-    const u = new Date(until + 'T23:59:59');
+    const f = new Date(from.length > 10 ? from : from + 'T00:00:00');
+    const u = new Date(until.length > 10 ? until : until + 'T23:59:59');
     return now >= f && now <= u;
   }
 

@@ -205,9 +205,12 @@
           </div>
 
           <div class="bg-white rounded-2xl border border-outline-variant card-shadow overflow-hidden">
-            <div class="px-6 py-4 border-b border-outline-variant bg-surface-container-low">
-              <h3 class="font-bold text-primary">Analitik Soal — Paling Sering Salah</h3>
-              <p class="text-xs text-on-surface-variant mt-0.5">Masukan buat perbaiki materi/soal yang membingungkan. Diurutkan dari tingkat salah tertinggi.</p>
+            <div class="px-6 py-4 border-b border-outline-variant bg-surface-container-low flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <h3 class="font-bold text-primary">Analitik Soal — Paling Sering Salah</h3>
+                <p class="text-xs text-on-surface-variant mt-0.5">Masukan buat perbaiki materi/soal yang membingungkan. Diurutkan dari tingkat salah tertinggi.</p>
+              </div>
+              <select id="question-analytics-session-select" class="px-3 py-2 bg-white border border-outline-variant rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"></select>
             </div>
             <div class="overflow-x-auto">
               <table class="w-full text-sm">

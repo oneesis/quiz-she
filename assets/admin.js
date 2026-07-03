@@ -578,7 +578,8 @@
       lastReports = await API.listParticipations();
       renderCompanySummary(lastReports);
       renderTopicSummary(lastReports);
-      renderQuestionAnalytics(lastReports);
+      populateQuestionAnalyticsSessionSelect();
+      renderQuestionAnalytics(lastReports, $('#question-analytics-session-select').value);
       populateFilter('#reports-company-filter', lastReports, p => p.perusahaan, 'Semua perusahaan');
       populateFilter('#reports-topic-filter', lastReports, p => p.topicCode, 'Semua topik');
       renderReportsTable(lastReports);
@@ -642,13 +643,29 @@
     renderSummaryTable('#topic-summary-body', buildSummary(list, p => p.topicCode, 'Tanpa topik'));
   }
 
+  // Sesi yang sama bisa dipakai berkali-kali (mis. sesi bulanan pakai topik
+  // yang sama), jadi analitik HARUS dipilih per sesi -- kalau digabung semua
+  // sesi, tingkat-salah jadi rata-rata kabur antar batch peserta yang beda.
+  function populateQuestionAnalyticsSessionSelect() {
+    const sel = $('#question-analytics-session-select');
+    const current = sel.value;
+    const opts = sessions.map(s => {
+      const topic = topics.find(t => t.code === s.topicCode);
+      return `<option value="${escapeAttr(s.id)}">${escapeHtml(s.title || (topic ? topic.title : s.topicCode))}</option>`;
+    });
+    sel.innerHTML = opts.join('') + `<option value="ALL">Semua sesi (gabungan)</option>`;
+    // default ke sesi pertama (bukan "gabungan") supaya tidak tercampur tanpa sengaja
+    sel.value = [...sessions.map(s => s.id), 'ALL'].includes(current) ? current : (sessions[0] ? sessions[0].id : 'ALL');
+  }
+
   // Direkap dari answerBreakdown tiap partisipasi (dikunci ke topik+teks soal,
   // bukan indeks, karena soal yang tampil diacak & beda2 tiap percobaan).
   // Percobaan dari sebelum fitur ini aktif tidak punya answerBreakdown, jadi
   // otomatis tidak ikut terhitung -- bukan bug, cuma belum ada datanya.
-  function renderQuestionAnalytics(list) {
+  function renderQuestionAnalytics(list, sessionId) {
+    const scoped = sessionId && sessionId !== 'ALL' ? list.filter(p => p.sessionId === sessionId) : list;
     const groups = {};
-    list.forEach(p => {
+    scoped.forEach(p => {
       (p.answerBreakdown || []).forEach(item => {
         const key = (p.topicCode || '-') + '::' + item.q;
         const g = groups[key] || (groups[key] = { topicCode: p.topicCode, q: item.q, served: 0, wrong: 0 });
@@ -662,7 +679,7 @@
 
     const wrap = $('#question-analytics-body');
     if (!rows.length) {
-      wrap.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-on-surface-variant">Belum ada data. Analitik ini dihitung dari percobaan kuis setelah fitur ini aktif.</td></tr>`;
+      wrap.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-on-surface-variant">Belum ada data untuk sesi ini. Analitik dihitung dari percobaan kuis setelah fitur ini aktif.</td></tr>`;
       return;
     }
     wrap.innerHTML = rows.slice(0, 25).map(r => `
@@ -908,6 +925,7 @@
     $('#reports-from').onchange = applyReportFilters;
     $('#reports-until').onchange = applyReportFilters;
     $('#missing-session-select').addEventListener('change', (e) => computeMissingReport(e.target.value));
+    $('#question-analytics-session-select').addEventListener('change', (e) => renderQuestionAnalytics(lastReports, e.target.value));
     $('#btn-export-missing-csv').onclick = exportMissingCsv;
     $('#employees-search').addEventListener('input', applyEmployeeSearch);
 

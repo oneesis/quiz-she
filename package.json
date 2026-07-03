@@ -1,0 +1,7 @@
+{
+  "name": "quiz-she-gas",
+  "private": true,
+  "dependencies": {
+    "googleapis": "^144.0.0"
+  }
+}

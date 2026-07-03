@@ -41,7 +41,8 @@ index.html             Kerangka semua layar kiosk
 admin.html              Panel admin (dashboard, topik, sesi, laporan, karyawan)
 assets/styles.css       Tampilan kiosk (identitas hazard-stripe, kartu sertifikat)
 assets/config.js        KONFIGURASI + konten kuis (topik, soal, sesi) + data contoh
-assets/api.js           Lapisan data: mode 'mock' & 'apps_script'
+assets/api.js           Lapisan data: mode 'mock' & 'sheets'
+api/data.js             Backend (Vercel serverless function) -- baca/tulis Google Sheet
 assets/app.js           Alur aplikasi kiosk
 assets/admin.js         Alur panel admin
 ```
@@ -57,7 +58,7 @@ Ada dua cara mengubah topik, materi, soal, dan jadwal sesi:
 1. **Panel Admin** (`admin.html`) — cara sehari-hari. Login, lalu kelola topik/sesi/laporan dari browser. Lihat bagian [Panel Admin](#panel-admin) di bawah.
 2. **Edit `assets/config.js` langsung** lalu commit — dipakai untuk data bawaan (`SAMPLE.topics` / `SAMPLE.sessions`) yang tampil sebelum ada perubahan dari Panel Admin, atau kalau kamu memang lebih suka konten ikut terversion di Git. Tambah topik di `SAMPLE.topics`, atur soal di `questions` (`correct` = indeks jawaban benar, mulai 0), dan terbitkan lewat `SAMPLE.sessions`.
 
-> Di mode `mock`, perubahan dari Panel Admin tersimpan di localStorage browser itu saja — **menimpa** (bukan mengubah) `SAMPLE.topics`/`SAMPLE.sessions` di perangkat itu, dan tidak ikut ter-commit ke Git maupun tersinkron ke perangkat kiosk lain. Untuk perubahan yang berlaku di semua kiosk, pakai mode `apps_script`.
+> Di mode `mock`, perubahan dari Panel Admin tersimpan di localStorage browser itu saja — **menimpa** (bukan mengubah) `SAMPLE.topics`/`SAMPLE.sessions` di perangkat itu, dan tidak ikut ter-commit ke Git maupun tersinkron ke perangkat kiosk lain. Untuk perubahan yang berlaku di semua kiosk, pakai mode `sheets`.
 
 Setelan umum di `CONFIG`:
 - `questionsPerAttempt` — jumlah soal diacak per percobaan
@@ -78,7 +79,7 @@ Navigasi lewat sidebar kiri, lima menu:
 - **Topik** — tambah/edit/hapus topik: kode, judul, ambang lulus, gambar materi (opsional), materi (teks biasa), dan bank soal (ketik manual atau impor CSV). Detail di bawah.
 - **Sesi** — jadwalkan topik untuk tampil di kiosk: rentang tanggal berlaku, target perusahaan (opsional), status `draft`/`published`. Hanya sesi `published` & masih dalam rentang tanggal yang muncul di kiosk.
 - **Laporan** — ringkasan per perusahaan (jumlah peserta, lulus/belum, rata-rata skor, % kelulusan) di atas, lalu tabel detail per peserta yang bisa difilter per perusahaan, dengan tombol unduh CSV.
-- **Karyawan** — daftar seluruh karyawan (nama, NIK, perusahaan, jabatan, departemen) dengan pencarian. Baca saja — untuk mengubah roster, edit `SAMPLE.employees` di `config.js` (mode mock) atau tab `Master_Karyawan` di Sheet (mode apps_script).
+- **Karyawan** — daftar seluruh karyawan (nama, NIK, perusahaan, jabatan, departemen) dengan pencarian. Baca saja — untuk mengubah roster, edit `SAMPLE.employees` di `config.js` (mode mock) atau tab `Master_Karyawan` di Sheet (mode sheets).
 
 ### Format materi
 
@@ -99,7 +100,7 @@ Periksa kondisi APD sebelum dipakai.
 
 ### Gambar materi
 
-Di editor topik ada field **Gambar Materi** (opsional) — pilih file dari perangkat, otomatis terupload ke folder Drive **"Quiz SHE Uploads"** (dibuat otomatis saat pertama kali dipakai) lewat Apps Script, lalu link-nya tersimpan di kolom `materialImage`. Di kiosk, gambar tampil di atas teks materi dan bisa diketuk untuk **diperbesar** (lightbox layar penuh, ketuk gambar untuk zoom in/out). Upload hanya berfungsi di mode `apps_script` — di mode `mock` tidak ada tempat penyimpanan file, jadi kontrol upload akan menampilkan pesan bahwa fitur ini tidak tersedia.
+Di editor topik ada field **Gambar Materi** (opsional) — pilih file dari perangkat, otomatis terupload ke folder Drive **"Quiz SHE Uploads"** (dibuat otomatis saat pertama kali dipakai), lalu link-nya tersimpan di kolom `materialImage`. Di kiosk, gambar tampil di atas teks materi dan bisa diketuk untuk **diperbesar** (lightbox layar penuh, ketuk gambar untuk zoom in/out). Upload hanya berfungsi di mode `sheets` — di mode `mock` tidak ada tempat penyimpanan file, jadi kontrol upload akan menampilkan pesan bahwa fitur ini tidak tersedia.
 
 ### Impor soal lewat CSV
 
@@ -112,288 +113,78 @@ Soal yang berhasil diparsing ditambahkan ke bank soal yang sudah ada (tidak meni
 
 ---
 
-## Menyambung ke Google Sheet (mode `apps_script`)
+## Menyambung ke Google Sheet (mode `sheets`)
 
-Situs statis tidak bisa membaca/menulis Sheet privat sendiri secara aman. Jembatannya = **Google Apps Script Web App** yang menempel pada Sheet-mu. Repo tetap murni HTML/CSS/JS.
+Situs statis tidak bisa membaca/menulis Sheet privat sendiri secara aman. Jembatannya = **`api/data.js`**, satu serverless function di Vercel yang bicara langsung ke **Google Sheets API v4** (bukan Google Apps Script) pakai kredensial *service account*. Data tetap 100% di Google Sheet yang sama — bisa dibuka & dicek manual kapan saja seperti biasa — cuma "pintu" baca/tulisnya lewat backend sendiri yang jauh lebih cepat & konsisten dibanding Apps Script (tidak ada cold-start).
 
-**Pembagian peran:**
+**Pembagian peran** (sama seperti sebelumnya, tidak berubah):
 - **Roster karyawan** → dibaca dari Sheet (tab `Master_Karyawan`).
-- **Konten kuis (topik/sesi)** → bawaan dari `config.js` (di repo), tapi begitu Panel Admin dipakai dalam mode ini, topik/sesi juga dibaca & ditulis lewat Sheet (tab `Topics` / `Sessions`) supaya semua kiosk melihat perubahan yang sama.
+- **Konten kuis (topik/sesi)** → bawaan dari `config.js` (di repo), tapi begitu Panel Admin dipakai dalam mode ini, topik/sesi juga dibaca & ditulis lewat Sheet (tab `Topics` / `Session`) supaya semua kiosk melihat perubahan yang sama.
 - **Hasil / partisipasi** → ditulis balik ke Sheet (tab `Partisipasi`) untuk rekap compliance & laporan di Panel Admin.
 
-### Langkah
-1. Di Google Sheet: **Ekstensi → Apps Script**, tempel skrip di bawah, isi `SS_ID`.
-2. Buat tab-tab berikut dengan header persis di baris 1:
-   - `Partisipasi`: `waktu | nik | nama | perusahaan | topicCode | sessionId | attemptNo | score | passed | certificateNo | verificationToken`
-   - `Topics`: `code | title | passThreshold | material | materialImage | questionsJson`
-   - `Sessions`: `id | topicCode | title | validFrom | validUntil | targetCompanies | status`
-3. **Project Settings → Script Properties**, tambah `ADMIN_TOKEN` dengan nilai **sama persis** dengan `CONFIG.admin.password` di `assets/config.js`. Ini dipakai server-side untuk menolak aksi admin (simpan/hapus topik & sesi, lihat daftar karyawan) dari siapa pun yang tidak login lewat `admin.html`.
-4. **Deploy → New deployment → Web app**, *Execute as: Me*, *Who has access: Anyone*. Salin URL.
-5. Di `assets/config.js`: set `dataSource: 'apps_script'` dan tempel URL ke `appsScriptUrl`.
+### Langkah 1 — Google Cloud (service account)
 
-### Contoh Apps Script
+1. Buka [console.cloud.google.com](https://console.cloud.google.com), buat/pilih project.
+2. **APIs & Services → Library** — enable **Google Sheets API** dan **Google Drive API** (Drive dipakai untuk upload gambar materi).
+3. **APIs & Services → Credentials → Create Credentials → Service Account**. Nama bebas.
+4. Masuk ke service account yang baru dibuat → tab **Keys → Add Key → Create new key → JSON**. Simpan file JSON-nya baik-baik — ini kredensial rahasia, **jangan pernah di-commit ke repo**.
+5. Dari file JSON itu, catat nilai `client_email`.
+6. Buka Google Sheet yang dipakai (tab `Master_Karyawan`/`Partisipasi`/`Topics`/`Session` harus sudah ada dengan header sesuai daftar di bawah) → **Share** → tempel `client_email` dari langkah 5 → beri akses **Editor**.
 
-```javascript
-const SS_ID   = 'ISI_ID_SPREADSHEET';
-const ROSTER  = 'Master_Karyawan';
-const RESULTS = 'Partisipasi';
-const TOPICS  = 'Topics';
-const SESSIONS = 'Sessions';
+Header tiap tab (baris 1, persis):
+- `Partisipasi`: `waktu | nik | nama | perusahaan | topicCode | sessionId | attemptNo | score | passed | certificateNo | verificationToken | answerBreakdown`
+- `Topics`: `code | title | passThreshold | material | materialImage | questionsJson`
+- `Session`: `id | topicCode | title | validFrom | validUntil | targetCompanies | status`
 
-function isAdmin(token) {
-  return !!token && token === PropertiesService.getScriptProperties().getProperty('ADMIN_TOKEN');
-}
+### Langkah 2 — Environment variables di Vercel
 
-// Cache singkat (script-wide) untuk data yang jarang berubah -- tiap
-// panggilan Apps Script itu lambat (~1-3 detik) karena overhead platform,
-// jadi hindari scan ulang sheet penuh kalau data yang sama baru diminta.
-function cacheGet_(key) {
-  try { return CacheService.getScriptCache().get(key); } catch (e) { return null; }
-}
-function cachePut_(key, value, ttlSeconds) {
-  try { CacheService.getScriptCache().put(key, value, ttlSeconds); } catch (e) { /* diabaikan */ }
-}
-function cacheClear_(key) {
-  try { CacheService.getScriptCache().remove(key); } catch (e) { /* diabaikan */ }
-}
+Project di Vercel → **Settings → Environment Variables**, tambah:
 
-// Sheet mengetik ulang teks "2026-07-01" yang ditulis lewat form admin
-// menjadi sel bertipe Date secara otomatis -- getValues() lalu mengembalikan
-// objek Date asli (bukan teksnya), yang kalau dikirim sebagai JSON jadi
-// "2026-07-01T07:00:00.000Z". Kode kiosk/admin menempelkan "T00:00:00" di
-// belakang validFrom/validUntil untuk parsing tanggal; ditempel ke string
-// yang sudah lengkap begini jadi Invalid Date, sesi pun dianggap tidak aktif
-// selamanya. Normalisasi ke "yyyy-MM-dd" polos di sini, satu tempat, supaya
-// semua pemanggil (kiosk & admin) selalu terima format yang konsisten.
-function toDateStr_(v) {
-  if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-  return String(v || '').slice(0, 10);
-}
+| Nama | Isi |
+|---|---|
+| `GOOGLE_SERVICE_ACCOUNT_EMAIL` | `client_email` dari file JSON |
+| `GOOGLE_PRIVATE_KEY` | `private_key` dari file JSON (tempel apa adanya, termasuk `-----BEGIN PRIVATE KEY-----`) |
+| `GOOGLE_SPREADSHEET_ID` | ID Sheet (bagian di URL antara `/d/` dan `/edit`) |
+| `ADMIN_TOKEN` | sama persis dengan `CONFIG.admin.password` di `assets/config.js` |
 
-function doGet(e) {
-  const a = e.parameter.action;
-  if (a === 'employee')       return json(findEmployee(e.parameter.nik));
-  if (a === 'verify')         return json(findByToken(e.parameter.token));
-  if (a === 'topics')         return json(listTopics());
-  if (a === 'sessions')       return json(listSessions());
-  if (a === 'existing')       return json(findExisting(e.parameter.nik, e.parameter.sessionId));
-  // 'participations' berisi nama+NIK+skor semua karyawan -- hanya untuk admin,
-  // beda dengan 'employee'/'existing' yang cuma balas data 1 orang.
-  if (a === 'participations') return isAdmin(e.parameter.adminToken) ? json(listParticipations()) : json([]);
-  if (a === 'employees')      return isAdmin(e.parameter.adminToken) ? json(listEmployees()) : json([]);
-  return json({});
-}
-function doPost(e) {
-  const body = JSON.parse(e.postData.contents);
-  const p = body.payload;
-  if (body.action === 'participation') { return json({ ok: true, certificateNo: appendResult(p) }); }
-  if (!isAdmin(body.adminToken)) return json({ ok: false, error: 'unauthorized' });
-  if (body.action === 'topic_save')     { saveRow(TOPICS, 'code', p.code, { code: p.code, title: p.title, passThreshold: p.passThreshold, material: p.material, materialImage: p.materialImage, questionsJson: JSON.stringify(p.questions) }); cacheClear_('topics_v1'); return json({ ok: true }); }
-  if (body.action === 'topic_delete')   { deleteRow(TOPICS, 'code', p.code); cacheClear_('topics_v1'); return json({ ok: true }); }
-  if (body.action === 'session_save')   { saveRow(SESSIONS, 'id', p.id, { id: p.id, topicCode: p.topicCode, title: p.title, validFrom: p.validFrom, validUntil: p.validUntil, targetCompanies: (p.targetCompanies || []).join(','), status: p.status }); cacheClear_('sessions_v1'); return json({ ok: true }); }
-  if (body.action === 'session_delete') { deleteRow(SESSIONS, 'id', p.id); cacheClear_('sessions_v1'); return json({ ok: true }); }
-  if (body.action === 'upload_image')   { return json({ ok: true, url: uploadImage_(p) }); }
-  return json({ ok: false });
-}
+Redeploy project setelah menambah env var (Vercel tidak otomatis redeploy hanya karena env var berubah).
 
-// Simpan gambar materi ke folder Drive "Quiz SHE Uploads" (dibuat otomatis
-// saat pertama kali dipakai) dan kembalikan URL yang bisa dipakai langsung
-// sebagai <img src>. Pakai endpoint "thumbnail" (bukan "uc?export=view") --
-// yang terakhir sering gagal dimuat sebagai <img> karena Drive menampilkan
-// halaman peringatan alih-alih gambar langsung, apalagi kalau file sering
-// diakses (kasus khas kiosk banyak karyawan). "thumbnail" redirect ke CDN
-// gambar Google (lh3.googleusercontent.com) yang jauh lebih andal.
-function uploadImage_(p) {
-  const folder = getUploadsFolder_();
-  const bytes = Utilities.base64Decode(p.base64);
-  const blob = Utilities.newBlob(bytes, p.mimeType || 'image/jpeg', p.filename || 'materi.jpg');
-  const file = folder.createFile(blob);
-  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  return 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=w2000';
-}
-function getUploadsFolder_() {
-  const name = 'Quiz SHE Uploads';
-  const it = DriveApp.getFoldersByName(name);
-  return it.hasNext() ? it.next() : DriveApp.createFolder(name);
-}
+### Langkah 3 — Aktifkan di client
 
-function listEmployees() {
-  const cached = cacheGet_('employees_v1');
-  if (cached) return JSON.parse(cached);
-  const rows = SpreadsheetApp.openById(SS_ID).getSheetByName(ROSTER).getDataRange().getValues();
-  const head = rows.shift(); const c = n => head.indexOf(n);
-  // Sengaja tidak menyertakan "NO WHATSAPP" — daftar ini sudah lebih sensitif
-  // daripada lookup 1-NIK biasa, jangan tambah data pribadi yang tidak perlu.
-  // Karyawan tanpa NIK TETAP disertakan (bukan difilter) supaya admin bisa
-  // melihat & melengkapi datanya lewat tab Karyawan di panel admin.
-  const out = rows.map(r => ({
-    nik: String(r[c('NIK')] || '').trim(), nama: r[c('NAMA')], perusahaan: r[c('PERUSAHAAN')],
-    jabatan: r[c('JABATAN')], departemen: r[c('DEPARTEMEN')],
-  })).filter(e => e.nama);
-  cachePut_('employees_v1', JSON.stringify(out), 120);
-  return out;
-}
+Di `assets/config.js`: `dataSource: 'sheets'`, `apiUrl: '/api/data'` (relatif — otomatis mengarah ke domain Vercel yang sama, tidak perlu diisi manual per-environment).
 
-// Dipanggil di SETIAP login kiosk -- dulu scan ulang seluruh roster tiap
-// kali. Pakai cache yang sama dengan listEmployees() supaya login
-// berturut-turut (kiosk ramai) baca dari cache, bukan scan sheet lagi.
-function findEmployee(nik) {
-  const key = String(nik || '').trim();
-  const hit = listEmployees().find(e => e.nik === key);
-  return hit || {};
-}
-// Nomor sertifikat dihitung & baris ditulis dalam satu lock supaya dua
-// kiosk yang submit bersamaan tidak pernah dapat nomor yang sama.
-function appendResult(p) {
-  const lock = LockService.getScriptLock();
-  lock.waitLock(10000);
-  try {
-    const sheet = SpreadsheetApp.openById(SS_ID).getSheetByName(RESULTS);
-    const certificateNo = p.passed ? nextCertNo_(sheet, p.perusahaan) : null;
-    sheet.appendRow([
-      new Date(), p.nik, p.nama, p.perusahaan, p.topicCode, p.sessionId,
-      p.attemptNo, p.score, p.passed, certificateNo, p.verificationToken, p.answerBreakdown || '',
-    ]);
-    cacheClear_('results_lite_v1'); // baris baru ditulis -- cache lama sudah basi
-    return certificateNo;
-  } finally {
-    lock.releaseLock();
-  }
-}
-function nextCertNo_(sheet, perusahaan) {
-  const tz = Session.getScriptTimeZone();
-  const suffix = '/SS/' + companyCode_(perusahaan) + '/' + Utilities.formatDate(new Date(), tz, 'MM/yy');
-  const rows = sheet.getDataRange().getValues();
-  const head = rows.length ? rows.shift() : [];
-  const ci = head.indexOf('certificateNo');
-  const count = rows.filter(r => r[ci] && String(r[ci]).indexOf(suffix) !== -1).length;
-  return Utilities.formatString('%03d', count + 1) + suffix;
-}
-function companyCode_(perusahaan) {
-  return String(perusahaan || '').replace(/^PT\s+/i, '').trim().split(/\s+/)[0].toUpperCase() || 'NA';
-}
+### Cara kerja `api/data.js` (ringkas)
 
-// Versi ringan RESULTS (tanpa answerBreakdown yang bisa besar) buat dua
-// lookup ber-frekuensi tinggi dari kiosk: findExisting dipanggil SEKALI PER
-// SESI tiap login (paralel), findByToken tiap buka link verifikasi QR.
-// Tanpa cache ini keduanya scan ulang seluruh sheet Partisipasi tiap
-// panggilan -- salah satu penyebab utama kiosk terasa lambat. TTL pendek
-// (15 detik) supaya tetap cukup segar, di-clear paksa tiap ada hasil baru
-// lewat appendResult().
-function getResultsLite_() {
-  const cached = cacheGet_('results_lite_v1');
-  if (cached) return JSON.parse(cached);
-  const rows = SpreadsheetApp.openById(SS_ID).getSheetByName(RESULTS).getDataRange().getValues();
-  const head = rows.shift(); const c = n => head.indexOf(n);
-  const out = rows.map(r => ({
-    nik: String(r[c('nik')]), nama: r[c('nama')], perusahaan: r[c('perusahaan')],
-    sessionId: String(r[c('sessionId')]), passed: r[c('passed')], score: r[c('score')],
-    certificateNo: r[c('certificateNo')], verificationToken: r[c('verificationToken')],
-    submittedAt: r[c('waktu')],
-  }));
-  cachePut_('results_lite_v1', JSON.stringify(out), 15);
-  return out;
-}
+Kode lengkapnya ada di `api/data.js` di repo ini (bukan ditempel manual seperti Apps Script dulu — otomatis ikut ter-deploy tiap `git push`). Satu endpoint, dispatch berdasarkan `action`:
 
-function findByToken(token) {
-  const hit = getResultsLite_().find(r => r.verificationToken === token);
-  return hit ? {
-    nama: hit.nama, nik: hit.nik, perusahaan: hit.perusahaan,
-    certificateNo: hit.certificateNo, score: hit.score, verificationToken: token,
-  } : {};
-}
+| Method | `action` | Perlu `adminToken`? | Fungsi |
+|---|---|---|---|
+| GET | `employee` | tidak | cari 1 karyawan by NIK |
+| GET | `verify` | tidak | cari hasil by token QR sertifikat |
+| GET | `topics` | tidak | daftar topik |
+| GET | `sessions` | tidak | daftar sesi |
+| GET | `existing` | tidak | cek karyawan sudah lulus sesi tertentu |
+| GET | `participations` | **ya** | seluruh data partisipasi (buat Laporan admin) |
+| GET | `employees` | **ya** | seluruh roster karyawan (buat tab Karyawan admin) |
+| POST | `participation` | tidak | simpan hasil kuis + hitung nomor sertifikat |
+| POST | `topic_save` / `topic_delete` | **ya** | kelola topik |
+| POST | `session_save` / `session_delete` | **ya** | kelola sesi |
+| POST | `upload_image` | **ya** | upload gambar materi ke Drive |
 
-// Percobaan LULUS paling baru milik satu NIK untuk satu sesi -- dipakai kiosk
-// supaya karyawan yang sudah lulus tidak perlu mengulang kuis, cukup lihat
-// sertifikat lamanya. Hanya balas data 1 orang (bukan seluruh tabel).
-function findExisting(nik, sessionId) {
-  const key = String(nik).trim();
-  const hits = getResultsLite_().filter(r =>
-    r.nik.trim() === key && r.sessionId === String(sessionId) && r.passed);
-  if (!hits.length) return {};
-  const hit = hits[hits.length - 1];
-  return {
-    score: hit.score, certificateNo: hit.certificateNo,
-    verificationToken: hit.verificationToken, submittedAt: hit.submittedAt,
-  };
-}
-function listParticipations() {
-  const rows = SpreadsheetApp.openById(SS_ID).getSheetByName(RESULTS).getDataRange().getValues();
-  const head = rows.shift(); const c = n => head.indexOf(n);
-  return rows.map(r => {
-    let answerBreakdown = [];
-    try { answerBreakdown = JSON.parse(r[c('answerBreakdown')] || '[]'); } catch (e) { /* data lama/rusak -- abaikan */ }
-    return {
-    submittedAt: r[c('waktu')], nik: r[c('nik')], nama: r[c('nama')], perusahaan: r[c('perusahaan')],
-    topicCode: r[c('topicCode')], sessionId: r[c('sessionId')], attemptNo: r[c('attemptNo')],
-    score: r[c('score')], passed: r[c('passed')], certificateNo: r[c('certificateNo')],
-    verificationToken: r[c('verificationToken')], answerBreakdown,
-    };
-  }).reverse();
-}
-function listTopics() {
-  const cached = cacheGet_('topics_v1');
-  if (cached) return JSON.parse(cached);
-  const rows = SpreadsheetApp.openById(SS_ID).getSheetByName(TOPICS).getDataRange().getValues();
-  const head = rows.shift(); const c = n => head.indexOf(n);
-  const out = rows.map(r => ({
-    code: r[c('code')], title: r[c('title')], passThreshold: r[c('passThreshold')],
-    material: r[c('material')], materialImage: r[c('materialImage')],
-    questions: JSON.parse(r[c('questionsJson')] || '[]'),
-  }));
-  cachePut_('topics_v1', JSON.stringify(out), 60);
-  return out;
-}
-function listSessions() {
-  const cached = cacheGet_('sessions_v1');
-  if (cached) return JSON.parse(cached);
-  const rows = SpreadsheetApp.openById(SS_ID).getSheetByName(SESSIONS).getDataRange().getValues();
-  const head = rows.shift(); const c = n => head.indexOf(n);
-  const out = rows.map(r => ({
-    id: r[c('id')], topicCode: r[c('topicCode')], title: r[c('title')],
-    validFrom: toDateStr_(r[c('validFrom')]), validUntil: toDateStr_(r[c('validUntil')]),
-    targetCompanies: String(r[c('targetCompanies')] || '').split(',').map(s => s.trim()).filter(Boolean),
-    status: r[c('status')],
-  }));
-  cachePut_('sessions_v1', JSON.stringify(out), 60);
-  return out;
-}
-// Simpan (tambah/timpa) baris berdasarkan kolom kunci, mengisi tiap kolom
-// sesuai NAMA header (bukan posisi). valuesByName: { namaKolom: nilai, ... }
-function saveRow(sheetName, keyCol, keyVal, valuesByName) {
-  const sheet = SpreadsheetApp.openById(SS_ID).getSheetByName(sheetName);
-  const rows = sheet.getDataRange().getValues();
-  const head = rows[0]; const ci = head.indexOf(keyCol);
-  const rowValues = head.map(h => (h in valuesByName ? valuesByName[h] : ''));
-  for (let i = 1; i < rows.length; i++) {
-    if (String(rows[i][ci]) === String(keyVal)) { sheet.getRange(i + 1, 1, 1, rowValues.length).setValues([rowValues]); return; }
-  }
-  sheet.appendRow(rowValues);
-}
-function deleteRow(sheetName, keyCol, keyVal) {
-  const sheet = SpreadsheetApp.openById(SS_ID).getSheetByName(sheetName);
-  const rows = sheet.getDataRange().getValues();
-  const head = rows[0]; const ci = head.indexOf(keyCol);
-  for (let i = 1; i < rows.length; i++) {
-    if (String(rows[i][ci]) === String(keyVal)) { sheet.deleteRow(i + 1); return; }
-  }
-}
-function json(o) {
-  return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
-}
-```
+Baca/tulis pakai `valueInputOption: RAW` (bukan `USER_ENTERED`) supaya teks tanggal ("2026-07-01") tidak diam-diam diubah Sheets jadi sel bertipe Date — akar masalah yang dulu pernah bikin sesi "tidak terdeteksi" di versi Apps Script.
 
-> Jika muncul error CORS, pastikan deployment memakai *Who has access: Anyone* dan URL yang dipakai adalah URL `/exec` (bukan `/dev`).
+Tidak ada padanan `LockService` untuk penomoran sertifikat di sini (Sheets API tidak punya lock bawaan) — risiko dua submit bersamaan-persis dapat nomor sama secara teori ada, tapi sangat kecil untuk pemakaian kiosk fisik satu-per-satu. Kalau nanti dipakai multi-kiosk serentak dan ini jadi masalah nyata, upgrade-nya: tambah lock terdistribusi (mis. Vercel KV).
 
 ---
 
 ## Batasan yang perlu kamu tahu (jujur)
 
-- **Privasi roster.** Jangan publikasikan seluruh isi Sheet karyawan ke web publik. Dengan pola Apps Script di atas, aksi publik (`employee`, `verify`, `existing`) hanya membalas data 1 orang/1 sesi — bukan seluruh daftar. Aksi yang membongkar banyak data sekaligus (`employees`, `participations`) mensyaratkan `adminToken` yang cocok. Hindari menaruh NIK/no. HP di file yang di-commit publik.
+- **Privasi roster.** Jangan publikasikan seluruh isi Sheet karyawan ke web publik. Dengan pola di atas, aksi publik (`employee`, `verify`, `existing`) hanya membalas data 1 orang/1 sesi — bukan seluruh daftar. Aksi yang membongkar banyak data sekaligus (`employees`, `participations`) mensyaratkan `adminToken` yang cocok. Hindari menaruh NIK/no. HP di file yang di-commit publik.
 - **Keamanan login rendah.** "Login" hanya pencocokan NIK, tanpa password — memang sesuai kebutuhan kiosk yang ringan, tapi bukan autentikasi kuat. Jangan pakai pola ini untuk data sensitif.
-- **Panel Admin bukan autentikasi aman.** `admin.html` dikunci dengan satu password yang dicek di browser (`CONFIG.admin.password` di `assets/config.js`) — siapa pun yang membuka file itu (mis. lewat "View Source" di GitHub Pages) bisa melihat password-nya. Mode `apps_script` menambah pengecekan `ADMIN_TOKEN` di sisi server untuk aksi tulis & daftar karyawan, tapi karena token yang dikirim **adalah** password yang sama yang tersimpan di `config.js` publik, ini hanya menaikkan sedikit dari "bisa ditulis siapa saja" menjadi "perlu tahu password yang sudah terpampang di source" — bukan keamanan yang sebenarnya. Cukup untuk mencegah orang iseng, bukan untuk melindungi data sensitif. Kalau butuh keamanan sungguhan, taruh `admin.html` di balik autentikasi level hosting (bukan GitHub Pages publik) atau bangun alur login yang tidak menyimpan rahasianya di kode klien.
-- **Tanpa Apps Script, hasil tidak terekam terpusat.** Mode `mock` menyimpan hasil hanya di browser perangkat itu (localStorage). Untuk rekap compliance lintas perangkat, sambungkan Apps Script.
-- **Verifikasi QR** di mode `mock` hanya berlaku di perangkat yang sama. Verifikasi lintas perangkat butuh Apps Script.
+- **Panel Admin bukan autentikasi aman.** `admin.html` dikunci dengan satu password yang dicek di browser (`CONFIG.admin.password` di `assets/config.js`) — siapa pun yang membuka file itu (mis. lewat "View Source") bisa melihat password-nya. Mode `sheets` menambah pengecekan `ADMIN_TOKEN` di sisi server untuk aksi tulis & daftar karyawan, tapi karena token yang dikirim **adalah** password yang sama yang tersimpan di `config.js` publik, ini hanya menaikkan sedikit dari "bisa ditulis siapa saja" menjadi "perlu tahu password yang sudah terpampang di source" — bukan keamanan yang sebenarnya. Cukup untuk mencegah orang iseng, bukan untuk melindungi data sensitif. Kalau butuh keamanan sungguhan, taruh `admin.html` di balik autentikasi level hosting atau bangun alur login yang tidak menyimpan rahasianya di kode klien.
+- **Tanpa mode `sheets`, hasil tidak terekam terpusat.** Mode `mock` menyimpan hasil hanya di browser perangkat itu (localStorage). Untuk rekap compliance lintas perangkat, sambungkan ke Google Sheet (lihat [Menyambung ke Google Sheet](#menyambung-ke-google-sheet-mode-sheets)).
+- **Verifikasi QR** di mode `mock` hanya berlaku di perangkat yang sama. Verifikasi lintas perangkat butuh mode `sheets`.
+- **Kredensial service account** (`GOOGLE_PRIVATE_KEY` dkk.) tersimpan sebagai environment variable di Vercel, bukan di kode — jangan pernah commit file JSON service account ke Git.
 - **PDF sertifikat** dibuat di browser (html2canvas + jsPDF); hasil mengikuti tampilan kartu di layar.
 
 ---

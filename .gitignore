@@ -2,3 +2,5 @@
 node_modules/
 *.log
 stitch_lms_k3_ebl_dashboard/
+.env*
+.vercel

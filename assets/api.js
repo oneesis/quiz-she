@@ -1,11 +1,11 @@
 /* ============================================================
    LAPISAN DATA (API)
-   Satu antarmuka, dua sumber: 'mock' dan 'apps_script'.
+   Satu antarmuka, dua sumber: 'mock' dan 'sheets'.
    Ganti sumber di config.js tanpa menyentuh app.js.
    ============================================================ */
 (function () {
   const C = window.CONFIG;
-  let adminToken = null; // diisi admin.js setelah login; dikirim ke Apps Script untuk aksi admin
+  let adminToken = null; // diisi admin.js setelah login; dikirim ke backend untuk aksi admin
 
   // ---- penyimpanan aman (localStorage bila tersedia, jika tidak in-memory) ----
   const mem = {};
@@ -38,7 +38,7 @@
   }
 
   // "001/SS/OFN/07/26" -- dipakai mockApi (penomoran lokal per perangkat).
-  // Mode apps_script: nomor ini dihitung di server (lihat README) supaya
+  // Mode sheets: nomor ini dihitung di server (lihat README) supaya
   // konsisten walau dipakai dari banyak kiosk sekaligus.
   function buildCertNo(perusahaan) {
     const now = new Date();
@@ -49,7 +49,7 @@
 
   // Konten kuis (topik + sesi) berasal dari config.js sebagai bawaan, tapi bisa
   // ditimpa lewat Panel Admin (admin.html). Mode mock: perubahan tersimpan di
-  // localStorage perangkat ini saja. Mode apps_script: tersimpan di Google Sheet.
+  // localStorage perangkat ini saja. Mode sheets: tersimpan di Google Sheet.
   function readOverride(key, fallback) {
     const raw = store.get(key);
     if (raw === null) return fallback.slice();
@@ -95,8 +95,8 @@
     },
     async listParticipations() {
       // answerBreakdown disimpan sebagai string JSON (sama seperti kolom Sheet
-      // di mode apps_script) -- parse balik di sini supaya bentuknya konsisten
-      // dgn scriptApi.listParticipations (selalu array), bukan tanggung jawab
+      // di mode sheets) -- parse balik di sini supaya bentuknya konsisten
+      // dgn sheetsApi.listParticipations (selalu array), bukan tanggung jawab
       // tiap pemanggil buat nebak-nebak bentuknya.
       return JSON.parse(store.get('participations') || '[]').slice().reverse().map(p => ({
         ...p,
@@ -131,22 +131,22 @@
       return true;
     },
     async uploadImage() {
-      throw new Error('Upload gambar hanya tersedia di mode apps_script.');
+      throw new Error('Upload gambar hanya tersedia di mode sheets.');
     },
   };
 
   // ------------- APPS SCRIPT -------------
   // Endpoint tunggal: GET ?action=... untuk baca, POST untuk simpan.
   // Detail kontrak ada di README.
-  const scriptApi = {
+  const sheetsApi = {
     async _get(params) {
-      const url = C.appsScriptUrl + '?' + new URLSearchParams(params).toString();
+      const url = C.apiUrl + '?' + new URLSearchParams(params).toString();
       const res = await fetch(url);
       if (!res.ok) throw new Error('Gagal menghubungi server data');
       return res.json();
     },
     async _post(action, payload) {
-      const res = await fetch(C.appsScriptUrl, {
+      const res = await fetch(C.apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // hindari preflight CORS
         body: JSON.stringify({ action, payload, adminToken }),
@@ -219,7 +219,7 @@
     },
   };
 
-  const impl = C.dataSource === 'apps_script' ? scriptApi : mockApi;
+  const impl = C.dataSource === 'sheets' ? sheetsApi : mockApi;
 
   window.API = {
     mode: C.dataSource,

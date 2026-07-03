@@ -362,8 +362,8 @@
     ev.target.value = '';
     if (!file) return;
     const status = $('#t-image-status');
-    if (API.mode !== 'apps_script') {
-      status.textContent = 'Upload gambar hanya tersedia di mode apps_script.';
+    if (API.mode !== 'sheets') {
+      status.textContent = 'Upload gambar hanya tersedia saat tersambung ke Google Sheet.';
       status.className = 'text-xs text-error mt-1';
       return;
     }

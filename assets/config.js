@@ -2,15 +2,17 @@
    KONFIGURASI APLIKASI
    ============================================================
    dataSource:
-     'mock'        -> pakai data contoh di file ini. Jalan langsung
-                      di GitHub Pages tanpa backend apa pun.
-     'apps_script' -> baca daftar karyawan & simpan hasil ke Google
-                      Sheet lewat Google Apps Script Web App.
-                      Isi appsScriptUrl di bawah. (lihat README)
+     'mock'   -> pakai data contoh di file ini. Jalan langsung di
+                 hosting statis apa pun tanpa backend sama sekali.
+     'sheets' -> baca daftar karyawan & simpan hasil ke Google Sheet
+                 lewat backend sendiri (api/data.js, serverless
+                 function di Vercel yang bicara langsung ke Google
+                 Sheets API -- bukan Apps Script). Isi apiUrl di
+                 bawah. (lihat README)
    ============================================================ */
 window.CONFIG = {
-  dataSource: 'apps_script',
-  appsScriptUrl: 'https://script.google.com/macros/s/AKfycbxcDx6BPcOkkbV5sytyUnxxqeH4GTaDb9KZs90Y7gYjGtYwWeTpkgSCouwATBDeNRuo/exec',
+  dataSource: 'sheets',
+  apiUrl: '/api/data',
 
   org: {
     name: 'PT Energi Batubara Lestari',
@@ -37,7 +39,7 @@ window.CONFIG = {
 /* ============================================================
    DATA CONTOH  (hanya dipakai saat dataSource = 'mock')
    Di produksi, employees & (opsional) topics/sessions diambil
-   dari Google Sheet lewat Apps Script.
+   dari Google Sheet lewat backend sendiri (lihat api/data.js).
    ============================================================ */
 window.SAMPLE = {
   // Cocok dengan kolom tab Master_Karyawan: PERUSAHAAN, SUBCONT, NAMA, NIK, JABATAN, DEPARTEMEN, NO WHATSAPP

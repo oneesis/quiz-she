@@ -377,7 +377,7 @@
     }
 
     // simpan catatan partisipasi -- nomor sertifikat ditentukan oleh lapisan
-    // data (localStorage di mode mock, Apps Script di mode apps_script) supaya
+    // data (localStorage di mode mock, backend di mode sheets) supaya
     // urutannya konsisten walau dipakai dari banyak perangkat sekaligus.
     const saved = await submitWithRetry({
       sessionId: S.session.id, topicCode: S.topic.code,

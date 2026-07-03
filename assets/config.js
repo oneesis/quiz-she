@@ -27,12 +27,13 @@ window.CONFIG = {
   showDemoHint: true,         // tampilkan NIK contoh di layar login (matikan di produksi)
 
   admin: {
-    // Gerbang login panel admin (admin.html). Ini pengecekan di sisi
-    // browser saja, BUKAN autentikasi yang aman — siapa pun yang bisa
-    // melihat file ini bisa melihat password-nya. Ganti sebelum deploy,
-    // dan lihat catatan keamanan di README sebelum memakai ini untuk
-    // data sensitif.
-    password: 'ebl-admin',
+    // Password ini HANYA dipakai mode 'mock' (demo lokal) -- dicek di sisi
+    // browser saja, jadi siapa pun yang buka file ini bisa melihatnya.
+    // Di mode 'sheets', password sungguhan ada di ADMIN_TOKEN (env var
+    // Vercel), TIDAK PERNAH sama dengan nilai di sini. Sengaja dibedakan --
+    // kalau nilainya kebetulan sama dengan ADMIN_TOKEN produksi, siapa pun
+    // yang baca file publik ini otomatis tahu password produksi juga.
+    password: 'demo-saja-ganti-di-vercel',
   },
 };
 

@@ -68,6 +68,14 @@
 
   // ---------------- MOCK ----------------
   const mockApi = {
+    // Mode mock tidak punya server buat nyimpen rahasia -- password memang
+    // ada di config.js publik, dan itu ok karena mock cuma buat demo lokal.
+    // Token = password itu sendiri, tidak masalah (tidak pernah keluar dari
+    // perangkat ini). Bandingkan dgn sheetsApi.adminLogin di bawah, yang
+    // beneran menyembunyikan password lewat pengecekan sisi server.
+    async adminLogin(password) {
+      return { ok: password === C.admin.password, token: password };
+    },
     async findEmployee(nik) {
       const key = (nik || '').trim().toLowerCase();
       return window.SAMPLE.employees.find(e => e.nik.toLowerCase() === key) || null;
@@ -135,10 +143,17 @@
     },
   };
 
-  // ------------- APPS SCRIPT -------------
+  // ------------- BACKEND (api/data.js) -------------
   // Endpoint tunggal: GET ?action=... untuk baca, POST untuk simpan.
   // Detail kontrak ada di README.
   const sheetsApi = {
+    async adminLogin(password) {
+      // password ASLI cuma pernah dicek di server (ADMIN_TOKEN, env var
+      // Vercel) -- balasannya adalah token sesi yang kedaluwarsa sendiri,
+      // bukan password itu lagi. Lihat komentar signSession di api/data.js.
+      const data = await this._post('admin_login', { password });
+      return { ok: !!(data && data.ok), token: (data && data.token) || null };
+    },
     async _get(params) {
       const url = C.apiUrl + '?' + new URLSearchParams(params).toString();
       const res = await fetch(url);
@@ -223,6 +238,7 @@
 
   window.API = {
     mode: C.dataSource,
+    adminLogin: (password) => impl.adminLogin(password),
     findEmployee: (nik) => impl.findEmployee(nik),
     activeSessions: (emp) => impl.activeSessions(emp),
     findExisting: (nik, sessionId) => impl.findExisting(nik, sessionId),

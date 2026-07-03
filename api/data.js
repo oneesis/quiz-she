@@ -290,8 +290,35 @@ async function uploadImage(p) {
   return `https://drive.google.com/thumbnail?id=${file.data.id}&sz=w2000`;
 }
 
+// Sesi admin lewat token bertanda tangan (HMAC), bukan password mentah.
+// Sebelumnya CONFIG.admin.password di assets/config.js -- file publik yang
+// bisa dibaca siapa saja lewat "View Source" -- dikirim balik apa adanya
+// sebagai adminToken. Sekarang password asli (ADMIN_TOKEN) HANYA pernah
+// dicek di sini, di server; klien cuma pernah pegang token sesi yang
+// kedaluwarsa sendiri, tidak pernah pegang passwordnya.
+// Tidak butuh Vercel KV/database -- token menyimpan kedaluwarsanya sendiri
+// dan tanda tangannya diverifikasi ulang tiap request (stateless).
+const crypto = require('crypto');
+function signSession(expiresAt) {
+  const body = Buffer.from(JSON.stringify({ exp: expiresAt })).toString('base64url');
+  const sig = crypto.createHmac('sha256', ADMIN_TOKEN).update(body).digest('base64url');
+  return `${body}.${sig}`;
+}
+function verifySession(token) {
+  if (!token || typeof token !== 'string' || !ADMIN_TOKEN) return false;
+  const [body, sig] = token.split('.');
+  if (!body || !sig) return false;
+  const expected = crypto.createHmac('sha256', ADMIN_TOKEN).update(body).digest('base64url');
+  const a = Buffer.from(sig), b = Buffer.from(expected);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return false;
+  try {
+    const { exp } = JSON.parse(Buffer.from(body, 'base64url').toString());
+    return typeof exp === 'number' && Date.now() < exp;
+  } catch (e) { return false; }
+}
+
 function isAdmin(token) {
-  return !!token && !!ADMIN_TOKEN && token === ADMIN_TOKEN;
+  return verifySession(token);
 }
 
 module.exports = async (req, res) => {
@@ -319,6 +346,14 @@ module.exports = async (req, res) => {
       const { action, payload: p, adminToken } = body || {};
 
       if (action === 'participation') return res.json({ ok: true, certificateNo: await appendResult(p) });
+      // admin_login sengaja di luar gerbang isAdmin -- ini justru tempat
+      // token sesi PERTAMA KALI diterbitkan, belum ada token buat dicek.
+      // 12 jam cukup buat satu shift kerja; auto-logout idle (15 menit,
+      // lihat assets/admin.js) akan lebih dulu memutus sesi di kasus normal.
+      if (action === 'admin_login') {
+        const ok = !!ADMIN_TOKEN && p && p.password === ADMIN_TOKEN;
+        return res.json(ok ? { ok: true, token: signSession(Date.now() + 12 * 3600 * 1000) } : { ok: false });
+      }
       if (!isAdmin(adminToken)) return res.json({ ok: false, error: 'unauthorized' });
 
       if (action === 'topic_save') {

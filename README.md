@@ -167,13 +167,18 @@ Kode lengkapnya ada di `api/data.js` di repo ini (bukan ditempel manual seperti 
 | GET | `participations` | **ya** | seluruh data partisipasi (buat Laporan admin) |
 | GET | `employees` | **ya** | seluruh roster karyawan (buat tab Karyawan admin) |
 | POST | `participation` | tidak | simpan hasil kuis + hitung nomor sertifikat |
+| POST | `admin_login` | tidak* | tukar password dengan token sesi (12 jam) |
 | POST | `topic_save` / `topic_delete` | **ya** | kelola topik |
 | POST | `session_save` / `session_delete` | **ya** | kelola sesi |
 | POST | `upload_image` | **ya** | upload gambar materi ke Drive |
 
+*`admin_login` tidak butuh `adminToken` (belum ada token untuk dicek), tapi tetap butuh `password` yang cocok dengan `ADMIN_TOKEN` di payload-nya.
+
 Baca/tulis pakai `valueInputOption: RAW` (bukan `USER_ENTERED`) supaya teks tanggal ("2026-07-01") tidak diam-diam diubah Sheets jadi sel bertipe Date — akar masalah yang dulu pernah bikin sesi "tidak terdeteksi" di versi Apps Script.
 
 Tidak ada padanan `LockService` untuk penomoran sertifikat di sini (Sheets API tidak punya lock bawaan) — risiko dua submit bersamaan-persis dapat nomor sama secara teori ada, tapi sangat kecil untuk pemakaian kiosk fisik satu-per-satu. Kalau nanti dipakai multi-kiosk serentak dan ini jadi masalah nyata, upgrade-nya: tambah lock terdistribusi (mis. Vercel KV).
+
+`adminToken` yang dikirim setelah login **bukan** password mentah lagi, melainkan token sesi bertanda tangan HMAC (`signSession`/`verifySession` di `api/data.js`) yang menyimpan kedaluwarsanya sendiri (12 jam) — diverifikasi ulang tiap request tanpa perlu database/KV tambahan.
 
 ---
 
@@ -181,7 +186,7 @@ Tidak ada padanan `LockService` untuk penomoran sertifikat di sini (Sheets API t
 
 - **Privasi roster.** Jangan publikasikan seluruh isi Sheet karyawan ke web publik. Dengan pola di atas, aksi publik (`employee`, `verify`, `existing`) hanya membalas data 1 orang/1 sesi — bukan seluruh daftar. Aksi yang membongkar banyak data sekaligus (`employees`, `participations`) mensyaratkan `adminToken` yang cocok. Hindari menaruh NIK/no. HP di file yang di-commit publik.
 - **Keamanan login rendah.** "Login" hanya pencocokan NIK, tanpa password — memang sesuai kebutuhan kiosk yang ringan, tapi bukan autentikasi kuat. Jangan pakai pola ini untuk data sensitif.
-- **Panel Admin bukan autentikasi aman.** `admin.html` dikunci dengan satu password yang dicek di browser (`CONFIG.admin.password` di `assets/config.js`) — siapa pun yang membuka file itu (mis. lewat "View Source") bisa melihat password-nya. Mode `sheets` menambah pengecekan `ADMIN_TOKEN` di sisi server untuk aksi tulis & daftar karyawan, tapi karena token yang dikirim **adalah** password yang sama yang tersimpan di `config.js` publik, ini hanya menaikkan sedikit dari "bisa ditulis siapa saja" menjadi "perlu tahu password yang sudah terpampang di source" — bukan keamanan yang sebenarnya. Cukup untuk mencegah orang iseng, bukan untuk melindungi data sensitif. Kalau butuh keamanan sungguhan, taruh `admin.html` di balik autentikasi level hosting atau bangun alur login yang tidak menyimpan rahasianya di kode klien.
+- **Panel Admin tetap satu password bersama** (bukan akun per-orang) — cukup untuk tim kecil yang saling percaya, bukan untuk banyak admin dengan hak berbeda-beda. Tapi di mode `sheets`, password aslinya **tidak lagi tersimpan/terkirim ke browser**: `CONFIG.admin.password` di `config.js` cuma dipakai mode `mock` (demo lokal). Login sungguhan mengirim password ke `api/data.js`, dicek di server terhadap `ADMIN_TOKEN` (env var Vercel, tidak pernah ke klien), dan yang dibalas ke browser cuma **token sesi** bertanda tangan (HMAC) yang kedaluwarsa sendiri dalam 12 jam — bukan passwordnya. Siapa pun yang buka "View Source" tidak akan menemukan password aslinya lagi. Kalau butuh lebih dari ini (akun per-admin, audit log siapa mengubah apa), itu perubahan lebih besar — taruh `admin.html` di balik autentikasi level hosting atau bangun sistem akun sungguhan.
 - **Tanpa mode `sheets`, hasil tidak terekam terpusat.** Mode `mock` menyimpan hasil hanya di browser perangkat itu (localStorage). Untuk rekap compliance lintas perangkat, sambungkan ke Google Sheet (lihat [Menyambung ke Google Sheet](#menyambung-ke-google-sheet-mode-sheets)).
 - **Verifikasi QR** di mode `mock` hanya berlaku di perangkat yang sama. Verifikasi lintas perangkat butuh mode `sheets`.
 - **Kredensial service account** (`GOOGLE_PRIVATE_KEY` dkk.) tersimpan sebagai environment variable di Vercel, bukan di kode — jangan pernah commit file JSON service account ke Git.

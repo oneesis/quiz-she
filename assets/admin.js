@@ -31,15 +31,30 @@
   // ============================================================
   // LOGIN
   // ============================================================
-  function doLogin() {
+  // Password ASLI cuma pernah dicek server-side (lihat api/data.js) --
+  // di sini kita cuma pernah pegang & simpan TOKEN SESI balasannya, bukan
+  // passwordnya. Sebelumnya password mentah yang tersimpan di config.js
+  // publik itu sendiri yang jadi "token" dan dikirim balik ke server; itu
+  // aman-aman saja untuk mode mock (memang cuma demo lokal), tapi di mode
+  // sheets sekarang beneran tersembunyi.
+  async function doLogin() {
     const val = $('#admin-password').value;
     const err = $('#admin-login-error');
-    if (val !== C.admin.password) { err.textContent = 'Password salah.'; return; }
-    err.textContent = '';
-    sessionStorage.setItem(AUTH_KEY, val); // dipakai lagi sbg adminToken kalau tab di-refresh
-    API.setAdminToken(val); // dikirim ke Apps Script untuk aksi admin (lihat README)
-    $('#admin-password').value = '';
-    openDashboard();
+    const btn = $('#btn-admin-login');
+    btn.disabled = true;
+    try {
+      const result = await API.adminLogin(val);
+      if (!result.ok) { err.textContent = 'Password salah.'; return; }
+      err.textContent = '';
+      sessionStorage.setItem(AUTH_KEY, result.token); // token sesi, bukan password
+      API.setAdminToken(result.token);
+      $('#admin-password').value = '';
+      openDashboard();
+    } catch (e) {
+      err.textContent = 'Gagal menghubungi server. Coba lagi.';
+    } finally {
+      btn.disabled = false;
+    }
   }
   function doLogout() {
     sessionStorage.removeItem(AUTH_KEY);

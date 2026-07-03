@@ -2,7 +2,7 @@
 
 Aplikasi statis (HTML/CSS/JS murni) untuk Sharing Session. Pekerja masuk pakai **NIK**, membaca materi, mengerjakan kuis singkat, dan bila lulus langsung mendapat **sertifikat digital ber-QR**. Cocok dipasang di tablet muster point atau dibuka via HP.
 
-Tidak butuh server aplikasi. Bisa langsung di-hosting di **GitHub Pages**.
+Tidak butuh server aplikasi. Bisa langsung di-hosting di **Vercel** (atau hosting statis lain).
 
 ---
 
@@ -21,11 +21,16 @@ NIK contoh: `02-010218-001` atau `SCI-001`.
 
 ---
 
-## Deploy ke GitHub Pages
+## Deploy ke Vercel
+
+Situs statis murni (tanpa build step), jadi Vercel bisa langsung menyajikan file apa adanya tanpa konfigurasi tambahan.
 
 1. Commit semua file, push ke repo GitHub.
-2. **Settings → Pages → Source: Deploy from a branch**, pilih `main` / `root`.
-3. Situs terbit di `https://<user>.github.io/<repo>/`.
+2. Di [vercel.com](https://vercel.com), **Add New → Project**, pilih repo ini dari GitHub.
+3. Framework Preset: **Other** (bukan build step apa pun, biarkan Build Command & Output Directory kosong).
+4. **Deploy**. Situs terbit di `https://<nama-project>.vercel.app`, dan otomatis redeploy tiap ada push ke `main`.
+
+Kalau sebelumnya pakai GitHub Pages, matikan di **Settings → Pages → Build and deployment → Source: None** setelah Vercel dipastikan jalan normal, supaya tidak ada dua situs aktif berbeda versi.
 
 ---
 
@@ -66,7 +71,7 @@ Setelan umum di `CONFIG`:
 
 ## Panel Admin
 
-Buka `admin.html` (mis. `http://localhost:8080/admin.html` atau `https://<user>.github.io/<repo>/admin.html`). Tidak ada tautan ke sana dari kiosk — sengaja, supaya tidak muncul di layar tablet muster point. Password diatur di `CONFIG.admin.password` (`assets/config.js`).
+Buka `admin.html` (mis. `http://localhost:8080/admin.html` atau `https://<nama-project>.vercel.app/admin.html`). Tidak ada tautan ke sana dari kiosk — sengaja, supaya tidak muncul di layar tablet muster point. Password diatur di `CONFIG.admin.password` (`assets/config.js`).
 
 Navigasi lewat sidebar kiri, lima menu:
 - **Dashboard** — kartu ringkasan (total karyawan, total topik, sesi aktif, total partisipasi, rata-rata skor, tingkat kelulusan) dan daftar aktivitas terbaru. Semua angka dihitung dari data nyata yang sudah tercatat — tidak ada data contoh/placeholder.

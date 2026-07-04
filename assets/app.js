@@ -13,6 +13,7 @@
       employee: null, session: null, topic: null,
       served: [], answers: [], idx: 0,
       attemptNo: 0, score: 0, passed: false, cert: null,
+      certFrom: null, // 'history' -> tombol sertifikat jadi "Kembali" (ke riwayat), bukan "Selesai" (logout)
     };
   }
   reset();
@@ -158,6 +159,7 @@
           if (existing) {
             S.score = existing.score;
             S.cert = { no: existing.certificateNo, token: existing.verificationToken, date: existing.submittedAt ? new Date(existing.submittedAt) : new Date() };
+            S.certFrom = null;
             renderCertificate();
           } else {
             renderMaterial();
@@ -197,6 +199,7 @@
           S.topic = topic || { code: h.topicCode, title: h.topicCode || '-' };
           S.score = h.score;
           S.cert = { no: h.certificateNo, token: h.verificationToken, date: h.submittedAt ? new Date(h.submittedAt) : new Date() };
+          S.certFrom = 'history';
           renderCertificate();
         };
         wrap.appendChild(card);
@@ -476,6 +479,9 @@
     $('#cert-date').textContent = fmtDate(c.date);
     $('#cert-score').textContent = S.score + '%';
     $('#cert-no').textContent = c.no;
+    // Dibuka dari Riwayat Sertifikat -> "Kembali" ke daftar riwayat, bukan
+    // "Selesai" yang logout & minta isi NIK lagi dari nol.
+    $('#btn-cert-done').textContent = S.certFrom === 'history' ? 'Kembali' : 'Selesai';
 
     const qEl = $('#cert-qr');
     qEl.innerHTML = '<span class="muted" style="font-size:11px">Memuat QR…</span>';
@@ -590,7 +596,10 @@
     $('#btn-retry').onclick = () => renderMaterial();
     $('#btn-cert').onclick = renderCertificate;
     $('#btn-download').onclick = downloadPdf;
-    $('#btn-cert-done').onclick = () => { reset(); renderLogin(); show('screen-login'); };
+    $('#btn-cert-done').onclick = () => {
+      if (S.certFrom === 'history') { renderHistory(); return; }
+      reset(); renderLogin(); show('screen-login');
+    };
     $('#btn-verify-close').onclick = () => { history.replaceState(null, '', location.pathname); reset(); renderLogin(); show('screen-login'); };
 
     $('#material-image-btn').onclick = () => openLightbox($('#material-image').src);

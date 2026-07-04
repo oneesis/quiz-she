@@ -64,6 +64,22 @@ function serialToDateStr(v) {
   return String(v || '');
 }
 
+// Kolom "waktu" (submittedAt) di Partisipasi: baris LAMA (ditulis backend
+// Apps Script sebelum migrasi ke sini) pakai objek Date asli, kebaca balik
+// sebagai serial number oleh Sheets API. new Date(angka) di klien
+// menafsirkan angka itu sbg milidetik-sejak-epoch, bukan hari-sejak-1899 --
+// hasilnya tanggal nyasar ke "1 Januari 1970". Baris BARU (ditulis lewat
+// appendRow RAW di sini sbg string ISO) tidak kena masalah ini sama sekali.
+// Presisi jam utk baris lama diabaikan (dianggap tengah malam) -- cukup
+// utk data lama yg cuma dipakai buat riwayat, tidak krusial persis jamnya.
+function serialToISODateTime(v) {
+  if (typeof v === 'number') {
+    const ms = Date.UTC(1899, 11, 30) + Math.floor(v) * 86400000;
+    return new Date(ms).toISOString();
+  }
+  return String(v || '');
+}
+
 function jakartaParts(date) {
   const fmt = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit',
@@ -210,7 +226,7 @@ async function getResultsLite() {
     nik: String(r[c('nik')]), nama: r[c('nama')], perusahaan: r[c('perusahaan')],
     sessionId: String(r[c('sessionId')]), topicCode: r[c('topicCode')], passed: r[c('passed')], score: r[c('score')],
     certificateNo: r[c('certificateNo')], verificationToken: r[c('verificationToken')],
-    submittedAt: r[c('waktu')],
+    submittedAt: serialToISODateTime(r[c('waktu')]),
   }));
 }
 
@@ -249,7 +265,7 @@ async function listParticipations() {
     let answerBreakdown = [];
     try { answerBreakdown = JSON.parse(r[c('answerBreakdown')] || '[]'); } catch (e) { /* data lama/rusak -- abaikan */ }
     return {
-      submittedAt: r[c('waktu')], nik: r[c('nik')], nama: r[c('nama')], perusahaan: r[c('perusahaan')],
+      submittedAt: serialToISODateTime(r[c('waktu')]), nik: r[c('nik')], nama: r[c('nama')], perusahaan: r[c('perusahaan')],
       topicCode: r[c('topicCode')], sessionId: r[c('sessionId')], attemptNo: r[c('attemptNo')],
       score: r[c('score')], passed: r[c('passed')], certificateNo: r[c('certificateNo')],
       verificationToken: r[c('verificationToken')], answerBreakdown,

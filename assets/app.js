@@ -193,7 +193,8 @@
         card.innerHTML = `
           <span class="session-card__eyebrow">${escapeHtml(h.topicCode || '-')}</span>
           <span class="session-card__title">${escapeHtml(topic ? topic.title : (h.topicCode || '-'))}</span>
-          <span class="session-card__meta">${h.submittedAt ? fmtDate(new Date(h.submittedAt)) : '-'} · Skor ${h.score}%${h.score === 100 ? ' · ★ Sempurna' : ''}</span>
+          <span class="session-card__meta">${h.submittedAt ? fmtDate(new Date(h.submittedAt)) : '-'} · Skor ${h.score}%</span>
+          ${h.score === 100 ? '<span class="session-card__badge session-card__badge--star">★ Skor Sempurna</span>' : ''}
           <span class="session-card__go">Lihat Sertifikat →</span>`;
         card.onclick = () => {
           S.topic = topic || { code: h.topicCode, title: h.topicCode || '-' };

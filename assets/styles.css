@@ -123,7 +123,7 @@ h1.screen-title { font-family:'Archivo'; font-weight:800; font-size:26px; line-h
 .session-list { display:grid; gap:12px; }
 .session-card {
   display:grid; text-align:left; gap:4px; width:100%;
-  padding:16px 18px; border:2px solid var(--line); border-radius:var(--r);
+  padding:16px 18px 42px; border:2px solid var(--line); border-radius:var(--r);
   background:#fff; cursor:pointer; transition:border-color .15s, transform .08s, box-shadow .15s;
   position:relative;
 }
@@ -137,6 +137,7 @@ h1.screen-title { font-family:'Archivo'; font-weight:800; font-size:26px; line-h
   justify-self:start; margin-top:2px; padding:2px 9px; border-radius:20px;
   background:#e4f6ec; color:var(--go); font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
 }
+.session-card__badge--star { background:#fdf1d9; color:var(--amber-deep); }
 .empty { text-align:center; color:var(--steel); padding:34px 10px; border:1.5px dashed var(--line); border-radius:var(--r); }
 
 /* ---------- materi ---------- */

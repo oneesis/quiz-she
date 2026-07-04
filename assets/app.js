@@ -193,7 +193,7 @@
         card.innerHTML = `
           <span class="session-card__eyebrow">${escapeHtml(h.topicCode || '-')}</span>
           <span class="session-card__title">${escapeHtml(topic ? topic.title : (h.topicCode || '-'))}</span>
-          <span class="session-card__meta">${h.submittedAt ? fmtDate(new Date(h.submittedAt)) : '-'} · Skor ${h.score}%</span>
+          <span class="session-card__meta">${h.submittedAt ? fmtDate(new Date(h.submittedAt)) : '-'} · Skor ${h.score}%${h.score === 100 ? ' · ★ Sempurna' : ''}</span>
           <span class="session-card__go">Lihat Sertifikat →</span>`;
         card.onclick = () => {
           S.topic = topic || { code: h.topicCode, title: h.topicCode || '-' };
@@ -454,8 +454,11 @@
       (S.passed ? 'bg-green-100 text-green-700' : 'bg-error-container text-error');
     pill.innerHTML = `<span class="material-symbols-outlined text-[16px]">${S.passed ? 'check_circle' : 'cancel'}</span>${S.passed ? 'Lulus' : 'Belum Lulus'}`;
 
-    $('#result-heading').textContent = S.passed ? `Selamat, ${S.employee.nama}!` : `Belum Lulus, ${S.employee.nama}`;
-    $('#result-note').textContent = S.passed
+    $('#result-heading').textContent = S.score === 100 ? `★ Skor Sempurna, ${S.employee.nama}!`
+      : S.passed ? `Selamat, ${S.employee.nama}!` : `Belum Lulus, ${S.employee.nama}`;
+    $('#result-note').textContent = S.score === 100
+      ? `Semua soal ${S.topic.title} kamu jawab benar. Kerja bagus!`
+      : S.passed
       ? `Kamu berhasil menyelesaikan ${S.topic.title} dengan skor di atas ambang lulus ${threshold}%.`
       : `Skor belum mencapai ambang lulus ${threshold}%. Baca ulang materi lalu coba lagi.`;
 
@@ -482,6 +485,10 @@
     // Dibuka dari Riwayat Sertifikat -> "Kembali" ke daftar riwayat, bukan
     // "Selesai" yang logout & minta isi NIK lagi dari nol.
     $('#btn-cert-done').textContent = S.certFrom === 'history' ? 'Kembali' : 'Selesai';
+    // Sesuatu yang bisa dibanggakan dari nilai sendiri -- bukan leaderboard
+    // publik (bisa mendorong buru-buru lewatin materi demi ranking), cuma
+    // pengakuan personal di sertifikat sendiri kalau skor sempurna.
+    $('#cert-star-badge').hidden = S.score !== 100;
 
     const qEl = $('#cert-qr');
     qEl.innerHTML = '<span class="muted" style="font-size:11px">Memuat QR…</span>';

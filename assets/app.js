@@ -533,17 +533,19 @@
     show('screen-verify');
     body.innerHTML = '<p class="muted">Memeriksa…</p>';
     try {
-      const p = await API.findByToken(token);
+      const [p, topics] = await Promise.all([API.findByToken(token), API.listTopics()]);
       if (!p) {
         body.innerHTML = '<div class="verify-bad">Sertifikat tidak ditemukan atau tidak valid.</div>';
         return true;
       }
+      const topic = topics.find(t => t.code === p.topicCode);
       body.innerHTML = `
         <div class="verify-good">✓ Sertifikat Sah</div>
         <div class="idcard">
           <div class="idcard__row"><span>Nama</span><strong>${p.nama}</strong></div>
           <div class="idcard__row"><span>NIK</span><strong class="mono">${p.nik}</strong></div>
           <div class="idcard__row"><span>Perusahaan</span><strong>${p.perusahaan}</strong></div>
+          <div class="idcard__row"><span>Topik</span><strong>${escapeHtml(topic ? topic.title : (p.topicCode || '-'))}</strong></div>
           <div class="idcard__row"><span>No. Sertifikat</span><strong class="mono">${p.certificateNo}</strong></div>
           <div class="idcard__row"><span>Skor</span><strong>${p.score}%</strong></div>
         </div>`;

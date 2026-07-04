@@ -233,7 +233,7 @@ async function getResultsLite() {
 async function findByToken(token) {
   const hit = (await getResultsLite()).find(r => r.verificationToken === token);
   return hit ? {
-    nama: hit.nama, nik: hit.nik, perusahaan: hit.perusahaan,
+    nama: hit.nama, nik: hit.nik, perusahaan: hit.perusahaan, topicCode: hit.topicCode,
     certificateNo: hit.certificateNo, score: hit.score, verificationToken: token,
   } : {};
 }

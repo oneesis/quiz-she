@@ -93,6 +93,12 @@
       const hits = list.filter(p => p.nik === nik && p.sessionId === sessionId && p.passed);
       return hits.length ? hits[hits.length - 1] : null;
     },
+    async listHistory(nik) {
+      const key = (nik || '').trim();
+      const list = JSON.parse(store.get('participations') || '[]');
+      return list.filter(p => p.nik === key && p.passed)
+        .sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
+    },
     async saveParticipation(rec) {
       const certificateNo = rec.passed ? buildCertNo(rec.perusahaan) : null;
       const full = { ...rec, certificateNo };
@@ -185,6 +191,10 @@
       const data = await this._get({ action: 'existing', nik: (nik || '').trim(), sessionId });
       return data && data.certificateNo ? data : null;
     },
+    async listHistory(nik) {
+      const data = await this._get({ action: 'history', nik: (nik || '').trim() });
+      return Array.isArray(data) ? data : [];
+    },
     async saveParticipation(rec) {
       const data = await this._post('participation', rec);
       return { certificateNo: (data && data.certificateNo) || null };
@@ -246,6 +256,7 @@
     findEmployee: (nik) => impl.findEmployee(nik),
     activeSessions: (emp) => impl.activeSessions(emp),
     findExisting: (nik, sessionId) => impl.findExisting(nik, sessionId),
+    listHistory: (nik) => impl.listHistory(nik),
     saveParticipation: (rec) => impl.saveParticipation(rec),
     findByToken: (t) => impl.findByToken(t),
     listParticipations: () => impl.listParticipations(),

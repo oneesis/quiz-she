@@ -208,7 +208,7 @@ async function getResultsLite() {
   const c = colIndexer(head);
   return rows.map(r => ({
     nik: String(r[c('nik')]), nama: r[c('nama')], perusahaan: r[c('perusahaan')],
-    sessionId: String(r[c('sessionId')]), passed: r[c('passed')], score: r[c('score')],
+    sessionId: String(r[c('sessionId')]), topicCode: r[c('topicCode')], passed: r[c('passed')], score: r[c('score')],
     certificateNo: r[c('certificateNo')], verificationToken: r[c('verificationToken')],
     submittedAt: r[c('waktu')],
   }));
@@ -228,6 +228,17 @@ async function findExisting(nik, sessionId) {
   if (!hits.length) return {};
   const hit = hits[hits.length - 1];
   return { score: hit.score, certificateNo: hit.certificateNo, verificationToken: hit.verificationToken, submittedAt: hit.submittedAt };
+}
+
+// Riwayat sertifikat milik SATU karyawan (NIK dipilih sendiri lewat kiosk,
+// bukan admin) -- cuma percobaan yang LULUS, terbaru dulu. Publik (tidak
+// butuh adminToken), tapi sama seperti findExisting, cuma pernah balas
+// data 1 NIK, bukan seluruh tabel.
+async function findHistory(nik) {
+  const key = String(nik || '').trim();
+  return (await getResultsLite())
+    .filter(r => r.nik.trim() === key && r.passed)
+    .sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
 }
 
 async function listParticipations() {
@@ -340,6 +351,7 @@ module.exports = async (req, res) => {
       if (a === 'topics')         return res.json(await listTopics());
       if (a === 'sessions')       return res.json(await listSessions());
       if (a === 'existing')       return res.json(await findExisting(req.query.nik, req.query.sessionId));
+      if (a === 'history')        return res.json(await findHistory(req.query.nik));
       if (a === 'participations') return res.json(isAdmin(req.query.adminToken) ? await listParticipations() : []);
       if (a === 'employees')      return res.json(isAdmin(req.query.adminToken) ? await listEmployees() : []);
       return res.json({});

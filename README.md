@@ -164,6 +164,7 @@ Kode lengkapnya ada di `api/data.js` di repo ini (bukan ditempel manual seperti 
 | GET | `topics` | tidak | daftar topik |
 | GET | `sessions` | tidak | daftar sesi |
 | GET | `existing` | tidak | cek karyawan sudah lulus sesi tertentu |
+| GET | `history` | tidak | riwayat semua sertifikat (lulus) milik 1 NIK -- "Riwayat Sertifikat Saya" di kiosk |
 | GET | `participations` | **ya** | seluruh data partisipasi (buat Laporan admin) |
 | GET | `employees` | **ya** | seluruh roster karyawan (buat tab Karyawan admin) |
 | POST | `participation` | tidak | simpan hasil kuis + hitung nomor sertifikat |

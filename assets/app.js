@@ -170,6 +170,42 @@
     }
   }
 
+  // Riwayat semua topik yang PERNAH lulus (bukan cuma sesi yang lagi aktif
+  // hari ini) -- link opsional dari layar Pilih Sesi, supaya alur utama
+  // (isi kuis) tetap cepat & tidak ketambahan langkah.
+  async function renderHistory() {
+    const wrap = $('#history-list');
+    wrap.innerHTML = '<p class="muted">Memuat riwayat…</p>';
+    show('screen-history');
+    try {
+      const [history, topics] = await Promise.all([API.listHistory(S.employee.nik), API.listTopics()]);
+      if (!history.length) {
+        wrap.innerHTML = '<div class="empty">Belum ada sertifikat yang pernah kamu dapatkan.</div>';
+        return;
+      }
+      wrap.innerHTML = '';
+      history.forEach(h => {
+        const topic = topics.find(t => t.code === h.topicCode);
+        const card = document.createElement('button');
+        card.className = 'session-card';
+        card.innerHTML = `
+          <span class="session-card__eyebrow">${escapeHtml(h.topicCode || '-')}</span>
+          <span class="session-card__title">${escapeHtml(topic ? topic.title : (h.topicCode || '-'))}</span>
+          <span class="session-card__meta">${h.submittedAt ? fmtDate(new Date(h.submittedAt)) : '-'} · Skor ${h.score}%</span>
+          <span class="session-card__go">Lihat Sertifikat →</span>`;
+        card.onclick = () => {
+          S.topic = topic || { code: h.topicCode, title: h.topicCode || '-' };
+          S.score = h.score;
+          S.cert = { no: h.certificateNo, token: h.verificationToken, date: h.submittedAt ? new Date(h.submittedAt) : new Date() };
+          renderCertificate();
+        };
+        wrap.appendChild(card);
+      });
+    } catch (e) {
+      wrap.innerHTML = '<div class="empty">Gagal memuat riwayat. Coba lagi.</div>';
+    }
+  }
+
   // ============================================================
   // 4. MATERI
   // ============================================================
@@ -546,6 +582,8 @@
     $('#btn-confirm-no').onclick = () => { reset(); renderLogin(); show('screen-login'); };
     $$('[data-back-login]').forEach(b => b.onclick = () => { reset(); renderLogin(); show('screen-login'); });
     $('#btn-material-back').onclick = () => renderSessions();
+    $('#btn-view-history').onclick = () => renderHistory();
+    $('#btn-history-back').onclick = () => renderSessions();
     $('#btn-start-quiz').onclick = startQuiz;
     $('#btn-next').onclick = nextQuestion;
     $('#btn-prev').onclick = prevQuestion;

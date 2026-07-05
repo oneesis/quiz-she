@@ -233,9 +233,12 @@
     wrap.innerHTML = topics.map((t, i) => `
       <button type="button" data-i="${i}" class="topic-card text-left bg-white p-5 rounded-2xl border border-outline-variant card-shadow hover:border-primary transition-colors">
         <div class="flex items-start justify-between gap-3">
-          <div>
-            <p class="font-bold text-primary">${escapeHtml(t.title)}</p>
-            <p class="text-xs text-on-surface-variant mt-1">${escapeHtml(t.code)} · ${(t.questions || []).length} soal · lulus ≥ ${t.passThreshold || C.passThresholdDefault}%</p>
+          <div class="flex items-start gap-3">
+            <div class="w-10 h-10 flex-shrink-0 rounded-lg bg-secondary-container/25 text-primary-container flex items-center justify-center">${window.topicIconSvg(t)}</div>
+            <div>
+              <p class="font-bold text-primary">${escapeHtml(t.title)}</p>
+              <p class="text-xs text-on-surface-variant mt-1">${escapeHtml(t.code)} · ${(t.questions || []).length} soal · lulus ≥ ${t.passThreshold || C.passThresholdDefault}%</p>
+            </div>
           </div>
           <span class="material-symbols-outlined text-on-surface-variant">chevron_right</span>
         </div>

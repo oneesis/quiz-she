@@ -27,6 +27,25 @@
   const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16); }));
   function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
+  // Perayaan singkat untuk skor sempurna -- bukan library, cuma potongan
+  // warna jatuh & memudar lewat CSS keyframes (respects prefers-reduced-motion
+  // lewat aturan global di styles.css).
+  function burstConfetti() {
+    const layer = $('#confetti-layer');
+    if (!layer) return;
+    const colors = ['#a6e100', '#7fb300', '#1f9e5a', '#ffffff'];
+    for (let i = 0; i < 26; i++) {
+      const piece = document.createElement('span');
+      piece.className = 'confetti-piece';
+      piece.style.left = (Math.random() * 100) + '%';
+      piece.style.background = colors[i % colors.length];
+      piece.style.animationDelay = (Math.random() * 0.25) + 's';
+      piece.style.animationDuration = (1.1 + Math.random() * 0.6) + 's';
+      piece.addEventListener('animationend', () => piece.remove());
+      layer.appendChild(piece);
+    }
+  }
+
   // ---- pemuatan lazy pustaka QR/PDF (dipakai cuma di layar sertifikat) ----
   const loadedScripts = {};
   function loadScript(src) {
@@ -149,7 +168,10 @@
         const card = document.createElement('button');
         card.className = 'session-card';
         card.innerHTML = `
-          <span class="session-card__eyebrow">${s.topic.code}</span>
+          <div class="session-card__head">
+            <span class="session-card__icon">${window.topicIconSvg(s.topic)}</span>
+            <span class="session-card__eyebrow">${s.topic.code}</span>
+          </div>
           <span class="session-card__title">${s.title || s.topic.title}</span>
           <span class="session-card__meta">${servedCount} soal · lulus ≥ ${s.topic.passThreshold || C.passThresholdDefault}%</span>
           ${existing ? '<span class="session-card__badge">✓ Sudah lulus</span>' : ''}
@@ -215,6 +237,7 @@
   // ============================================================
   function renderMaterial() {
     $('#material-title').textContent = S.topic.title;
+    $('#material-icon').innerHTML = window.topicIconSvg(S.topic);
     $('#material-body').innerHTML = renderMaterialText(S.topic.material);
 
     const imgBtn = $('#material-image-btn');
@@ -469,6 +492,8 @@
 
     $('#btn-cert').classList.toggle('hidden', !S.passed);
     $('#btn-retry').classList.toggle('hidden', S.passed);
+
+    if (S.score === 100) burstConfetti();
   }
 
   // ============================================================
@@ -490,6 +515,7 @@
     // publik (bisa mendorong buru-buru lewatin materi demi ranking), cuma
     // pengakuan personal di sertifikat sendiri kalau skor sempurna.
     $('#cert-star-badge').hidden = S.score !== 100;
+    if (S.score === 100) burstConfetti();
 
     const qEl = $('#cert-qr');
     qEl.innerHTML = '<span class="muted" style="font-size:11px">Memuat QR…</span>';

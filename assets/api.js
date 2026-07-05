@@ -271,3 +271,23 @@
     uploadImage: (base64, filename, mimeType) => impl.uploadImage(base64, filename, mimeType),
   };
 })();
+
+// Ikon garis bertema K3, dipilih dari kata kunci di kode/judul topik --
+// topik dibuat bebas lewat admin, jadi dicocokkan dari kata kunci umum
+// (bukan per-kode tetap) supaya topik baru tetap dapat ikon yang masuk akal.
+window.topicIconSvg = function (topic) {
+  const text = (((topic && topic.code) || '') + ' ' + ((topic && topic.title) || '')).toLowerCase();
+  const PATHS = {
+    helm: '<path d="M4 13a8 8 0 0 1 16 0v1H4v-1Z"/><path d="M2.5 14h19"/><path d="M9.5 4.5C9.5 3.1 10.6 2 12 2s2.5 1.1 2.5 2.5"/>',
+    moon: '<path d="M15.5 3a7.5 7.5 0 1 0 5.8 12.2A8 8 0 0 1 15.5 3Z"/><path d="M17.5 15.5h2.5M18.75 14.25v2.5"/>',
+    flame: '<path d="M12 2c1.2 3-2.8 4.2-2.8 8.2a2.8 2.8 0 0 0 5.6 0c0-.9-.4-1.7-.9-1.9 1 2.8-1.3 4.7-1.9 4.7-2 0-3.9-1.9-3.9-4.7 0-3.3 2.9-4.3 3.9-6.3Z"/>',
+    bolt: '<path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"/>',
+    shield: '<path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3Z"/><path d="m9 12 2 2 4-4"/>',
+  };
+  let key = 'shield';
+  if (/helm|apd|pelindung/.test(text)) key = 'helm';
+  else if (/lelah|fatigue|shift|kantuk|tidur/.test(text)) key = 'moon';
+  else if (/api|kebakaran|fire|padam/.test(text)) key = 'flame';
+  else if (/listrik|electric|kabel|setrum/.test(text)) key = 'bolt';
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="20" height="20">' + PATHS[key] + '</svg>';
+};

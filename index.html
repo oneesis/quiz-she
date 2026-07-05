@@ -40,6 +40,7 @@
 </head>
 <body>
   <main class="app">
+    <div id="confetti-layer" aria-hidden="true"></div>
     <header class="masthead">
       <div class="masthead__stripe"></div>
       <div class="masthead__bar">
@@ -106,7 +107,10 @@
       <!-- 4. MATERI -->
       <section class="screen" id="screen-material">
         <span class="eyebrow">Materi</span>
-        <h1 class="screen-title" id="material-title"></h1>
+        <div class="material-heading">
+          <span class="material-icon-badge" id="material-icon"></span>
+          <h1 class="screen-title" id="material-title"></h1>
+        </div>
         <button type="button" class="material-image-btn" id="material-image-btn" hidden>
           <img id="material-image" alt="Gambar materi" />
           <span class="material-image-hint">Ketuk untuk perbesar</span>
@@ -217,7 +221,13 @@
                 <div class="cert-field"><span>Skor</span><strong id="cert-score"></strong></div>
               </div>
               <div class="cert-side">
-                <div class="cert-qr" id="cert-qr"></div>
+                <div class="cert-qr-frame">
+                  <span class="qr-corner qr-corner--tl"></span>
+                  <span class="qr-corner qr-corner--tr"></span>
+                  <span class="qr-corner qr-corner--bl"></span>
+                  <span class="qr-corner qr-corner--br"></span>
+                  <div class="cert-qr" id="cert-qr"></div>
+                </div>
                 <div class="cert-stamp">LULUS</div>
                 <div class="cert-star-badge" id="cert-star-badge" hidden>★ Skor Sempurna</div>
               </div>

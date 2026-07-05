@@ -10,7 +10,7 @@
 
 :root {
   --ink:#12231b;
-  --panel:#1a2f24;
+  --panel:#1f4d33;
   --lime:#a6e100;
   --lime-deep:#7fb300;
   --go:#1f9e5a;
@@ -64,7 +64,7 @@ body {
 }
 
 /* ---------- header identitas ---------- */
-.masthead { background:var(--ink); color:#fff; }
+.masthead { background:var(--panel); color:#fff; }
 .masthead__stripe { height:6px; background:var(--stripe); }
 .masthead__bar { display:flex; align-items:center; gap:12px; padding:16px 20px; }
 .badge {
@@ -120,7 +120,7 @@ h1.screen-title { font-family:'Archivo'; font-weight:800; font-size:26px; line-h
 .btn[hidden] { display:none; }
 .btn--primary { background:var(--lime); color:var(--ink); box-shadow:inset 0 -3px 0 rgba(0,0,0,.14); }
 .btn--primary:hover:not(:disabled) { filter:brightness(1.04); transform:translateY(-1px); box-shadow:inset 0 -3px 0 rgba(0,0,0,.14), 0 8px 18px rgba(127,179,0,.35); }
-.btn--dark { background:var(--ink); color:#fff; }
+.btn--dark { background:var(--panel); color:#fff; }
 .btn--ghost { background:#fff; color:var(--ink); border:2px solid var(--line); }
 .btn--ghost:hover { border-color:var(--steel-2); }
 .btn--go { background:var(--go); color:#fff; }
@@ -202,7 +202,7 @@ h1.screen-title { font-family:'Archivo'; font-weight:800; font-size:26px; line-h
   background:#fff; border:1px solid var(--line); border-radius:var(--r); overflow:hidden;
   box-shadow:0 4px 16px rgba(18,35,27,.1);
 }
-.certificate__head { background:var(--ink); color:#fff; padding:16px 20px; position:relative; overflow:hidden; display:flex; align-items:center; gap:12px; }
+.certificate__head { background:var(--panel); color:#fff; padding:16px 20px; position:relative; overflow:hidden; display:flex; align-items:center; gap:12px; }
 .certificate__head::before {
   content:''; position:absolute; top:-40px; right:-24px; width:150px; height:150px; border-radius:50%;
   background:radial-gradient(circle, rgba(166,225,0,.35), transparent 70%); pointer-events:none; z-index:-1;

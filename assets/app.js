@@ -313,7 +313,7 @@
         ? 'flex items-center gap-3 p-4 rounded-xl border-2 border-primary bg-primary/5 text-left'
         : 'flex items-center gap-3 p-4 rounded-xl border border-outline-variant hover:border-primary hover:bg-surface-container-low text-left transition-colors';
       b.innerHTML = `
-        <span class="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg font-bold ${selected ? 'bg-primary text-white' : 'border border-outline-variant bg-white text-on-surface'}">${String.fromCharCode(65 + i)}</span>
+        <span class="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg font-bold ${selected ? 'bg-primary-container text-white' : 'border border-outline-variant bg-white text-on-surface'}">${String.fromCharCode(65 + i)}</span>
         <span class="text-on-surface ${selected ? 'font-semibold' : ''}">${o.text}</span>
         ${selected ? '<span class="material-symbols-outlined text-primary ml-auto">check_circle</span>' : ''}`;
       b.onclick = () => { S.answers[S.idx] = i; renderQuestion(); };
@@ -334,7 +334,7 @@
       const isCurrent = i === S.idx;
       const b = document.createElement('button');
       let cls = 'aspect-square rounded-lg flex items-center justify-center font-bold text-sm transition-colors ';
-      if (isCurrent) cls += 'bg-primary text-white ring-2 ring-primary/30';
+      if (isCurrent) cls += 'bg-primary-container text-white ring-2 ring-primary-container/40';
       else if (answered) cls += 'bg-emerald-100 text-emerald-800 border border-emerald-200 hover:bg-emerald-200';
       else cls += 'bg-surface-container-low text-on-surface-variant border border-outline-variant hover:bg-surface-container-high';
       b.className = cls;

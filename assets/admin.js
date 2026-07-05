@@ -217,7 +217,7 @@
         <div class="flex items-center gap-3">
           <span class="w-14 text-xs text-on-surface-variant">${m.label}</span>
           <div class="flex-1 bg-surface-container-low rounded-full h-4 overflow-hidden">
-            <div class="bg-primary h-full rounded-full" style="width:${rate}%"></div>
+            <div class="bg-secondary-container h-full rounded-full" style="width:${rate}%"></div>
           </div>
           <span class="w-28 text-xs text-right text-on-surface-variant">${rate}% (${g.total} peserta)</span>
         </div>`;
@@ -273,7 +273,7 @@
       <div class="space-y-2">
         ${[0, 1, 2, 3].map(i => `
           <label class="flex items-center gap-3">
-            <input type="radio" name="correct-${idx}" value="${i}" ${q.correct === i ? 'checked' : ''} class="w-4 h-4 accent-[#00468c]" />
+            <input type="radio" name="correct-${idx}" value="${i}" ${q.correct === i ? 'checked' : ''} class="w-4 h-4 accent-[#1f4d33]" />
             <input class="admin-field q-option-text" placeholder="Opsi ${String.fromCharCode(65 + i)}" value="${escapeAttr(q.options[i] || '')}" required />
           </label>`).join('')}
       </div>
@@ -563,7 +563,7 @@
       }
       wrap.innerHTML = companies.map(c => `
         <label class="flex items-center gap-2 text-sm">
-          <input type="checkbox" class="s-company-checkbox w-4 h-4 accent-[#00468c]" value="${escapeAttr(c)}" ${selected.includes(c) ? 'checked' : ''} />
+          <input type="checkbox" class="s-company-checkbox w-4 h-4 accent-[#1f4d33]" value="${escapeAttr(c)}" ${selected.includes(c) ? 'checked' : ''} />
           ${escapeHtml(c)}
         </label>`).join('');
     } catch (e) {

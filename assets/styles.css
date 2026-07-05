@@ -1,7 +1,7 @@
 /* ============================================================
    SHARING SESSION DIGITAL — PT EBL
-   Identitas: papan safety site. Signature: pita bahaya (hazard
-   stripe) + kartu sertifikat bergaya izin kerja.
+   Identitas: kartu modern hijau-limau, gaya "aplikasi finansial
+   premium" -- kartu rounded lembut, shadow halus, aksen gradient.
    ============================================================ */
 /* Font di-load lewat <link> di index.html (bukan @import di sini) supaya
    browser bisa mengambilnya paralel dengan styles.css, bukan berurutan
@@ -9,20 +9,20 @@
    penuh sebelum halaman bisa dirender. */
 
 :root {
-  --ink:#141821;
-  --panel:#1b212b;
-  --amber:#f5b301;
-  --amber-deep:#d99a00;
+  --ink:#12231b;
+  --panel:#1a2f24;
+  --lime:#a6e100;
+  --lime-deep:#7fb300;
   --go:#1f9e5a;
   --alert:#e23b2e;
-  --steel:#6b7686;
-  --steel-2:#9aa3af;
-  --field:#eef1f4;
+  --steel:#5c6b60;
+  --steel-2:#8a9990;
+  --field:#eef1e9;
   --card:#ffffff;
-  --line:#d7dce2;
-  --shadow:0 10px 30px rgba(20,24,33,.14);
-  --r:14px;
-  --stripe:repeating-linear-gradient(45deg, var(--amber) 0 16px, var(--ink) 16px 32px);
+  --line:#d9e0d5;
+  --shadow:0 10px 30px rgba(18,35,27,.14);
+  --r:18px;
+  --stripe:linear-gradient(90deg, var(--lime) 0%, #6fcf00 100%);
 }
 
 * { box-sizing:border-box; }
@@ -30,8 +30,8 @@ html,body { margin:0; }
 body {
   font-family:'Barlow',system-ui,sans-serif;
   color:var(--ink);
-  background:#c9ced6;
-  background-image:radial-gradient(circle at 50% -10%, #dfe3e9, #c2c8d1 70%);
+  background:#dde4d6;
+  background-image:radial-gradient(circle at 50% -10%, #eef1e9, #cfd9c7 70%);
   min-height:100vh;
   display:flex; align-items:flex-start; justify-content:center;
   padding:22px 14px 40px;
@@ -41,15 +41,15 @@ body {
 .app {
   width:100%; max-width:560px;
   background:var(--card);
-  border-radius:20px;
+  border-radius:24px;
   box-shadow:var(--shadow);
   overflow:hidden;
-  border:1px solid rgba(20,24,33,.06);
+  border:1px solid rgba(18,35,27,.06);
 }
 
 /* ---------- header identitas ---------- */
 .masthead { background:var(--ink); color:#fff; }
-.masthead__stripe { height:8px; background:var(--stripe); }
+.masthead__stripe { height:6px; background:var(--stripe); }
 .masthead__bar { display:flex; align-items:center; gap:12px; padding:16px 20px; }
 .badge {
   width:40px; height:40px; border-radius:50%; flex:0 0 auto;
@@ -66,7 +66,7 @@ body {
 .screen.is-active { display:block; }
 @keyframes rise { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
 
-.eyebrow { font-size:11.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--amber-deep); font-weight:700; }
+.eyebrow { font-size:11.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--lime-deep); font-weight:700; }
 h1.screen-title { font-family:'Archivo'; font-weight:800; font-size:26px; line-height:1.1; margin:8px 0 4px; }
 .lead { color:var(--steel); font-size:15px; margin:0 0 20px; }
 .mono { font-family:'IBM Plex Mono',monospace; letter-spacing:-.01em; }
@@ -80,7 +80,7 @@ h1.screen-title { font-family:'Archivo'; font-weight:800; font-size:26px; line-h
   padding:18px 16px; border:2px solid var(--line); border-radius:var(--r);
   background:var(--field); color:var(--ink); outline:none; transition:border-color .15s, background .15s;
 }
-.nik-field:focus { border-color:var(--amber); background:#fff; }
+.nik-field:focus { border-color:var(--lime-deep); background:#fff; }
 .nik-field::placeholder { color:var(--steel-2); letter-spacing:.02em; }
 .error { color:var(--alert); font-size:13.5px; font-weight:600; min-height:18px; margin-top:10px; }
 
@@ -89,20 +89,20 @@ h1.screen-title { font-family:'Archivo'; font-weight:800; font-size:26px; line-h
   font-family:'IBM Plex Mono',monospace; font-size:12px; border:1px dashed var(--steel-2);
   background:#fff; color:var(--ink); padding:4px 8px; border-radius:20px; cursor:pointer;
 }
-.chip:hover { border-color:var(--amber-deep); }
+.chip:hover { border-color:var(--lime-deep); }
 
 /* ---------- tombol ---------- */
 .btn {
   display:inline-flex; align-items:center; justify-content:center; gap:8px;
   width:100%; min-height:56px; padding:0 20px;
   font-family:'Barlow'; font-weight:700; font-size:16.5px; letter-spacing:.01em;
-  border:none; border-radius:var(--r); cursor:pointer;
+  border:none; border-radius:999px; cursor:pointer;
   transition:transform .08s, filter .15s, background .15s; user-select:none;
 }
 .btn:active { transform:translateY(1px) scale(.995); }
 .btn:disabled { opacity:.5; cursor:not-allowed; }
 .btn[hidden] { display:none; }
-.btn--primary { background:var(--amber); color:var(--ink); box-shadow:inset 0 -3px 0 rgba(0,0,0,.14); }
+.btn--primary { background:var(--lime); color:var(--ink); box-shadow:inset 0 -3px 0 rgba(0,0,0,.14); }
 .btn--primary:hover:not(:disabled) { filter:brightness(1.04); }
 .btn--dark { background:var(--ink); color:#fff; }
 .btn--ghost { background:#fff; color:var(--ink); border:2px solid var(--line); }
@@ -127,21 +127,21 @@ h1.screen-title { font-family:'Archivo'; font-weight:800; font-size:26px; line-h
   background:#fff; cursor:pointer; transition:border-color .15s, transform .08s, box-shadow .15s;
   position:relative;
 }
-.session-card:hover { border-color:var(--amber); box-shadow:0 6px 18px rgba(20,24,33,.08); }
+.session-card:hover { border-color:var(--lime-deep); box-shadow:0 6px 18px rgba(18,35,27,.08); }
 .session-card:active { transform:translateY(1px); }
-.session-card__eyebrow { font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--amber-deep); font-weight:600; letter-spacing:.06em; }
+.session-card__eyebrow { font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--lime-deep); font-weight:600; letter-spacing:.06em; }
 .session-card__title { font-family:'Archivo'; font-weight:700; font-size:18px; line-height:1.15; }
 .session-card__meta { font-size:13px; color:var(--steel); }
-.session-card__go { position:absolute; right:16px; bottom:16px; font-weight:700; color:var(--amber-deep); font-size:14px; }
+.session-card__go { position:absolute; right:16px; bottom:16px; font-weight:700; color:var(--lime-deep); font-size:14px; }
 .session-card__badge {
   justify-self:start; margin-top:2px; padding:2px 9px; border-radius:20px;
   background:#e4f6ec; color:var(--go); font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
 }
-.session-card__badge--star { background:#fdf1d9; color:var(--amber-deep); }
+.session-card__badge--star { background:#f2f9d9; color:var(--lime-deep); }
 .empty { text-align:center; color:var(--steel); padding:34px 10px; border:1.5px dashed var(--line); border-radius:var(--r); }
 
 /* ---------- materi ---------- */
-.material { border-left:4px solid var(--amber); padding:2px 0 2px 16px; }
+.material { border-left:4px solid var(--lime); padding:2px 0 2px 16px; }
 .material h4 { font-family:'Archivo'; font-size:15px; margin:18px 0 6px; }
 .material p { line-height:1.6; margin:0 0 10px; }
 .material ul { margin:0 0 10px; padding-left:20px; line-height:1.6; list-style:disc; }
@@ -153,7 +153,7 @@ h1.screen-title { font-family:'Archivo'; font-weight:800; font-size:26px; line-h
 }
 .material-image-btn img { display:block; width:100%; max-height:280px; object-fit:cover; }
 .material-image-hint {
-  position:absolute; right:8px; bottom:8px; background:rgba(20,24,33,.72); color:#fff;
+  position:absolute; right:8px; bottom:8px; background:rgba(18,35,27,.72); color:#fff;
   font-size:11px; font-weight:600; padding:4px 9px; border-radius:20px;
 }
 
@@ -176,12 +176,12 @@ h1.screen-title { font-family:'Archivo'; font-weight:800; font-size:26px; line-h
 .cert-shell { padding:2px; }
 .certificate {
   background:#fff; border:1px solid var(--line); border-radius:var(--r); overflow:hidden;
-  box-shadow:0 4px 16px rgba(20,24,33,.1);
+  box-shadow:0 4px 16px rgba(18,35,27,.1);
 }
 .certificate__head { background:var(--ink); color:#fff; padding:16px 20px; position:relative; display:flex; align-items:center; gap:12px; }
 .certificate__head::after { content:''; position:absolute; left:0; right:0; bottom:0; height:6px; background:var(--stripe); }
 .certificate__logo { width:44px; height:44px; border-radius:50%; background:#fff; object-fit:contain; padding:2px; flex:0 0 auto; }
-.certificate__kicker { font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--amber); font-weight:700; }
+.certificate__kicker { font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--lime); font-weight:700; }
 .certificate__h { font-family:'Archivo'; font-weight:800; font-size:19px; margin:3px 0 0; }
 .certificate__org { font-size:12px; color:var(--steel-2); margin-top:2px; }
 .certificate__body { padding:18px 20px; display:grid; grid-template-columns:1fr auto; gap:16px; align-items:end; }
@@ -196,8 +196,8 @@ h1.screen-title { font-family:'Archivo'; font-weight:800; font-size:26px; line-h
   border:2.5px solid var(--go); border-radius:8px; padding:4px 10px; transform:rotate(-6deg);
 }
 .cert-star-badge {
-  font-family:'Archivo'; font-weight:800; font-size:10.5px; letter-spacing:.06em; color:var(--amber-deep);
-  border:1.5px solid var(--amber-deep); border-radius:20px; padding:3px 10px;
+  font-family:'Archivo'; font-weight:800; font-size:10.5px; letter-spacing:.06em; color:var(--lime-deep);
+  border:1.5px solid var(--lime-deep); border-radius:20px; padding:3px 10px;
   display:flex; align-items:center; gap:4px; white-space:nowrap;
 }
 .certificate__foot { border-top:1px dashed var(--line); padding:11px 20px; display:flex; justify-content:space-between; align-items:center; }
@@ -217,7 +217,7 @@ h1.screen-title { font-family:'Archivo'; font-weight:800; font-size:26px; line-h
 }
 
 /* ---------- aksesibilitas ---------- */
-:focus-visible { outline:3px solid var(--amber-deep); outline-offset:2px; }
+:focus-visible { outline:3px solid var(--lime-deep); outline-offset:2px; }
 @media (prefers-reduced-motion:reduce) {
   * { animation:none !important; transition:none !important; }
 }

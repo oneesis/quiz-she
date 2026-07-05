@@ -722,8 +722,14 @@
         if (item.correctText && !g.correctText) g.correctText = item.correctText;
         // Percobaan dari sebelum fitur ini diperluas cuma punya {q, correct}
         // (tanpa "chosen") -- tetap ikut kehitung di served/wrong, cuma tidak
-        // nambah ke hitungan jawaban terbanyak dipilih.
-        if (item.chosen) g.choiceCounts[item.chosen] = (g.choiceCounts[item.chosen] || 0) + 1;
+        // nambah ke hitungan jawaban terbanyak dipilih. Jawaban BENAR juga
+        // sengaja tidak dihitung di sini -- kolom ini khusus menangkap
+        // miskonsepsi (jawaban salah paling sering dipilih), bukan sekadar
+        // jawaban paling populer. Kalau ikut dihitung, saat pilihan salah
+        // terpecah rata (mis. 2 salah beda opsi, masing2 1x) jawaban benar
+        // bisa menang seri cuma karena urutan penyisipan, dan tampil
+        // membingungkan di sebelah "Jawaban Benar" padahal tingkat salahnya tinggi.
+        if (item.chosen && !item.correct) g.choiceCounts[item.chosen] = (g.choiceCounts[item.chosen] || 0) + 1;
       });
     });
     const rows = Object.values(groups)

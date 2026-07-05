@@ -45,6 +45,22 @@ body {
   box-shadow:var(--shadow);
   overflow:hidden;
   border:1px solid rgba(18,35,27,.06);
+  position:relative;
+}
+
+/* ---------- dekorasi artistik (blob ambient + watermark) ---------- */
+/* Blob & watermark selalu z-index:-1 + ditaruh di elemen ber-overflow:hidden,
+   jadi otomatis kepotong ke batas kartu tanpa perlu bungkus ulang konten. */
+.app::before, .app::after {
+  content:''; position:absolute; border-radius:50%; pointer-events:none; z-index:-1;
+}
+.app::before { width:240px; height:240px; top:-100px; right:-80px; background:radial-gradient(circle, rgba(166,225,0,.22), transparent 70%); }
+.app::after { width:200px; height:200px; bottom:-80px; left:-70px; background:radial-gradient(circle, rgba(31,158,90,.14), transparent 70%); }
+
+.deco-panel { position:relative; overflow:hidden; }
+.deco-panel::before {
+  content:''; position:absolute; top:-34px; right:-34px; width:120px; height:120px; border-radius:50%;
+  background:radial-gradient(circle, rgba(166,225,0,.28), transparent 72%); pointer-events:none; z-index:-1;
 }
 
 /* ---------- header identitas ---------- */
@@ -97,13 +113,13 @@ h1.screen-title { font-family:'Archivo'; font-weight:800; font-size:26px; line-h
   width:100%; min-height:56px; padding:0 20px;
   font-family:'Barlow'; font-weight:700; font-size:16.5px; letter-spacing:.01em;
   border:none; border-radius:999px; cursor:pointer;
-  transition:transform .08s, filter .15s, background .15s; user-select:none;
+  transition:transform .15s, filter .15s, background .15s, box-shadow .2s; user-select:none;
 }
 .btn:active { transform:translateY(1px) scale(.995); }
 .btn:disabled { opacity:.5; cursor:not-allowed; }
 .btn[hidden] { display:none; }
 .btn--primary { background:var(--lime); color:var(--ink); box-shadow:inset 0 -3px 0 rgba(0,0,0,.14); }
-.btn--primary:hover:not(:disabled) { filter:brightness(1.04); }
+.btn--primary:hover:not(:disabled) { filter:brightness(1.04); transform:translateY(-1px); box-shadow:inset 0 -3px 0 rgba(0,0,0,.14), 0 8px 18px rgba(127,179,0,.35); }
 .btn--dark { background:var(--ink); color:#fff; }
 .btn--ghost { background:#fff; color:var(--ink); border:2px solid var(--line); }
 .btn--ghost:hover { border-color:var(--steel-2); }
@@ -113,7 +129,11 @@ h1.screen-title { font-family:'Archivo'; font-weight:800; font-size:26px; line-h
 .stack { margin-top:20px; display:grid; gap:12px; }
 
 /* ---------- kartu identitas ---------- */
-.idcard { border:1px solid var(--line); border-radius:var(--r); overflow:hidden; }
+.idcard { border:1px solid var(--line); border-radius:var(--r); overflow:hidden; position:relative; }
+.idcard::before {
+  content:''; position:absolute; top:-26px; right:-26px; width:90px; height:90px; border-radius:50%;
+  background:radial-gradient(circle, rgba(166,225,0,.18), transparent 72%); pointer-events:none; z-index:-1;
+}
 .idcard__row { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:13px 16px; }
 .idcard__row + .idcard__row { border-top:1px solid var(--line); }
 .idcard__row span { color:var(--steel); font-size:13px; text-transform:uppercase; letter-spacing:.05em; }
@@ -124,10 +144,14 @@ h1.screen-title { font-family:'Archivo'; font-weight:800; font-size:26px; line-h
 .session-card {
   display:grid; text-align:left; gap:4px; width:100%;
   padding:16px 18px 42px; border:2px solid var(--line); border-radius:var(--r);
-  background:#fff; cursor:pointer; transition:border-color .15s, transform .08s, box-shadow .15s;
-  position:relative;
+  background:#fff; cursor:pointer; transition:border-color .15s, transform .15s, box-shadow .2s;
+  position:relative; overflow:hidden;
 }
-.session-card:hover { border-color:var(--lime-deep); box-shadow:0 6px 18px rgba(18,35,27,.08); }
+.session-card::before {
+  content:''; position:absolute; top:-30px; right:-30px; width:100px; height:100px; border-radius:50%;
+  background:radial-gradient(circle, rgba(166,225,0,.2), transparent 72%); pointer-events:none; z-index:-1;
+}
+.session-card:hover { border-color:var(--lime-deep); box-shadow:0 10px 22px rgba(18,35,27,.12); transform:translateY(-2px); }
 .session-card:active { transform:translateY(1px); }
 .session-card__eyebrow { font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--lime-deep); font-weight:600; letter-spacing:.06em; }
 .session-card__title { font-family:'Archivo'; font-weight:700; font-size:18px; line-height:1.15; }
@@ -178,13 +202,25 @@ h1.screen-title { font-family:'Archivo'; font-weight:800; font-size:26px; line-h
   background:#fff; border:1px solid var(--line); border-radius:var(--r); overflow:hidden;
   box-shadow:0 4px 16px rgba(18,35,27,.1);
 }
-.certificate__head { background:var(--ink); color:#fff; padding:16px 20px; position:relative; display:flex; align-items:center; gap:12px; }
+.certificate__head { background:var(--ink); color:#fff; padding:16px 20px; position:relative; overflow:hidden; display:flex; align-items:center; gap:12px; }
+.certificate__head::before {
+  content:''; position:absolute; top:-40px; right:-24px; width:150px; height:150px; border-radius:50%;
+  background:radial-gradient(circle, rgba(166,225,0,.35), transparent 70%); pointer-events:none; z-index:-1;
+}
 .certificate__head::after { content:''; position:absolute; left:0; right:0; bottom:0; height:6px; background:var(--stripe); }
 .certificate__logo { width:44px; height:44px; border-radius:50%; background:#fff; object-fit:contain; padding:2px; flex:0 0 auto; }
 .certificate__kicker { font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--lime); font-weight:700; }
 .certificate__h { font-family:'Archivo'; font-weight:800; font-size:19px; margin:3px 0 0; }
 .certificate__org { font-size:12px; color:var(--steel-2); margin-top:2px; }
-.certificate__body { padding:18px 20px; display:grid; grid-template-columns:1fr auto; gap:16px; align-items:end; }
+.certificate__body {
+  padding:18px 20px; display:grid; grid-template-columns:1fr auto; gap:16px; align-items:end;
+  position:relative; overflow:hidden;
+}
+.certificate__body::before {
+  content:''; position:absolute; inset:0; z-index:-1; opacity:.09; pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56'%3E%3Cpath d='M28 3 L51 15.5 L51 40.5 L28 53 L5 40.5 L5 15.5 Z' fill='none' stroke='%2312231b' stroke-width='1.4'/%3E%3C/svg%3E");
+  background-size:56px 56px;
+}
 .cert-fields { display:grid; gap:9px; }
 .cert-field span { display:block; font-size:10.5px; text-transform:uppercase; letter-spacing:.07em; color:var(--steel); }
 .cert-field strong { font-size:15.5px; font-family:'Archivo'; font-weight:700; }

@@ -176,8 +176,12 @@
         headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // hindari preflight CORS
         body: JSON.stringify({ action, payload, adminToken }),
       });
-      if (!res.ok) throw new Error('Gagal menyimpan ke server data');
-      return res.json();
+      const data = await res.json().catch(() => null);
+      // Teruskan pesan error asli dari server (mis. kuota Drive habis, sesi
+      // admin kedaluwarsa) -- dulu dibuang diganti teks generik sehingga
+      // penyebab sebenarnya tidak pernah terlihat di UI.
+      if (!res.ok || (data && data.ok === false)) throw new Error((data && data.error) || 'Gagal menyimpan ke server data');
+      return data;
     },
     async findEmployee(nik) {
       const data = await this._get({ action: 'employee', nik: (nik || '').trim() });

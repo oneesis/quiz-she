@@ -400,7 +400,7 @@
       status.textContent = 'Gambar berhasil diunggah.';
       status.className = 'text-xs text-green-700 mt-1';
     } catch (e) {
-      status.textContent = 'Gagal mengunggah gambar. Coba lagi.';
+      status.textContent = 'Gagal mengunggah gambar: ' + (e && e.message ? e.message : 'coba lagi.');
       status.className = 'text-xs text-error mt-1';
     }
   }

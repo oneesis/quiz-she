@@ -21,7 +21,7 @@ window.CONFIG = {
   },
 
   passThresholdDefault: 80,   // % kelulusan default bila topik tidak menyetel
-  questionsPerAttempt: 5,     // jumlah soal ditampilkan (diacak dari bank soal)
+  questionsPerAttempt: 10,    // jumlah soal ditampilkan (diacak dari bank soal)
   minMaterialSeconds: 8,      // durasi minimum baca materi sebelum kuis terbuka
   idleResetSeconds: 120,      // auto-reset kiosk saat tidak ada aktivitas
   showDemoHint: true,         // tampilkan NIK contoh di layar login (matikan di produksi)

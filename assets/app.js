@@ -603,7 +603,35 @@
     const vp = document.querySelector('meta[name=viewport]');
     if (vp && vp.dataset.prevContent) { vp.content = vp.dataset.prevContent; delete vp.dataset.prevContent; }
   }
-  function toggleZoom() { $('#lightbox-img').classList.toggle('is-zoomed'); }
+  let lightboxDragged = false; // set saat drag mouse, biar klik lepas tidak ikut toggle zoom
+  function toggleZoom() {
+    if (lightboxDragged) { lightboxDragged = false; return; }
+    $('#lightbox-img').classList.toggle('is-zoomed');
+  }
+  // Overflow:auto di .lightbox__frame sudah cukup buat sentuh (jari geser =
+  // scroll native), tapi mouse desktop tidak bisa "klik-seret" scroll begitu
+  // saja -- perlu digeser manual lewat scrollLeft/scrollTop.
+  function bindLightboxPan() {
+    const frame = $('#lightbox-frame');
+    const img = $('#lightbox-img');
+    let dragging = false, startX, startY, startLeft, startTop;
+    img.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'mouse' || !img.classList.contains('is-zoomed')) return;
+      dragging = true; lightboxDragged = false;
+      startX = e.clientX; startY = e.clientY;
+      startLeft = frame.scrollLeft; startTop = frame.scrollTop;
+      img.setPointerCapture(e.pointerId);
+      img.style.cursor = 'grabbing';
+    });
+    img.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      const dx = e.clientX - startX, dy = e.clientY - startY;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) lightboxDragged = true;
+      frame.scrollLeft = startLeft - dx;
+      frame.scrollTop = startTop - dy;
+    });
+    img.addEventListener('pointerup', () => { dragging = false; img.style.cursor = ''; });
+  }
 
   // ---- helper tombol sibuk ----
   function setBusy(sel, busy, label) {
@@ -641,6 +669,7 @@
     $('#material-image-btn').onclick = () => openLightbox($('#material-image').src);
     $('#lightbox-close').onclick = closeLightbox;
     $('#lightbox-img').onclick = toggleZoom;
+    bindLightboxPan();
   }
 
   // ---- init ----

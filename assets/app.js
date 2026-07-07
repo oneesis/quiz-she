@@ -590,23 +590,39 @@
   // gesture zoom manual (rawan bug: hitung jarak 2 jari, transform-origin,
   // batas zoom, dst.), viewport dilonggarkan sementara supaya browser
   // menangani pinch-zoom asli, lalu dikunci lagi begitu lightbox ditutup.
-  // Dulu klik gambar juga auto-expand ke ukuran asli (is-zoomed) sebelum
-  // pinch -- dihapus karena di desktop itu bikin gambar lebih besar dari
-  // frame lalu bagian atasnya tidak bisa dijangkau scroll sama sekali.
-  // zoomScale = zoom manual lewat scroll mouse, khusus desktop (lihat
-  // onWheelZoom di bawah); di HP tetap pakai pinch-zoom native seperti biasa.
-  let zoomScale = 1;
-  const ZOOM_MIN = 1, ZOOM_MAX = 4, ZOOM_STEP = 0.25;
-  function applyWheelZoom() {
+  //
+  // Desktop: pan & zoom manual dihitung sendiri lewat transform:translate()
+  // +scale() (pola yang sama dipakai Google Maps/Figma), BUKAN overflow:auto
+  // + scrollLeft/scrollTop -- kombinasi scroll asli + transform:scale() rewel
+  // di semua browser (area scroll tidak selalu mengikuti ukuran hasil
+  // transform dengan benar, jadi bagian tepi gambar bisa jadi tidak
+  // terjangkau). panX/panY = posisi pojok kiri-atas gambar relatif ke frame.
+  let scale = 1, panX = 0, panY = 0;
+  const ZOOM_MIN = 1, ZOOM_MAX = 5, ZOOM_STEP = 1.2;
+  function applyTransform() {
     const img = $('#lightbox-img');
-    img.style.transform = zoomScale > 1 ? `scale(${zoomScale})` : '';
-    img.style.cursor = zoomScale > 1 ? 'grab' : '';
+    img.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+    img.style.cursor = scale > ZOOM_MIN ? 'grab' : '';
+  }
+  // Tengahkan gambar di dalam frame pada ukuran "pas" (scale 1) -- dipanggil
+  // tiap gambar baru selesai dimuat, karena ukuran render aslinya (setelah
+  // dibatasi max-width/max-height) baru pasti diketahui saat itu.
+  function centerImage() {
+    const img = $('#lightbox-img');
+    const frame = $('#lightbox-frame');
+    scale = 1;
+    panX = (frame.clientWidth - img.offsetWidth) / 2;
+    panY = (frame.clientHeight - img.offsetHeight) / 2;
+    applyTransform();
   }
   function openLightbox(src) {
     const img = $('#lightbox-img');
-    img.src = src;
-    zoomScale = 1;
-    applyWheelZoom();
+    // Kalau gambar yang sama dibuka lagi, browser tidak selalu memicu ulang
+    // 'load' (tidak ada yang berubah) -- pusatkan langsung karena ukurannya
+    // sudah pasti diketahui, daripada bergantung pada event yang mungkin
+    // tidak terpicu (bisa membuat posisi zoom lama tersisa).
+    if (img.dataset.src === src) { centerImage(); }
+    else { img.dataset.src = src; img.onload = centerImage; img.src = src; }
     $('#lightbox').hidden = false;
     const vp = document.querySelector('meta[name=viewport]');
     if (vp) { vp.dataset.prevContent = vp.content; vp.content = 'width=device-width, initial-scale=1, maximum-scale=5'; }
@@ -616,36 +632,42 @@
     const vp = document.querySelector('meta[name=viewport]');
     if (vp && vp.dataset.prevContent) { vp.content = vp.dataset.prevContent; delete vp.dataset.prevContent; }
   }
-  // Scroll mouse (atau 2 jari di trackpad) = zoom manual bertahap, khusus
-  // desktop -- di HP event 'wheel' ini praktis tidak pernah terpicu, jadi
-  // aman dibiarkan aktif tanpa pengecekan device terpisah.
+  // Scroll mouse (atau 2 jari di trackpad) = zoom manual bertahap, mengarah
+  // ke posisi kursor (titik gambar di bawah kursor tetap di tempat yang sama
+  // saat di-zoom) -- khusus desktop, di HP event 'wheel' praktis tidak pernah
+  // terpicu jadi aman dibiarkan aktif tanpa pengecekan device terpisah.
   function onWheelZoom(e) {
     e.preventDefault();
-    zoomScale = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoomScale + (e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP)));
-    applyWheelZoom();
+    const rect = $('#lightbox-frame').getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const newScale = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, scale * (e.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP)));
+    if (newScale <= ZOOM_MIN) { centerImage(); return; }
+    // titik gambar (koordinat lokal, belum di-scale) yang ada persis di bawah kursor
+    const ix = (mx - panX) / scale, iy = (my - panY) / scale;
+    panX = mx - ix * newScale;
+    panY = my - iy * newScale;
+    scale = newScale;
+    applyTransform();
   }
-  // Overflow:auto di .lightbox__frame sudah cukup buat sentuh (jari geser =
-  // scroll native), tapi mouse desktop tidak bisa "klik-seret" scroll begitu
-  // saja -- perlu digeser manual lewat scrollLeft/scrollTop.
   function bindLightboxPan() {
-    const frame = $('#lightbox-frame');
     const img = $('#lightbox-img');
-    let dragging = false, startX, startY, startLeft, startTop;
+    let dragging = false, startX, startY, startPanX, startPanY;
     img.addEventListener('wheel', onWheelZoom, { passive: false });
     img.addEventListener('pointerdown', (e) => {
-      if (e.pointerType !== 'mouse' || zoomScale <= 1) return;
+      if (e.pointerType !== 'mouse' || scale <= ZOOM_MIN) return;
       dragging = true;
       startX = e.clientX; startY = e.clientY;
-      startLeft = frame.scrollLeft; startTop = frame.scrollTop;
+      startPanX = panX; startPanY = panY;
       img.setPointerCapture(e.pointerId);
       img.style.cursor = 'grabbing';
     });
     img.addEventListener('pointermove', (e) => {
       if (!dragging) return;
-      frame.scrollLeft = startLeft - (e.clientX - startX);
-      frame.scrollTop = startTop - (e.clientY - startY);
+      panX = startPanX + (e.clientX - startX);
+      panY = startPanY + (e.clientY - startY);
+      applyTransform();
     });
-    img.addEventListener('pointerup', () => { dragging = false; applyWheelZoom(); });
+    img.addEventListener('pointerup', () => { dragging = false; img.style.cursor = scale > ZOOM_MIN ? 'grab' : ''; });
   }
 
   // ---- helper tombol sibuk ----

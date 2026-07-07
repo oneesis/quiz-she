@@ -208,13 +208,14 @@ h1.screen-title { font-family:'Archivo'; font-weight:800; font-size:26px; line-h
   display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
 }
 .lightbox[hidden] { display:none; }
-/* text-align + inline-block/vertical-align (bukan flex align-items:center)
-   sengaja dipakai -- flex-centering pada container overflow:auto membuat sisi
-   "awal" (atas/kiri) konten yang meluber tidak bisa dijangkau scroll sama
-   sekali begitu gambar di-zoom lebih besar dari frame. */
-.lightbox__frame { width:100%; height:100%; overflow:auto; text-align:center; touch-action:pan-x pan-y pinch-zoom; }
-.lightbox__frame::before { content:''; display:inline-block; height:100%; vertical-align:middle; }
-.lightbox__frame img { max-width:92vw; max-height:82vh; display:inline-block; vertical-align:middle; touch-action:pan-x pan-y pinch-zoom; }
+/* overflow:auto + transform:scale() dulu dipakai bareng buat efek zoom, tapi
+   kombinasi itu rewel di semua browser -- area scroll tidak selalu mengikuti
+   ukuran visual hasil transform dengan benar, jadi sisi atas gambar bisa jadi
+   tidak terjangkau scroll. Sekarang pan (geser) & zoom sepenuhnya kita hitung
+   sendiri lewat transform:translate()+scale() (pola yang sama dipakai Google
+   Maps/Figma dkk.) -- tidak ada overflow/scroll asli browser yang ikut campur. */
+.lightbox__frame { width:100%; height:100%; overflow:hidden; position:relative; touch-action:pan-x pan-y pinch-zoom; }
+.lightbox__frame img { position:absolute; top:0; left:0; max-width:92vw; max-height:82vh; transform-origin:0 0; touch-action:pan-x pan-y pinch-zoom; }
 .lightbox__close {
   position:absolute; top:14px; right:14px; width:40px; height:40px; border-radius:50%;
   border:none; background:rgba(255,255,255,.12); color:#fff; font-size:18px; cursor:pointer;

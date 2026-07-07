@@ -590,10 +590,23 @@
   // gesture zoom manual (rawan bug: hitung jarak 2 jari, transform-origin,
   // batas zoom, dst.), viewport dilonggarkan sementara supaya browser
   // menangani pinch-zoom asli, lalu dikunci lagi begitu lightbox ditutup.
+  // zoomScale = zoom manual lewat scroll mouse (khusus desktop, lihat
+  // onWheelZoom di bawah) -- terpisah dari is-zoomed (toggle klik, dipakai
+  // juga di HP buat lepas batas ukuran sebelum pinch-zoom native) supaya
+  // keduanya tidak saling tumpuk/ganggu.
+  let zoomScale = 1;
+  const ZOOM_MIN = 1, ZOOM_MAX = 4, ZOOM_STEP = 0.25;
+  function applyWheelZoom() {
+    const img = $('#lightbox-img');
+    img.style.transform = zoomScale > 1 ? `scale(${zoomScale})` : '';
+    img.style.cursor = zoomScale > 1 ? 'grab' : '';
+  }
   function openLightbox(src) {
     const img = $('#lightbox-img');
     img.src = src;
     img.classList.remove('is-zoomed');
+    zoomScale = 1;
+    applyWheelZoom();
     $('#lightbox').hidden = false;
     const vp = document.querySelector('meta[name=viewport]');
     if (vp) { vp.dataset.prevContent = vp.content; vp.content = 'width=device-width, initial-scale=1, maximum-scale=5'; }
@@ -608,6 +621,14 @@
     if (lightboxDragged) { lightboxDragged = false; return; }
     $('#lightbox-img').classList.toggle('is-zoomed');
   }
+  // Scroll mouse (atau 2 jari di trackpad) = zoom manual bertahap, khusus
+  // desktop -- di HP event 'wheel' ini praktis tidak pernah terpicu, jadi
+  // aman dibiarkan aktif tanpa pengecekan device terpisah.
+  function onWheelZoom(e) {
+    e.preventDefault();
+    zoomScale = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoomScale + (e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP)));
+    applyWheelZoom();
+  }
   // Overflow:auto di .lightbox__frame sudah cukup buat sentuh (jari geser =
   // scroll native), tapi mouse desktop tidak bisa "klik-seret" scroll begitu
   // saja -- perlu digeser manual lewat scrollLeft/scrollTop.
@@ -615,8 +636,9 @@
     const frame = $('#lightbox-frame');
     const img = $('#lightbox-img');
     let dragging = false, startX, startY, startLeft, startTop;
+    img.addEventListener('wheel', onWheelZoom, { passive: false });
     img.addEventListener('pointerdown', (e) => {
-      if (e.pointerType !== 'mouse' || !img.classList.contains('is-zoomed')) return;
+      if (e.pointerType !== 'mouse' || (!img.classList.contains('is-zoomed') && zoomScale <= 1)) return;
       dragging = true; lightboxDragged = false;
       startX = e.clientX; startY = e.clientY;
       startLeft = frame.scrollLeft; startTop = frame.scrollTop;
@@ -630,7 +652,7 @@
       frame.scrollLeft = startLeft - dx;
       frame.scrollTop = startTop - dy;
     });
-    img.addEventListener('pointerup', () => { dragging = false; img.style.cursor = ''; });
+    img.addEventListener('pointerup', () => { dragging = false; applyWheelZoom(); });
   }
 
   // ---- helper tombol sibuk ----

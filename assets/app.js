@@ -356,7 +356,7 @@
       const answered = S.answers[i] !== null;
       const isCurrent = i === S.idx;
       const b = document.createElement('button');
-      let cls = 'aspect-square rounded-lg flex items-center justify-center font-bold text-sm transition-colors ';
+      let cls = 'w-9 h-9 shrink-0 rounded-lg flex items-center justify-center font-bold text-sm transition-colors ';
       if (isCurrent) cls += 'bg-primary-container text-white ring-2 ring-primary-container/40';
       else if (answered) cls += 'bg-emerald-100 text-emerald-800 border border-emerald-200 hover:bg-emerald-200';
       else cls += 'bg-surface-container-low text-on-surface-variant border border-outline-variant hover:bg-surface-container-high';

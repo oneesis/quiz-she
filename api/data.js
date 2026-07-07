@@ -18,30 +18,25 @@ const ROSTER = 'Master_Karyawan';
 const RESULTS = 'Partisipasi';
 const TOPICS = 'Topics';
 const SESSIONS = 'Session';
-const UPLOAD_FOLDER_NAME = 'Quiz SHE Uploads';
 
 function getAuth() {
   return new google.auth.JWT({
     email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
     key: (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
-    scopes: [
-      'https://www.googleapis.com/auth/spreadsheets',
-      'https://www.googleapis.com/auth/drive',
-    ],
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
   });
 }
 
 // Klien dipakai ulang antar-invocation kalau instance function masih
 // "hangat" (Vercel Fluid Compute) -- lumayan ngirit dibanding re-auth tiap
 // panggilan, walau tidak dijamin selalu kepakai (instance bisa cold lagi).
-let _sheets, _drive;
+let _sheets;
 function clients() {
   if (!_sheets) {
     const auth = getAuth();
     _sheets = google.sheets({ version: 'v4', auth });
-    _drive = google.drive({ version: 'v3', auth });
   }
-  return { sheets: _sheets, drive: _drive };
+  return { sheets: _sheets };
 }
 
 // ---- util tanggal ----
@@ -296,30 +291,21 @@ async function listSessions() {
   }));
 }
 
-// ---- upload gambar materi ke Drive ----
-async function getUploadsFolderId() {
-  const { drive } = clients();
-  const res = await drive.files.list({
-    q: `name='${UPLOAD_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-    fields: 'files(id)',
-  });
-  if (res.data.files && res.data.files.length) return res.data.files[0].id;
-  const created = await drive.files.create({ requestBody: { name: UPLOAD_FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' }, fields: 'id' });
-  return created.data.id;
-}
-
+// ---- upload gambar materi (Vercel Blob) ----
+// Dulu ke Google Drive lewat service account, tapi service account TIDAK
+// PERNAH punya kuota penyimpanan di Drive biasa (kebijakan Google sejak 2020
+// -- perlu Shared Drive/Workspace atau OAuth delegation, tidak tersedia untuk
+// akun Gmail pribadi). Vercel Blob tidak punya masalah kuota ini dan sudah
+// satu ekosistem dengan hosting-nya.
 async function uploadImage(p) {
-  const { drive } = clients();
-  const folderId = await getUploadsFolderId();
-  const { Readable } = require('stream');
+  const { put } = require('@vercel/blob');
   const buffer = Buffer.from(p.base64, 'base64');
-  const file = await drive.files.create({
-    requestBody: { name: p.filename || 'materi.jpg', parents: [folderId] },
-    media: { mimeType: p.mimeType || 'image/jpeg', body: Readable.from(buffer) },
-    fields: 'id',
+  const blob = await put(p.filename || 'materi.jpg', buffer, {
+    access: 'public',
+    contentType: p.mimeType || 'image/jpeg',
+    addRandomSuffix: true,
   });
-  await drive.permissions.create({ fileId: file.data.id, requestBody: { role: 'reader', type: 'anyone' } });
-  return `https://drive.google.com/thumbnail?id=${file.data.id}&sz=w2000`;
+  return blob.url;
 }
 
 // Sesi admin lewat token bertanda tangan (HMAC), bukan password mentah.

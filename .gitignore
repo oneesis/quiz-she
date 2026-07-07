@@ -4,3 +4,5 @@ node_modules/
 stitch_lms_k3_ebl_dashboard/
 .env*
 .vercel
+
+.env*

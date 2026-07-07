@@ -2,6 +2,7 @@
   "name": "quiz-she-gas",
   "private": true,
   "dependencies": {
-    "googleapis": "^144.0.0"
+    "googleapis": "^144.0.0",
+    "@vercel/blob": "^2.5.0"
   }
 }

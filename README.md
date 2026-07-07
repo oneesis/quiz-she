@@ -125,7 +125,7 @@ Situs statis tidak bisa membaca/menulis Sheet privat sendiri secara aman. Jembat
 ### Langkah 1 — Google Cloud (service account)
 
 1. Buka [console.cloud.google.com](https://console.cloud.google.com), buat/pilih project.
-2. **APIs & Services → Library** — enable **Google Sheets API** dan **Google Drive API** (Drive dipakai untuk upload gambar materi).
+2. **APIs & Services → Library** — enable **Google Sheets API**.
 3. **APIs & Services → Credentials → Create Credentials → Service Account**. Nama bebas.
 4. Masuk ke service account yang baru dibuat → tab **Keys → Add Key → Create new key → JSON**. Simpan file JSON-nya baik-baik — ini kredensial rahasia, **jangan pernah di-commit ke repo**.
 5. Dari file JSON itu, catat nilai `client_email`.
@@ -148,6 +148,8 @@ Project di Vercel → **Settings → Environment Variables**, tambah:
 | `ADMIN_TOKEN` | sama persis dengan `CONFIG.admin.password` di `assets/config.js` |
 
 Redeploy project setelah menambah env var (Vercel tidak otomatis redeploy hanya karena env var berubah).
+
+Upload gambar materi topik pakai **Vercel Blob** (bukan Google Drive — service account biasa tidak pernah dapat kuota penyimpanan Drive, hanya bisa lewat Shared Drive/Workspace). Aktifkan di **Vercel Dashboard → Storage → Create → Blob**, lalu hubungkan ke project ini; `BLOB_READ_WRITE_TOKEN` otomatis terisi sebagai env var, tidak perlu diisi manual.
 
 ### Langkah 3 — Aktifkan di client
 

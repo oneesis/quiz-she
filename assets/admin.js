@@ -362,7 +362,7 @@
   }
 
   // ============================================================
-  // GAMBAR MATERI (upload ke Drive lewat Apps Script)
+  // GAMBAR MATERI (upload ke Vercel Blob lewat api/data.js)
   // ============================================================
   function setImagePreview(url) {
     currentImageUrl = url || '';
@@ -371,12 +371,25 @@
     else { wrap.classList.add('hidden'); }
   }
 
-  function fileToBase64(file) {
+  // Vercel serverless function menolak body > ~4.5MB (413 sebelum kode kita
+  // sempat jalan) -- foto dari HP modern gampang lebih besar dari itu. Perkecil
+  // dulu lewat <canvas> supaya base64-nya konsisten muat, tanpa perlu naikkan
+  // limit server (yang toh dibatasi platform, tidak bisa diubah dari kode).
+  function resizeImageToBase64(file, maxDim = 1600, quality = 0.82) {
     return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        const mimeType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+        URL.revokeObjectURL(img.src);
+        resolve({ base64: canvas.toDataURL(mimeType, quality).split(',')[1], mimeType });
+      };
+      img.onerror = () => reject(new Error('Gagal membaca gambar'));
+      img.src = URL.createObjectURL(file);
     });
   }
 
@@ -393,8 +406,8 @@
     status.textContent = 'Mengunggah…';
     status.className = 'text-xs text-on-surface-variant mt-1';
     try {
-      const base64 = await fileToBase64(file);
-      const url = await API.uploadImage(base64, file.name, file.type);
+      const { base64, mimeType } = await resizeImageToBase64(file);
+      const url = await API.uploadImage(base64, file.name, mimeType);
       if (!url) throw new Error('no url');
       setImagePreview(url);
       status.textContent = 'Gambar berhasil diunggah.';

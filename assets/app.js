@@ -590,10 +590,11 @@
   // gesture zoom manual (rawan bug: hitung jarak 2 jari, transform-origin,
   // batas zoom, dst.), viewport dilonggarkan sementara supaya browser
   // menangani pinch-zoom asli, lalu dikunci lagi begitu lightbox ditutup.
-  // zoomScale = zoom manual lewat scroll mouse (khusus desktop, lihat
-  // onWheelZoom di bawah) -- terpisah dari is-zoomed (toggle klik, dipakai
-  // juga di HP buat lepas batas ukuran sebelum pinch-zoom native) supaya
-  // keduanya tidak saling tumpuk/ganggu.
+  // Dulu klik gambar juga auto-expand ke ukuran asli (is-zoomed) sebelum
+  // pinch -- dihapus karena di desktop itu bikin gambar lebih besar dari
+  // frame lalu bagian atasnya tidak bisa dijangkau scroll sama sekali.
+  // zoomScale = zoom manual lewat scroll mouse, khusus desktop (lihat
+  // onWheelZoom di bawah); di HP tetap pakai pinch-zoom native seperti biasa.
   let zoomScale = 1;
   const ZOOM_MIN = 1, ZOOM_MAX = 4, ZOOM_STEP = 0.25;
   function applyWheelZoom() {
@@ -604,7 +605,6 @@
   function openLightbox(src) {
     const img = $('#lightbox-img');
     img.src = src;
-    img.classList.remove('is-zoomed');
     zoomScale = 1;
     applyWheelZoom();
     $('#lightbox').hidden = false;
@@ -615,11 +615,6 @@
     $('#lightbox').hidden = true;
     const vp = document.querySelector('meta[name=viewport]');
     if (vp && vp.dataset.prevContent) { vp.content = vp.dataset.prevContent; delete vp.dataset.prevContent; }
-  }
-  let lightboxDragged = false; // set saat drag mouse, biar klik lepas tidak ikut toggle zoom
-  function toggleZoom() {
-    if (lightboxDragged) { lightboxDragged = false; return; }
-    $('#lightbox-img').classList.toggle('is-zoomed');
   }
   // Scroll mouse (atau 2 jari di trackpad) = zoom manual bertahap, khusus
   // desktop -- di HP event 'wheel' ini praktis tidak pernah terpicu, jadi
@@ -638,8 +633,8 @@
     let dragging = false, startX, startY, startLeft, startTop;
     img.addEventListener('wheel', onWheelZoom, { passive: false });
     img.addEventListener('pointerdown', (e) => {
-      if (e.pointerType !== 'mouse' || (!img.classList.contains('is-zoomed') && zoomScale <= 1)) return;
-      dragging = true; lightboxDragged = false;
+      if (e.pointerType !== 'mouse' || zoomScale <= 1) return;
+      dragging = true;
       startX = e.clientX; startY = e.clientY;
       startLeft = frame.scrollLeft; startTop = frame.scrollTop;
       img.setPointerCapture(e.pointerId);
@@ -647,10 +642,8 @@
     });
     img.addEventListener('pointermove', (e) => {
       if (!dragging) return;
-      const dx = e.clientX - startX, dy = e.clientY - startY;
-      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) lightboxDragged = true;
-      frame.scrollLeft = startLeft - dx;
-      frame.scrollTop = startTop - dy;
+      frame.scrollLeft = startLeft - (e.clientX - startX);
+      frame.scrollTop = startTop - (e.clientY - startY);
     });
     img.addEventListener('pointerup', () => { dragging = false; applyWheelZoom(); });
   }
@@ -690,7 +683,6 @@
 
     $('#material-image-btn').onclick = () => openLightbox($('#material-image').src);
     $('#lightbox-close').onclick = closeLightbox;
-    $('#lightbox-img').onclick = toggleZoom;
     bindLightboxPan();
   }
 

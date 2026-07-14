@@ -14,6 +14,7 @@
       served: [], answers: [], idx: 0,
       attemptNo: 0, score: 0, passed: false, cert: null,
       certFrom: null, // 'history' -> tombol sertifikat jadi "Kembali" (ke riwayat), bukan "Selesai" (logout)
+      materialFrom: null, // 'history' -> layar materi jadi baca-saja (tombol "Mulai Kuis" disembunyikan, "Kembali" balik ke riwayat)
     };
   }
   reset();
@@ -216,15 +217,27 @@
       wrap.innerHTML = '';
       history.forEach(h => {
         const topic = topics.find(t => t.code === h.topicCode);
-        const card = document.createElement('button');
+        // Dulu seluruh kartu = satu <button> yang langsung buka sertifikat.
+        // Sekarang ada 2 aksi (materi + sertifikat), jadi wrapper diganti
+        // <div> -- <button> tidak boleh berisi <button> lain.
+        const card = document.createElement('div');
         card.className = 'session-card';
         card.innerHTML = `
           <span class="session-card__eyebrow">${escapeHtml(h.topicCode || '-')}</span>
           <span class="session-card__title">${escapeHtml(topic ? topic.title : (h.topicCode || '-'))}</span>
           <span class="session-card__meta">${h.submittedAt ? fmtDate(new Date(h.submittedAt)) : '-'} · Skor ${h.score}%</span>
           ${h.score === 100 ? '<span class="session-card__badge session-card__badge--star">★ Skor Sempurna</span>' : ''}
-          <span class="session-card__go">Lihat Sertifikat →</span>`;
-        card.onclick = () => {
+          <span class="session-card__actions">
+            <button type="button" class="session-card__go" data-act="material" ${topic ? '' : 'disabled'}>Lihat Materi</button>
+            <button type="button" class="session-card__go" data-act="cert">Lihat Sertifikat →</button>
+          </span>`;
+        card.querySelector('[data-act=material]').onclick = () => {
+          if (!topic) return; // topik sudah dihapus admin, materinya tidak tersedia lagi
+          S.topic = topic;
+          S.materialFrom = 'history';
+          renderMaterial();
+        };
+        card.querySelector('[data-act=cert]').onclick = () => {
           S.topic = topic || { code: h.topicCode, title: h.topicCode || '-' };
           S.score = h.score;
           S.cert = { no: h.certificateNo, token: h.verificationToken, date: h.submittedAt ? new Date(h.submittedAt) : new Date() };
@@ -256,6 +269,12 @@
 
     const btn = $('#btn-start-quiz');
     show('screen-material');
+
+    // Dibuka dari Riwayat Sertifikat -> baca-saja, tidak ada S.session buat
+    // dipakai startQuiz(), jadi tombol "Mulai Kuis" disembunyikan sepenuhnya
+    // (bukan cuma dinonaktifkan) daripada bisa diklik dan error.
+    if (S.materialFrom === 'history') { btn.hidden = true; return; }
+    btn.hidden = false;
 
     const wait = C.minMaterialSeconds || 0;
     if (wait > 0) {
@@ -694,7 +713,10 @@
     $('#btn-confirm-yes').onclick = () => renderSessions();
     $('#btn-confirm-no').onclick = () => { reset(); renderLogin(); show('screen-login'); };
     $$('[data-back-login]').forEach(b => b.onclick = () => { reset(); renderLogin(); show('screen-login'); });
-    $('#btn-material-back').onclick = () => renderSessions();
+    $('#btn-material-back').onclick = () => {
+      if (S.materialFrom === 'history') { S.materialFrom = null; renderHistory(); return; }
+      renderSessions();
+    };
     $('#btn-view-history').onclick = () => renderHistory();
     $('#btn-history-back').onclick = () => renderSessions();
     $('#btn-start-quiz').onclick = startQuiz;

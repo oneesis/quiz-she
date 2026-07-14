@@ -52,6 +52,18 @@
     outline: none; transition: box-shadow .15s, border-color .15s;
   }
   .admin-field:focus { border-color: #12271c; box-shadow: 0 0 0 2px rgba(18,39,28,.25); }
+  .editor-toolbar { border: 1px solid #cdd6c8; border-bottom: none; border-radius: 8px 8px 0 0; background: #eef1ea; }
+  .editor-body {
+    border: 1px solid #cdd6c8; border-radius: 0 0 8px 8px; padding: 10px 14px;
+    min-height: 180px; max-height: 360px; overflow-y: auto; outline: none;
+  }
+  .editor-body:focus { border-color: #12271c; box-shadow: 0 0 0 2px rgba(18,39,28,.25); }
+  .editor-body:empty::before { content: attr(data-placeholder); color: #4c5750; }
+  .editor-body h4 { font-weight: 700; margin: 8px 0 4px; }
+  .editor-body ul, .editor-body ol { padding-left: 22px; margin: 4px 0; }
+  .editor-btn { padding: 4px 8px; border-radius: 6px; font-size: 13px; font-weight: 600; color: #4c5750; }
+  .editor-btn:hover { background: #e7ebe1; }
+  .editor-btn.is-active { background: #a6e100; color: #12271c; }
 </style>
 </head>
 <body class="bg-surface text-on-surface">
@@ -351,9 +363,23 @@
               <p id="t-image-status" class="text-xs text-on-surface-variant mt-1"></p>
             </div>
             <div>
-              <label class="block text-xs font-bold uppercase tracking-wide text-on-surface-variant mb-1" for="t-material">Materi</label>
-              <p class="text-xs text-on-surface-variant mb-1">Teks biasa — satu baris jadi satu paragraf. Awali baris dengan "- " untuk bullet, "## " untuk subjudul.</p>
-              <textarea class="admin-field text-sm" id="t-material" rows="8" required></textarea>
+              <label class="block text-xs font-bold uppercase tracking-wide text-on-surface-variant mb-1">Materi</label>
+              <div class="editor-toolbar flex flex-wrap items-center gap-0.5 px-2 py-1.5" id="t-material-toolbar">
+                <button type="button" class="editor-btn" data-cmd="bold" title="Tebal"><b>B</b></button>
+                <button type="button" class="editor-btn" data-cmd="italic" title="Miring"><i>I</i></button>
+                <button type="button" class="editor-btn" data-cmd="underline" title="Garis bawah"><u>U</u></button>
+                <span class="w-px h-5 bg-outline-variant mx-1"></span>
+                <button type="button" class="editor-btn" data-block="&lt;h4&gt;" title="Subjudul">Subjudul</button>
+                <button type="button" class="editor-btn" data-block="&lt;p&gt;" title="Teks biasa">Teks</button>
+                <span class="w-px h-5 bg-outline-variant mx-1"></span>
+                <button type="button" class="editor-btn" data-cmd="insertUnorderedList" title="Bullet list">• List</button>
+                <button type="button" class="editor-btn" data-cmd="insertOrderedList" title="Angka list">1. List</button>
+                <span class="w-px h-5 bg-outline-variant mx-1"></span>
+                <button type="button" class="editor-btn" data-cmd="justifyLeft" title="Rata kiri"><span class="material-symbols-outlined text-[16px]">format_align_left</span></button>
+                <button type="button" class="editor-btn" data-cmd="justifyCenter" title="Rata tengah"><span class="material-symbols-outlined text-[16px]">format_align_center</span></button>
+                <button type="button" class="editor-btn" data-cmd="justifyRight" title="Rata kanan"><span class="material-symbols-outlined text-[16px]">format_align_right</span></button>
+              </div>
+              <div class="editor-body text-sm" id="t-material" contenteditable="true" data-placeholder="Tulis materi di sini…"></div>
             </div>
             <div class="flex items-center justify-between pt-2 flex-wrap gap-2">
               <h3 class="font-bold text-primary">Bank Soal</h3>

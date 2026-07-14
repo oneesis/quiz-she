@@ -62,13 +62,19 @@
   const HTML2CANVAS_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
   const JSPDF_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
 
-  // Materi ditulis sebagai teks biasa oleh admin (bukan HTML), format ringan:
-  // baris kosong belum diperlukan (tiap baris = satu paragraf), "- " di awal
-  // baris = butir bullet, "## " di awal baris = subjudul.
+  // Materi ditulis lewat editor WYSIWYG di Panel Admin (admin.js) dan
+  // tersimpan sebagai HTML -- dirender apa adanya di sini (konten dari admin
+  // yang sudah login, sama posisi kepercayaannya dengan gambar materi yang
+  // juga di-set bebas oleh admin). Topik LAMA yang materinya masih teks polos
+  // (belum pernah dibuka ulang di editor baru) tidak mengandung tag HTML sama
+  // sekali -- dikenali lewat itu, lalu tetap diproses format ringan yang lama:
+  // "- " di awal baris = bullet, "## " di awal baris = subjudul.
   function renderMaterialText(text) {
+    const raw = String(text || '');
+    if (/<[a-z][\s\S]*>/i.test(raw)) return raw;
     let html = '', listOpen = false;
     const closeList = () => { if (listOpen) { html += '</ul>'; listOpen = false; } };
-    String(text || '').split('\n').forEach(line => {
+    raw.split('\n').forEach(line => {
       const t = line.trim();
       if (!t) { closeList(); return; }
       if (t.startsWith('## ')) { closeList(); html += `<h4>${escapeHtml(t.slice(3))}</h4>`; }

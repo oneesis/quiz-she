@@ -225,6 +225,51 @@
   }
 
   // ============================================================
+  // EDITOR MATERI (contenteditable + document.execCommand -- bawaan browser,
+  // tanpa library luar)
+  // ============================================================
+  // Materi diedit di sini tersimpan sebagai HTML, bukan lagi teks+markup
+  // ("## "/"- "). Topik LAMA yang materinya masih teks polos otomatis
+  // dikonversi ke HTML begitu dibuka di editor ini (legacyMaterialToHtml) --
+  // jadi format lama & baru hidup berdampingan tanpa migrasi data manual.
+  // Sisi peserta (app.js renderMaterialText) mendeteksi HTML vs teks polos
+  // lewat ada/tidaknya tag "<" di string materinya.
+  function looksLikeHtml(s) { return /<[a-z][\s\S]*>/i.test(String(s || '')); }
+  function legacyMaterialToHtml(text) {
+    let html = '', listOpen = false;
+    const closeList = () => { if (listOpen) { html += '</ul>'; listOpen = false; } };
+    String(text || '').split('\n').forEach(line => {
+      const t = line.trim();
+      if (!t) { closeList(); return; }
+      if (t.startsWith('## ')) { closeList(); html += `<h4>${escapeHtml(t.slice(3))}</h4>`; }
+      else if (t.startsWith('- ')) { if (!listOpen) { html += '<ul>'; listOpen = true; } html += `<li>${escapeHtml(t.slice(2))}</li>`; }
+      else { closeList(); html += `<p>${escapeHtml(t)}</p>`; }
+    });
+    closeList();
+    return html;
+  }
+  const EDITOR_STATE_CMDS = ['bold', 'italic', 'underline', 'insertUnorderedList', 'insertOrderedList', 'justifyLeft', 'justifyCenter', 'justifyRight'];
+  function updateEditorToolbarState() {
+    $$('#t-material-toolbar [data-cmd]').forEach(btn => {
+      const cmd = btn.dataset.cmd;
+      btn.classList.toggle('is-active', EDITOR_STATE_CMDS.includes(cmd) && document.queryCommandState(cmd));
+    });
+  }
+  function bindMaterialEditor() {
+    const body = $('#t-material');
+    $$('#t-material-toolbar [data-cmd]').forEach(btn => {
+      btn.addEventListener('mousedown', (e) => e.preventDefault()); // jaga selection jangan hilang saat tombol diklik
+      btn.addEventListener('click', () => { document.execCommand(btn.dataset.cmd); body.focus(); updateEditorToolbarState(); });
+    });
+    $$('#t-material-toolbar [data-block]').forEach(btn => {
+      btn.addEventListener('mousedown', (e) => e.preventDefault());
+      btn.addEventListener('click', () => { document.execCommand('formatBlock', false, btn.dataset.block); body.focus(); });
+    });
+    body.addEventListener('keyup', updateEditorToolbarState);
+    body.addEventListener('mouseup', updateEditorToolbarState);
+  }
+
+  // ============================================================
   // TAB TOPIK
   // ============================================================
   function renderTopicsList() {
@@ -253,7 +298,7 @@
     $('#t-code').disabled = !!topic; // kode = kunci, tidak diubah setelah dibuat
     $('#t-title').value = topic ? topic.title : '';
     $('#t-threshold').value = topic ? (topic.passThreshold || C.passThresholdDefault) : C.passThresholdDefault;
-    $('#t-material').value = topic ? topic.material : '';
+    $('#t-material').innerHTML = topic ? (looksLikeHtml(topic.material) ? topic.material : legacyMaterialToHtml(topic.material)) : '';
     setImagePreview(topic ? topic.materialImage : '');
     $('#csv-import-status').textContent = '';
     $('#btn-topic-delete').hidden = !topic;
@@ -297,6 +342,9 @@
     ev.preventDefault();
     const questions = collectQuestions();
     if (!questions.length) { alert('Tambahkan minimal satu soal.'); return; }
+    // contenteditable bukan elemen form, tidak ikut validasi "required" bawaan
+    // browser seperti textarea dulu -- dicek manual di sini.
+    if (!$('#t-material').textContent.trim()) { alert('Materi wajib diisi.'); return; }
     const code = editingTopicCode || $('#t-code').value.trim();
     if (!code) { alert('Kode topik wajib diisi.'); return; }
     if (!editingTopicCode && topics.some(t => t.code === code)) {
@@ -307,7 +355,7 @@
       code,
       title: $('#t-title').value.trim(),
       passThreshold: Number($('#t-threshold').value) || C.passThresholdDefault,
-      material: $('#t-material').value,
+      material: $('#t-material').innerHTML,
       materialImage: currentImageUrl,
       questions,
     };
@@ -1029,6 +1077,7 @@
     $('#btn-topic-delete').onclick = deleteTopicConfirm;
     $('#btn-topic-duplicate').onclick = duplicateTopicConfirm;
     $('#t-image').addEventListener('change', handleImageFileChange);
+    bindMaterialEditor();
     $('#btn-remove-image').onclick = () => setImagePreview('');
     $('#btn-download-csv-template').onclick = downloadCsvTemplate;
     $('#btn-import-csv').onclick = () => $('#csv-import-input').click();

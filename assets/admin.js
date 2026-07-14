@@ -824,6 +824,43 @@
   // ============================================================
   let lastMissingList = [];
 
+  // Dipecah perusahaan -> departemen -> {total, passed}, dari scope karyawan
+  // & passedNiks yang sama dengan tabel "Belum Lulus per Sesi" di bawahnya
+  // (satu sumber data, satu dropdown sesi -- tidak ada logika ganda).
+  function renderDeptChart(scope, passedNiks) {
+    const wrap = $('#dept-chart');
+    if (!scope.length) { wrap.innerHTML = `<p class="text-sm text-on-surface-variant">Tidak ada karyawan dalam cakupan sesi ini.</p>`; return; }
+    const companies = {};
+    scope.forEach(e => {
+      const co = e.perusahaan || 'Tanpa perusahaan';
+      const dept = e.departemen || 'Tanpa departemen';
+      const c = companies[co] || (companies[co] = {});
+      const d = c[dept] || (c[dept] = { total: 0, passed: 0 });
+      d.total++;
+      if (passedNiks.has(e.nik)) d.passed++;
+    });
+    wrap.innerHTML = Object.keys(companies).sort().map(co => {
+      const depts = companies[co];
+      const rows = Object.keys(depts).sort().map(dept => {
+        const d = depts[dept];
+        const rate = d.total ? Math.round((d.passed / d.total) * 100) : 0;
+        return `
+          <div class="flex items-center gap-3">
+            <span class="w-32 text-xs text-on-surface-variant truncate" title="${escapeAttr(dept)}">${escapeHtml(dept)}</span>
+            <div class="flex-1 bg-error/20 rounded-full h-4 overflow-hidden">
+              <div class="bg-emerald-500 h-full rounded-full" style="width:${rate}%"></div>
+            </div>
+            <span class="w-28 text-xs text-right text-on-surface-variant">${d.passed}/${d.total} lulus</span>
+          </div>`;
+      }).join('');
+      return `
+        <div>
+          <p class="text-sm font-bold text-on-surface mb-2">${escapeHtml(co)}</p>
+          <div class="space-y-2">${rows}</div>
+        </div>`;
+    }).join('');
+  }
+
   async function renderMissingReport() {
     const sel = $('#missing-session-select');
     if (!sessions.length) {
@@ -856,6 +893,7 @@
       const forSession = lastReports.filter(p => p.sessionId === sessionId);
       const passedNiks = new Set(forSession.filter(p => p.passed).map(p => p.nik));
       lastMissingList = scope.filter(e => !passedNiks.has(e.nik));
+      renderDeptChart(scope, passedNiks);
 
       $('#missing-count').textContent = `${lastMissingList.length} dari ${scope.length} karyawan dalam cakupan belum lulus`;
       if (!lastMissingList.length) {

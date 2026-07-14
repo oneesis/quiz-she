@@ -232,18 +232,27 @@
   // ("## "/"- "). Topik LAMA yang materinya masih teks polos otomatis
   // dikonversi ke HTML begitu dibuka di editor ini (legacyMaterialToHtml) --
   // jadi format lama & baru hidup berdampingan tanpa migrasi data manual.
+  // Fungsi yang sama dipakai ulang buat paste-handler di bawah (lihat
+  // bindMaterialEditor) -- paste teks polos yang masih pakai "## "/"- "/
+  // "1. " otomatis jadi subjudul/list beneran, bukan tersisa sebagai teks
+  // literal.
   // Sisi peserta (app.js renderMaterialText) mendeteksi HTML vs teks polos
   // lewat ada/tidaknya tag "<" di string materinya.
   function looksLikeHtml(s) { return /<[a-z][\s\S]*>/i.test(String(s || '')); }
   function legacyMaterialToHtml(text) {
-    let html = '', listOpen = false;
-    const closeList = () => { if (listOpen) { html += '</ul>'; listOpen = false; } };
+    let html = '', listTag = null; // null | 'ul' | 'ol'
+    const closeList = () => { if (listTag) { html += `</${listTag}>`; listTag = null; } };
     String(text || '').split('\n').forEach(line => {
       const t = line.trim();
       if (!t) { closeList(); return; }
       if (t.startsWith('## ')) { closeList(); html += `<h4>${escapeHtml(t.slice(3))}</h4>`; }
-      else if (t.startsWith('- ')) { if (!listOpen) { html += '<ul>'; listOpen = true; } html += `<li>${escapeHtml(t.slice(2))}</li>`; }
-      else { closeList(); html += `<p>${escapeHtml(t)}</p>`; }
+      else if (t.startsWith('- ')) {
+        if (listTag !== 'ul') { closeList(); html += '<ul>'; listTag = 'ul'; }
+        html += `<li>${escapeHtml(t.slice(2))}</li>`;
+      } else if (/^\d+\.\s/.test(t)) {
+        if (listTag !== 'ol') { closeList(); html += '<ol>'; listTag = 'ol'; }
+        html += `<li>${escapeHtml(t.replace(/^\d+\.\s/, ''))}</li>`;
+      } else { closeList(); html += `<p>${escapeHtml(t)}</p>`; }
     });
     closeList();
     return html;
@@ -267,6 +276,16 @@
     });
     body.addEventListener('keyup', updateEditorToolbarState);
     body.addEventListener('mouseup', updateEditorToolbarState);
+    // Paste selalu dipaksa jadi teks polos (bukan HTML/formatting bawaan dari
+    // sumbernya, mis. Word/halaman web) lalu diproses lewat konverter yang
+    // sama dengan data lama -- jadi "## "/"- "/"1. " langsung jadi
+    // subjudul/list beneran, bukan tersisa sebagai teks literal.
+    body.addEventListener('paste', (e) => {
+      const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+      if (!text) return;
+      e.preventDefault();
+      document.execCommand('insertHTML', false, legacyMaterialToHtml(text));
+    });
   }
 
   // ============================================================

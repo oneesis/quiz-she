@@ -59,8 +59,13 @@
   }
   .editor-body:focus { border-color: #12271c; box-shadow: 0 0 0 2px rgba(18,39,28,.25); }
   .editor-body:empty::before { content: attr(data-placeholder); color: #4c5750; }
-  .editor-body h4 { font-weight: 700; margin: 8px 0 4px; }
-  .editor-body ul, .editor-body ol { padding-left: 22px; margin: 4px 0; }
+  /* Tailwind Preflight (cdn.tailwindcss.com) reset list-style jadi none dan
+     ukuran heading jadi inherit di seluruh halaman -- dikembalikan khusus di
+     dalam area editor supaya bullet/angka & ukuran subjudul kelihatan lagi. */
+  .editor-body h4 { font-weight: 700; font-size: 1.05em; margin: 8px 0 4px; }
+  .editor-body ul { list-style: disc; padding-left: 22px; margin: 4px 0; }
+  .editor-body ol { list-style: decimal; padding-left: 22px; margin: 4px 0; }
+  .editor-body li { margin: 2px 0; }
   .editor-btn { padding: 4px 8px; border-radius: 6px; font-size: 13px; font-weight: 600; color: #4c5750; }
   .editor-btn:hover { background: #e7ebe1; }
   .editor-btn.is-active { background: #a6e100; color: #12271c; }

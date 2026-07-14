@@ -76,27 +76,16 @@ Buka `admin.html` (mis. `http://localhost:8080/admin.html` atau `https://<nama-p
 
 Navigasi lewat sidebar kiri, lima menu:
 - **Dashboard** — kartu ringkasan (total karyawan, total topik, sesi aktif, total partisipasi, rata-rata skor, tingkat kelulusan) dan daftar aktivitas terbaru. Semua angka dihitung dari data nyata yang sudah tercatat — tidak ada data contoh/placeholder.
-- **Topik** — tambah/edit/hapus topik: kode, judul, ambang lulus, gambar materi (opsional), materi (teks biasa), dan bank soal (ketik manual atau impor CSV). Detail di bawah.
+- **Topik** — tambah/edit/hapus topik: kode, judul, ambang lulus, gambar materi (opsional), materi (editor WYSIWYG), dan bank soal (ketik manual atau impor CSV). Detail di bawah.
 - **Sesi** — jadwalkan topik untuk tampil di kiosk: rentang tanggal berlaku, target perusahaan (opsional), status `draft`/`published`. Hanya sesi `published` & masih dalam rentang tanggal yang muncul di kiosk.
 - **Laporan** — ringkasan per perusahaan (jumlah peserta, lulus/belum, rata-rata skor, % kelulusan) di atas, lalu tabel detail per peserta yang bisa difilter per perusahaan, dengan tombol unduh CSV.
 - **Karyawan** — daftar seluruh karyawan (nama, NIK, perusahaan, jabatan, departemen) dengan pencarian. Baca saja — untuk mengubah roster, edit `SAMPLE.employees` di `config.js` (mode mock) atau tab `Master_Karyawan` di Sheet (mode sheets).
 
 ### Format materi
 
-Materi ditulis sebagai **teks biasa**, bukan HTML — aman dari kesalahan tag dan tidak bisa disalahgunakan untuk menyuntik HTML/script. Format ringan:
-- Setiap baris = satu paragraf.
-- Baris diawali `- ` = butir bullet (baris berurutan yang diawali `- ` otomatis jadi satu daftar).
-- Baris diawali `## ` = subjudul.
+Materi diketik lewat editor WYSIWYG (toolbar Bold/Italic/Underline, Subjudul/Teks, bullet/angka list, perataan) — hasilnya disimpan sebagai **HTML**, dirender apa adanya ke peserta. Karena admin adalah satu-satunya penulis materi (di balik login Panel Admin) dan bukan input publik, ini bukan celah XSS — sama posisi kepercayaannya dengan gambar materi yang juga di-set bebas oleh admin.
 
-Contoh:
-```
-Alat Pelindung Diri (APD) adalah pertahanan terakhir ketika bahaya tidak bisa dihilangkan dari sumbernya.
-## APD wajib di area operasi tambang
-- Helm keselamatan — lindungi kepala dari benturan.
-- Sepatu safety — pelindung ujung baja.
-## Prinsip pemakaian
-Periksa kondisi APD sebelum dipakai.
-```
+Topik LAMA yang materinya masih format teks-polos (`## ` subjudul, `- ` bullet, dari sebelum editor ini ada) tetap terbaca normal — dikonversi otomatis ke HTML begitu dibuka lagi di editor, tidak perlu migrasi data manual di Sheet.
 
 ### Gambar materi
 
@@ -173,7 +162,7 @@ Kode lengkapnya ada di `api/data.js` di repo ini (bukan ditempel manual seperti 
 | POST | `admin_login` | tidak* | tukar password dengan token sesi (12 jam) |
 | POST | `topic_save` / `topic_delete` | **ya** | kelola topik |
 | POST | `session_save` / `session_delete` | **ya** | kelola sesi |
-| POST | `upload_image` | **ya** | upload gambar materi ke Drive |
+| POST | `upload_image` | **ya** | upload gambar materi ke Vercel Blob |
 
 *`admin_login` tidak butuh `adminToken` (belum ada token untuk dicek), tapi tetap butuh `password` yang cocok dengan `ADMIN_TOKEN` di payload-nya.
 

@@ -876,6 +876,7 @@
       });
     });
     const rows = Object.values(groups)
+      .filter(g => g.wrong > 0) // kolom ini khusus soal yg pernah salah -- yg 0 salah tidak perlu diagnosis
       .map(g => {
         let topChoice = '-', topCount = 0;
         Object.entries(g.choiceCounts).forEach(([text, count]) => { if (count > topCount) { topChoice = text; topCount = count; } });
@@ -885,7 +886,10 @@
 
     const wrap = $('#question-analytics-body');
     if (!rows.length) {
-      wrap.innerHTML = `<tr><td colspan="7" class="px-6 py-4 text-on-surface-variant">Belum ada data untuk sesi ini. Analitik dihitung dari percobaan kuis setelah fitur ini aktif.</td></tr>`;
+      const msg = Object.keys(groups).length
+        ? 'Semua soal pada sesi ini selalu dijawab benar -- tidak ada yang perlu didiagnosis.'
+        : 'Belum ada data untuk sesi ini. Analitik dihitung dari percobaan kuis setelah fitur ini aktif.';
+      wrap.innerHTML = `<tr><td colspan="7" class="px-6 py-4 text-on-surface-variant">${msg}</td></tr>`;
       return;
     }
     wrap.innerHTML = rows.slice(0, 25).map(r => {

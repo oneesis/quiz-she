@@ -748,11 +748,10 @@
     return groups;
   }
 
-  function renderSummaryTable(elId, groups, showNotAttempted) {
+  function renderSummaryTable(elId, groups) {
     const wrap = $(elId);
     const names = Object.keys(groups).sort();
-    const colspan = showNotAttempted ? 7 : 6;
-    if (!names.length) { wrap.innerHTML = `<tr><td colspan="${colspan}" class="px-4 py-3 text-on-surface-variant">Belum ada data.</td></tr>`; return; }
+    if (!names.length) { wrap.innerHTML = `<tr><td colspan="6" class="px-4 py-3 text-on-surface-variant">Belum ada data.</td></tr>`; return; }
     wrap.innerHTML = names.map(name => {
       const g = groups[name];
       const avg = Math.round(g.scoreSum / g.total);
@@ -760,7 +759,6 @@
       return `<tr>
         <td class="px-4 py-3 font-medium">${escapeHtml(name)}</td><td class="px-4 py-3">${g.total}</td><td class="px-4 py-3">${g.passed}</td>
         <td class="px-4 py-3">${g.total - g.passed}</td><td class="px-4 py-3">${avg}%</td><td class="px-4 py-3 font-bold text-primary">${rate}%</td>
-        ${showNotAttempted ? `<td class="px-4 py-3">${g.notAttempted == null ? '-' : g.notAttempted}</td>` : ''}
       </tr>`;
     }).join('');
   }
@@ -769,37 +767,64 @@
     renderSummaryTable('#company-summary-body', buildSummary(list, p => p.perusahaan, 'Tanpa perusahaan'));
   }
 
-  // "Belum Mengerjakan" = orang dalam cakupan sesi topik itu yang belum
-  // pernah mencoba SAMA SEKALI (bukan cuma belum lulus) -- dihitung per
-  // ORANG (NIK unik dalam gabungan cakupan semua sesi topik ini), beda dgn
-  // kolom lain di tabel yang dihitung per PERCOBAAN (baris partisipasi).
-  // Butuh `lastEmployees` (roster) & `sessions` (buat tahu targetCompanies
-  // tiap sesi) -- keduanya sudah state modul yang ada, dipanggil dari sini
-  // langsung tanpa parameter tambahan.
-  function addNotAttemptedCounts(groups, participations) {
-    const attemptedByTopic = {};
-    participations.forEach(p => {
-      const key = p.topicCode || 'Tanpa topik';
-      (attemptedByTopic[key] || (attemptedByTopic[key] = new Set())).add(p.nik);
-    });
-    Object.keys(groups).forEach(topicCode => {
-      const topicSessions = sessions.filter(s => s.topicCode === topicCode);
-      if (!topicSessions.length) { groups[topicCode].notAttempted = null; return; } // belum pernah dijadwalkan -- tidak ada cakupan
-      const scopeNiks = new Set();
-      topicSessions.forEach(s => {
-        const scope = (s.targetCompanies || []).length ? lastEmployees.filter(e => s.targetCompanies.includes(e.perusahaan)) : lastEmployees;
-        scope.forEach(e => scopeNiks.add(e.nik));
-      });
-      const attempted = attemptedByTopic[topicCode] || new Set();
-      groups[topicCode].notAttempted = [...scopeNiks].filter(nik => !attempted.has(nik)).length;
-    });
-  }
-
+  // Ringkasan per Topik dihitung per ORANG dalam cakupan roster topik itu
+  // (gabungan targetCompanies semua sesinya), BUKAN per baris
+  // partisipasi/attempt -- beda dari Ringkasan per Perusahaan di atas yang
+  // tetap per-attempt. Ini supaya PESERTA = total karyawan yang seharusnya
+  // ikut (bukan cuma yang sempat menjawab) dan %LULUS jadi lebih
+  // mencerminkan kondisi nyata, bukan cuma dari yang mengerjakan saja.
+  // Topik yang sudah dijadwalkan sesi tapi belum ada satu pun yang
+  // mengerjakan tetap muncul (peserta = cakupan, lulus = 0) -- sengaja,
+  // supaya tidak hilang begitu saja dari laporan.
   async function renderTopicSummary(list) {
     if (!lastEmployees.length) lastEmployees = await API.listEmployees();
-    const groups = buildSummary(list, p => p.topicCode, 'Tanpa topik');
-    addNotAttemptedCounts(groups, list);
-    renderSummaryTable('#topic-summary-body', groups, true);
+    const attemptsByTopic = {};
+    list.forEach(p => {
+      const key = p.topicCode || 'Tanpa topik';
+      (attemptsByTopic[key] || (attemptsByTopic[key] = [])).push(p);
+    });
+    const topicCodes = new Set([...sessions.map(s => s.topicCode), ...Object.keys(attemptsByTopic)]);
+
+    const groups = {};
+    topicCodes.forEach(topicCode => {
+      const attempts = attemptsByTopic[topicCode] || [];
+      const topicSessions = sessions.filter(s => s.topicCode === topicCode);
+      const passedNiks = new Set(attempts.filter(p => p.passed).map(p => p.nik));
+      const attemptedNiks = new Set(attempts.map(p => p.nik));
+      let total, passed, notAttempted;
+      if (topicSessions.length) {
+        const scopeNiks = new Set();
+        topicSessions.forEach(s => {
+          const scope = (s.targetCompanies || []).length ? lastEmployees.filter(e => s.targetCompanies.includes(e.perusahaan)) : lastEmployees;
+          scope.forEach(e => scopeNiks.add(e.nik));
+        });
+        total = scopeNiks.size;
+        passed = [...scopeNiks].filter(nik => passedNiks.has(nik)).length;
+        notAttempted = [...scopeNiks].filter(nik => !attemptedNiks.has(nik)).length;
+      } else {
+        // topik tanpa sesi terjadwal (mis. data lama) -- tidak ada cakupan
+        // roster yg bisa dihitung, fallback ke jumlah orang yg pernah coba.
+        total = attemptedNiks.size;
+        passed = passedNiks.size;
+        notAttempted = null;
+      }
+      const avg = attempts.length ? Math.round(attempts.reduce((s, p) => s + (Number(p.score) || 0), 0) / attempts.length) : 0;
+      groups[topicCode || 'Tanpa topik'] = { total, passed, notAttempted, avg };
+    });
+
+    const wrap = $('#topic-summary-body');
+    const names = Object.keys(groups).sort();
+    if (!names.length) { wrap.innerHTML = `<tr><td colspan="7" class="px-4 py-3 text-on-surface-variant">Belum ada data.</td></tr>`; return; }
+    wrap.innerHTML = names.map(name => {
+      const g = groups[name];
+      const rate = g.total ? Math.round((g.passed / g.total) * 100) : 0;
+      return `<tr>
+        <td class="px-4 py-3 font-medium">${escapeHtml(name)}</td><td class="px-4 py-3">${g.total}</td><td class="px-4 py-3">${g.passed}</td>
+        <td class="px-4 py-3">${g.total - g.passed}</td><td class="px-4 py-3">${g.avg}%</td>
+        <td class="px-4 py-3">${g.notAttempted == null ? '-' : g.notAttempted}</td>
+        <td class="px-4 py-3 font-bold text-primary">${rate}%</td>
+      </tr>`;
+    }).join('');
   }
 
   // Sesi yang sama bisa dipakai berkali-kali (mis. sesi bulanan pakai topik

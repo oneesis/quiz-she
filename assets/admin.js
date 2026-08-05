@@ -703,6 +703,13 @@
     const body = $('#reports-body');
     body.innerHTML = `<tr><td colspan="8" class="px-6 py-4 text-on-surface-variant">Memuat…</td></tr>`;
     try {
+      // openDashboard() sengaja pindah ke tab Dashboard duluan sementara
+      // reloadData() (isi topics/sessions) masih jalan di belakang (lihat
+      // komentarnya) -- kalau admin buru-buru klik Laporan sebelum itu
+      // selesai, sessions/topics masih [] di sini. Semua yang di bawah
+      // (ringkasan topik, dropdown analitik, Belum Lulus per Sesi) butuh
+      // sessions terisi, jadi ditunggu dulu kalau belum ada.
+      if (!sessions.length) await reloadData();
       lastReports = await API.listParticipations();
       renderCompanySummary(lastReports);
       await renderTopicSummary(lastReports);

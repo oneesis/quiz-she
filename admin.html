@@ -191,8 +191,12 @@
             </button>
           </div>
 
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div class="bg-white rounded-2xl border border-outline-variant card-shadow overflow-hidden">
+          <!-- Ringkasan per Topik butuh lebih lebar dari per Perusahaan (1 kolom
+               ekstra "Belum Mengerjakan" + nama topik yang lebih panjang) --
+               grid 8 kolom, 3:5 bukan 1:1, biar tabel topik tidak perlu
+               scroll horizontal selagi kartu Perusahaan masih longgar. -->
+          <div class="grid grid-cols-1 lg:grid-cols-8 gap-6">
+            <div class="lg:col-span-3 bg-white rounded-2xl border border-outline-variant card-shadow overflow-hidden">
               <div class="px-6 py-4 border-b border-outline-variant bg-surface-container-low">
                 <h3 class="font-bold text-primary">Ringkasan per Perusahaan</h3>
               </div>
@@ -209,7 +213,7 @@
               </div>
             </div>
 
-            <div class="bg-white rounded-2xl border border-outline-variant card-shadow overflow-hidden">
+            <div class="lg:col-span-5 bg-white rounded-2xl border border-outline-variant card-shadow overflow-hidden">
               <div class="px-6 py-4 border-b border-outline-variant bg-surface-container-low">
                 <h3 class="font-bold text-primary">Ringkasan per Topik</h3>
               </div>

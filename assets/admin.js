@@ -705,7 +705,7 @@
     try {
       lastReports = await API.listParticipations();
       renderCompanySummary(lastReports);
-      renderTopicSummary(lastReports);
+      await renderTopicSummary(lastReports);
       populateQuestionAnalyticsSessionSelect();
       renderQuestionAnalytics(lastReports, $('#question-analytics-session-select').value);
       populateFilter('#reports-company-filter', lastReports, p => p.perusahaan, 'Semua perusahaan');
@@ -748,10 +748,11 @@
     return groups;
   }
 
-  function renderSummaryTable(elId, groups) {
+  function renderSummaryTable(elId, groups, showNotAttempted) {
     const wrap = $(elId);
     const names = Object.keys(groups).sort();
-    if (!names.length) { wrap.innerHTML = `<tr><td colspan="6" class="px-4 py-3 text-on-surface-variant">Belum ada data.</td></tr>`; return; }
+    const colspan = showNotAttempted ? 7 : 6;
+    if (!names.length) { wrap.innerHTML = `<tr><td colspan="${colspan}" class="px-4 py-3 text-on-surface-variant">Belum ada data.</td></tr>`; return; }
     wrap.innerHTML = names.map(name => {
       const g = groups[name];
       const avg = Math.round(g.scoreSum / g.total);
@@ -759,6 +760,7 @@
       return `<tr>
         <td class="px-4 py-3 font-medium">${escapeHtml(name)}</td><td class="px-4 py-3">${g.total}</td><td class="px-4 py-3">${g.passed}</td>
         <td class="px-4 py-3">${g.total - g.passed}</td><td class="px-4 py-3">${avg}%</td><td class="px-4 py-3 font-bold text-primary">${rate}%</td>
+        ${showNotAttempted ? `<td class="px-4 py-3">${g.notAttempted == null ? '-' : g.notAttempted}</td>` : ''}
       </tr>`;
     }).join('');
   }
@@ -767,8 +769,37 @@
     renderSummaryTable('#company-summary-body', buildSummary(list, p => p.perusahaan, 'Tanpa perusahaan'));
   }
 
-  function renderTopicSummary(list) {
-    renderSummaryTable('#topic-summary-body', buildSummary(list, p => p.topicCode, 'Tanpa topik'));
+  // "Belum Mengerjakan" = orang dalam cakupan sesi topik itu yang belum
+  // pernah mencoba SAMA SEKALI (bukan cuma belum lulus) -- dihitung per
+  // ORANG (NIK unik dalam gabungan cakupan semua sesi topik ini), beda dgn
+  // kolom lain di tabel yang dihitung per PERCOBAAN (baris partisipasi).
+  // Butuh `lastEmployees` (roster) & `sessions` (buat tahu targetCompanies
+  // tiap sesi) -- keduanya sudah state modul yang ada, dipanggil dari sini
+  // langsung tanpa parameter tambahan.
+  function addNotAttemptedCounts(groups, participations) {
+    const attemptedByTopic = {};
+    participations.forEach(p => {
+      const key = p.topicCode || 'Tanpa topik';
+      (attemptedByTopic[key] || (attemptedByTopic[key] = new Set())).add(p.nik);
+    });
+    Object.keys(groups).forEach(topicCode => {
+      const topicSessions = sessions.filter(s => s.topicCode === topicCode);
+      if (!topicSessions.length) { groups[topicCode].notAttempted = null; return; } // belum pernah dijadwalkan -- tidak ada cakupan
+      const scopeNiks = new Set();
+      topicSessions.forEach(s => {
+        const scope = (s.targetCompanies || []).length ? lastEmployees.filter(e => s.targetCompanies.includes(e.perusahaan)) : lastEmployees;
+        scope.forEach(e => scopeNiks.add(e.nik));
+      });
+      const attempted = attemptedByTopic[topicCode] || new Set();
+      groups[topicCode].notAttempted = [...scopeNiks].filter(nik => !attempted.has(nik)).length;
+    });
+  }
+
+  async function renderTopicSummary(list) {
+    if (!lastEmployees.length) lastEmployees = await API.listEmployees();
+    const groups = buildSummary(list, p => p.topicCode, 'Tanpa topik');
+    addNotAttemptedCounts(groups, list);
+    renderSummaryTable('#topic-summary-body', groups, true);
   }
 
   // Sesi yang sama bisa dipakai berkali-kali (mis. sesi bulanan pakai topik
@@ -947,10 +978,10 @@
 
   async function computeMissingReport(sessionId) {
     const body = $('#missing-report-body');
-    body.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-on-surface-variant">Memuat…</td></tr>`;
+    body.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-on-surface-variant">Memuat…</td></tr>`;
     try {
       const session = sessions.find(s => s.id === sessionId);
-      if (!session) { body.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-on-surface-variant">Sesi tidak ditemukan.</td></tr>`; return; }
+      if (!session) { body.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-on-surface-variant">Sesi tidak ditemukan.</td></tr>`; return; }
       if (!lastEmployees.length) lastEmployees = await API.listEmployees();
       if (!lastReports.length) lastReports = await API.listParticipations();
 
@@ -959,31 +990,35 @@
         : lastEmployees;
       const forSession = lastReports.filter(p => p.sessionId === sessionId);
       const passedNiks = new Set(forSession.filter(p => p.passed).map(p => p.nik));
-      lastMissingList = scope.filter(e => !passedNiks.has(e.nik));
+      // status dihitung sekali di sini & ditempel ke tiap objek karyawan --
+      // dipakai ulang oleh tabel di bawah dan tombol "Salin buat WA"
+      // (buildMissingWhatsAppText) supaya tidak dihitung dua kali.
+      lastMissingList = scope.filter(e => !passedNiks.has(e.nik)).map(e => {
+        const missing = isMissingNik(e);
+        const attempts = forSession.filter(p => p.nik === e.nik).sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
+        const status = missing ? 'NIK belum diisi di roster' : (attempts.length ? `Sudah coba, skor terakhir ${attempts[0].score}%` : 'Belum coba');
+        return { ...e, missing, status };
+      });
       renderDeptChart(scope, passedNiks);
 
       $('#missing-count').textContent = `${lastMissingList.length} dari ${scope.length} karyawan dalam cakupan belum lulus`;
       if (!lastMissingList.length) {
-        body.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-green-700 font-bold">Semua karyawan dalam cakupan sudah lulus.</td></tr>`;
+        body.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-green-700 font-bold">Semua karyawan dalam cakupan sudah lulus.</td></tr>`;
         return;
       }
-      body.innerHTML = lastMissingList.map(e => {
-        const missing = isMissingNik(e);
-        const attempts = forSession.filter(p => p.nik === e.nik).sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
-        const status = missing ? 'NIK belum diisi di roster' : (attempts.length ? `Sudah coba, skor terakhir ${attempts[0].score}%` : 'Belum coba');
-        return `<tr class="${missing ? 'bg-error-container/20' : ''}">
-          <td class="px-6 py-3 font-medium">${missing
+      body.innerHTML = lastMissingList.map(e => `<tr class="${e.missing ? 'bg-error-container/20' : ''}">
+          <td class="px-6 py-3 font-medium">${e.missing
             ? escapeHtml(e.nama || '-')
             : `<button type="button" class="history-link text-primary hover:underline" data-nik="${escapeAttr(e.nik)}" data-nama="${escapeAttr(e.nama)}">${escapeHtml(e.nama || '-')}</button>`}</td>
-          <td class="px-6 py-3 font-mono text-xs">${missing ? '<span class="text-error font-bold">Kosong</span>' : escapeHtml(e.nik)}</td>
+          <td class="px-6 py-3 font-mono text-xs">${e.missing ? '<span class="text-error font-bold">Kosong</span>' : escapeHtml(e.nik)}</td>
           <td class="px-6 py-3">${escapeHtml(e.perusahaan || '-')}</td>
           <td class="px-6 py-3">${escapeHtml(e.jabatan || '-')}</td>
-          <td class="px-6 py-3">${escapeHtml(status)}</td>
-        </tr>`;
-      }).join('');
+          <td class="px-6 py-3">${escapeHtml(e.departemen || '-')}</td>
+          <td class="px-6 py-3">${escapeHtml(e.status)}</td>
+        </tr>`).join('');
       $$('.history-link', body).forEach(b => b.onclick = () => openEmployeeHistory(b.dataset.nik, b.dataset.nama));
     } catch (e) {
-      body.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-error">Gagal memuat. Periksa koneksi lalu coba lagi.</td></tr>`;
+      body.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-error">Gagal memuat. Periksa koneksi lalu coba lagi.</td></tr>`;
     }
   }
 
@@ -992,6 +1027,33 @@
     const cols = ['nama', 'nik', 'perusahaan', 'jabatan', 'departemen'];
     const sessionTitle = $('#missing-session-select option:checked').textContent.trim();
     downloadCsv(lastMissingList, cols, `belum-lulus-${sessionTitle.replace(/[^a-z0-9]+/gi, '-')}.csv`);
+  }
+
+  // Teks siap-tempel buat grup WA -- dikelompokkan per departemen, pakai
+  // status yang sama persis dengan tabel di atas (dari computeMissingReport).
+  function buildMissingWhatsAppText() {
+    const sessionTitle = $('#missing-session-select option:checked').textContent.trim();
+    const groups = {};
+    lastMissingList.forEach(e => {
+      const dept = e.departemen || 'Tanpa Departemen';
+      (groups[dept] || (groups[dept] = [])).push(e);
+    });
+    const lines = [`*Belum Lulus -- ${sessionTitle}*`, $('#missing-count').textContent, ''];
+    Object.keys(groups).sort().forEach(dept => {
+      lines.push(`*${dept}*`);
+      groups[dept].forEach((e, i) => lines.push(`${i + 1}. ${e.nama || '-'} (${e.perusahaan || '-'}) - ${e.status}`));
+      lines.push('');
+    });
+    return lines.join('\n').trim();
+  }
+  async function copyMissingForWhatsApp() {
+    if (!lastMissingList.length) { alert('Tidak ada data untuk disalin.'); return; }
+    try {
+      await navigator.clipboard.writeText(buildMissingWhatsAppText());
+      alert('Teks tersalin -- siap ditempel ke grup WhatsApp.');
+    } catch (e) {
+      alert('Gagal menyalin (browser mungkin tidak mengizinkan). Coba lagi.');
+    }
   }
 
   // ============================================================
@@ -1116,6 +1178,7 @@
     $('#missing-session-select').addEventListener('change', (e) => computeMissingReport(e.target.value));
     $('#question-analytics-session-select').addEventListener('change', (e) => renderQuestionAnalytics(lastReports, e.target.value));
     $('#btn-export-missing-csv').onclick = exportMissingCsv;
+    $('#btn-copy-missing-wa').onclick = copyMissingForWhatsApp;
     $('#employees-search').addEventListener('input', applyEmployeeSearch);
 
     $('#btn-history-close').onclick = closeEmployeeHistory;

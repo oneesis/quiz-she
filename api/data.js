@@ -1,20 +1,17 @@
 // ============================================================
 // Backend Sharing Session -- penyimpanan Google Drive.
 // Data disimpan sbg 4 file JSON (employees/topics/sessions/participations)
-// di satu folder Google Drive. Service account TIDAK PERNAH dapat kuota
-// penyimpanan sendiri di My Drive biasa (kebijakan Google sejak 2020) --
-// butuh salah satu dari dua ini:
-//   1. Shared Drive -- FOLDER_ID ada di dalam Shared Drive Workspace, service
-//      account jadi member-nya (kuota milik Shared Drive, bukan akun). TIDAK
-//      butuh GOOGLE_IMPERSONATE_EMAIL.
-//   2. Domain-wide delegation -- GOOGLE_IMPERSONATE_EMAIL diisi email user
-//      Workspace asli; service account "menyamar" jadi user itu (perlu
-//      di-authorize Super Admin di Admin Console -> Security -> API
-//      controls -> Domain-wide Delegation, pakai Client ID service account).
-//      FOLDER_ID tinggal folder biasa di My Drive user itu, kuotanya ikut
-//      kuota user itu sendiri -- tidak perlu Shared Drive sama sekali.
-// Kedua mode pakai kode yang SAMA di bawah -- tinggal ada/tidaknya
-// GOOGLE_IMPERSONATE_EMAIL yang menentukan.
+// di satu folder Google Drive, di My Drive akun Google biasa (bukan Shared
+// Drive, bukan Workspace).
+//
+// Auth pakai OAuth client biasa + refresh token (BUKAN service account) --
+// service account TIDAK PERNAH dapat kuota penyimpanan sendiri di My Drive
+// (kebijakan Google sejak 2020), dan dua workaround-nya (Shared Drive,
+// domain-wide delegation) SAMA-SAMA butuh Google Workspace + admin, yang
+// tidak tersedia di sini. OAuth client biasa (login manusia sungguhan sekali
+// di awal, lalu refresh_token dipakai backend seterusnya) jalan di akun
+// Google APA PUN, termasuk Gmail pribadi -- itu kenapa dipilih di sini.
+// Skrip satu-kali buat dapat refresh_token-nya ada di README.
 //
 // Kontrak endpoint (action-based, satu handler) TIDAK BERUBAH dari versi
 // Sheets sebelumnya -- assets/api.js di sisi klien tidak perlu diubah.
@@ -27,12 +24,9 @@ const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
 const FILES = { employees: 'employees.json', topics: 'topics.json', sessions: 'sessions.json', participations: 'participations.json' };
 
 function getAuth() {
-  return new google.auth.JWT({
-    email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    key: (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
-    scopes: ['https://www.googleapis.com/auth/drive'],
-    subject: process.env.GOOGLE_IMPERSONATE_EMAIL || undefined,
-  });
+  const oauth2 = new google.auth.OAuth2(process.env.GOOGLE_OAUTH_CLIENT_ID, process.env.GOOGLE_OAUTH_CLIENT_SECRET);
+  oauth2.setCredentials({ refresh_token: process.env.GOOGLE_OAUTH_REFRESH_TOKEN });
+  return oauth2; // googleapis otomatis tukar refresh_token -> access_token baru tiap perlu, tidak perlu dikelola manual di sini
 }
 
 // Klien & fileId dipakai ulang antar-invocation kalau instance function

@@ -104,41 +104,24 @@ Soal yang berhasil diparsing ditambahkan ke bank soal yang sudah ada (tidak meni
 
 ## Menyambung ke Google Drive (mode `sheets`)
 
-Situs statis tidak bisa membaca/menulis Drive privat sendiri secara aman. Jembatannya = **`api/data.js`**, satu serverless function di Vercel yang bicara langsung ke **Google Drive API v3** pakai kredensial *service account*. Data disimpan sebagai **4 file JSON** (`employees.json`, `topics.json`, `sessions.json`, `participations.json`) di satu folder Google Drive — bisa dibuka/diunduh manual kapan saja lewat Drive, mirip semangatnya dengan Sheet sebelumnya, cuma bentuknya JSON bukan grid.
+Situs statis tidak bisa membaca/menulis Drive privat sendiri secara aman. Jembatannya = **`api/data.js`**, satu serverless function di Vercel yang bicara langsung ke **Google Drive API v3**. Data disimpan sebagai **4 file JSON** (`employees.json`, `topics.json`, `sessions.json`, `participations.json`) di satu folder Google Drive — bisa dibuka/diunduh manual kapan saja lewat Drive, mirip semangatnya dengan Sheet sebelumnya, cuma bentuknya JSON bukan grid.
 
 Nama mode di kode masih `'sheets'` (peninggalan versi sebelumnya, di `assets/config.js`/`assets/api.js`) — sengaja tidak diganti supaya diff migrasi minimal; secara fungsi backend-nya sekarang 100% Google Drive, bukan Google Sheets lagi.
 
-Service account biasa **tidak pernah** dapat kuota penyimpanan sendiri di My Drive (kebijakan Google sejak 2020). Ada 2 cara mengatasi ini — pakai salah satu:
+**Auth pakai OAuth client biasa + refresh token — BUKAN service account.** Service account tidak pernah dapat kuota penyimpanan sendiri di My Drive (kebijakan Google sejak 2020), dan dua workaround-nya (Shared Drive, domain-wide delegation) sama-sama butuh Google Workspace + admin. OAuth client biasa (login manusia sungguhan **sekali** di awal buat kasih izin, lalu backend pakai *refresh token* seterusnya tanpa perlu login ulang) jalan di akun Google **apa pun** — Gmail pribadi, Google One, atau Workspace — karena yang dipakai adalah kuota akun manusia itu sendiri.
 
-| | Shared Drive | Domain-wide delegation |
-|---|---|---|
-| Butuh | Bisa buat Shared Drive (kadang dimatikan admin org) | Super Admin authorize di Admin Console |
-| Kuota dipakai | Milik Shared Drive/organisasi | Milik user Workspace yang di-*impersonate* |
-| Setup Drive | Buat Shared Drive, tambah service account jadi member | Cukup folder biasa di My Drive user itu |
-| Env var tambahan | — | `GOOGLE_IMPERSONATE_EMAIL` |
+### Langkah 1 — Google Cloud (OAuth client)
 
-Dokumen ini pakai **domain-wide delegation** (opsi yang dipakai proyek ini saat ini) — kode di `api/data.js` sebenarnya mendukung dua-duanya sekaligus (lihat komentar di bagian atas file), tinggal isi atau kosongkan `GOOGLE_IMPERSONATE_EMAIL`.
-
-### Langkah 1a — Domain-wide delegation (opsi yang dipakai)
-
-1. Buka [console.cloud.google.com](https://console.cloud.google.com), buat/pilih project, **APIs & Services → Library** — enable **Google Drive API**.
-2. **APIs & Services → Credentials → Create Credentials → Service Account**. Nama bebas.
-3. Service account itu → **Keys → Add Key → Create new key → JSON**. Simpan baik-baik, **jangan pernah commit ke repo**. Catat `client_email` dan `client_id` dari file ini.
-4. **Google Admin Console** (admin.google.com, perlu **Super Admin**) → **Security → Access and data control → API controls → Domain-wide Delegation → Add new**:
-   - **Client ID**: `client_id` dari langkah 3 (bukan `client_email`).
-   - **OAuth scopes**: `https://www.googleapis.com/auth/drive`
-5. Pilih **1 user Workspace asli** yang akan "ditumpangi" identitasnya (mis. akun kerja pemilik aplikasi ini) — service account akan bertindak seolah-olah jadi user itu, jadi kuota Drive-nya ikut kuota user itu sendiri. Catat emailnya.
-6. Di My Drive user itu, buat/pakai 1 folder (boleh pakai folder yang sudah ada) untuk data aplikasi. Salin ID-nya dari URL (bagian setelah `/folders/`). **Tidak perlu** Shared Drive maupun langkah share-menyembagikan — karena "jadi" user itu, service account otomatis punya akses yang sama seperti user itu ke foldernya sendiri.
+1. Buka [console.cloud.google.com](https://console.cloud.google.com), buat/pilih project.
+2. **APIs & Services → Library** — enable **Google Drive API**.
+3. **APIs & Services → OAuth consent screen** — kalau belum pernah diisi: User Type **External**, isi nama app & email kontak seadanya, lalu di bagian **Test users** tambahkan email akun Google yang akan dipakai (langkah 5). Status **Testing** saja sudah cukup, tidak perlu publish/verifikasi Google.
+4. **APIs & Services → Credentials → Create Credentials → OAuth client ID** — Application type **Desktop app**, nama bebas. Setelah dibuat, catat **Client ID** & **Client Secret** (atau unduh JSON-nya).
+5. Jalankan skrip otorisasi satu-kali (lihat di bawah) — ini yang minta kamu login lewat browser & klik "Allow", lalu keluar `refresh_token`. Login pakai akun Google yang mau dipakai jadi tempat penyimpanan data (kuota Drive akun itu yang dipakai).
+6. Di My Drive akun itu, buat/pakai 1 folder untuk data aplikasi (boleh folder yang sudah ada). Salin ID-nya dari URL (bagian setelah `/folders/`).
 
 File `employees.json`/`topics.json`/`sessions.json`/`participations.json` **dibuat otomatis** (isi `[]`) di folder ini saat pertama kali dipakai — tidak perlu dibuat manual.
 
-### Langkah 1b — Shared Drive (alternatif kalau tidak mau delegation)
-
-1-4 sama seperti di atas (Google Cloud + service account + catat `client_email`).
-5. Di Google Drive (akun Workspace), buat **Shared Drive** baru (atau pakai yang sudah ada) → **Manage members** → tempel `client_email` → beri akses **Content Manager**.
-6. Di dalam Shared Drive itu, buat 1 folder baru, salin ID-nya dari URL.
-
-Kalau organisasi tidak punya Google Workspace sama sekali (Gmail pribadi biasa), **kedua opsi di atas tidak akan jalan** — tidak ada solusi murah lain selain pindah ke Workspace atau ganti penyimpanan (mis. balik ke pola Vercel Blob/KV seperti gambar materi).
+**Skrip otorisasi satu-kali** (dapat `refresh_token`) — minta dibuatkan & dijalankan bareng lewat chat kalau butuh; intinya generate URL consent Google pakai Client ID/Secret dari langkah 4, buka di browser, login & Allow, lalu tukar `code` hasil redirect jadi `refresh_token` lewat endpoint token Google. Sekali jalan saja — hasilnya (`refresh_token`) disimpan sbg env var (langkah 2), bukan dijalankan tiap request.
 
 **Pembagian peran** (sama seperti sebelumnya, cuma tempat simpannya beda):
 - **Roster karyawan** → dibaca dari `employees.json`.
@@ -159,13 +142,13 @@ Project di Vercel → **Settings → Environment Variables**, tambah:
 
 | Nama | Isi |
 |---|---|
-| `GOOGLE_SERVICE_ACCOUNT_EMAIL` | `client_email` dari file JSON |
-| `GOOGLE_PRIVATE_KEY` | `private_key` dari file JSON (tempel apa adanya, termasuk `-----BEGIN PRIVATE KEY-----`) |
-| `GOOGLE_DRIVE_FOLDER_ID` | ID folder (dari langkah 1a.6 kalau pakai delegation, atau 1b.6 kalau pakai Shared Drive) |
-| `GOOGLE_IMPERSONATE_EMAIL` | **cuma kalau pakai delegation (1a)** — email user Workspace yang di-*impersonate*. Kosongkan/hapus kalau pakai Shared Drive (1b). |
+| `GOOGLE_OAUTH_CLIENT_ID` | Client ID dari langkah 1.4 |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | Client Secret dari langkah 1.4 |
+| `GOOGLE_OAUTH_REFRESH_TOKEN` | hasil skrip otorisasi di langkah 1.5 |
+| `GOOGLE_DRIVE_FOLDER_ID` | ID folder dari langkah 1.6 |
 | `ADMIN_TOKEN` | sama persis dengan `CONFIG.admin.password` di `assets/config.js` |
 
-Kalau sebelumnya sempat pakai mode Sheets, `GOOGLE_SPREADSHEET_ID` boleh dihapus — tidak dipakai lagi oleh `api/data.js`.
+Kalau sebelumnya sempat pakai mode Sheets atau percobaan service account, `GOOGLE_SPREADSHEET_ID`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY` boleh dihapus — tidak dipakai lagi oleh `api/data.js`.
 
 Redeploy project setelah menambah/mengubah env var (Vercel tidak otomatis redeploy hanya karena env var berubah).
 
@@ -210,7 +193,7 @@ Tiap tulis (`topic_save`, `session_save`, `participation`, dll.) membaca seluruh
 - **Panel Admin tetap satu password bersama** (bukan akun per-orang) — cukup untuk tim kecil yang saling percaya, bukan untuk banyak admin dengan hak berbeda-beda. Tapi di mode `sheets`, password aslinya **tidak lagi tersimpan/terkirim ke browser**: `CONFIG.admin.password` di `config.js` cuma dipakai mode `mock` (demo lokal). Login sungguhan mengirim password ke `api/data.js`, dicek di server terhadap `ADMIN_TOKEN` (env var Vercel, tidak pernah ke klien), dan yang dibalas ke browser cuma **token sesi** bertanda tangan (HMAC) yang kedaluwarsa sendiri dalam 12 jam — bukan passwordnya. Siapa pun yang buka "View Source" tidak akan menemukan password aslinya lagi. Kalau butuh lebih dari ini (akun per-admin, audit log siapa mengubah apa), itu perubahan lebih besar — taruh `admin.html` di balik autentikasi level hosting atau bangun sistem akun sungguhan.
 - **Tanpa mode `sheets`, hasil tidak terekam terpusat.** Mode `mock` menyimpan hasil hanya di browser perangkat itu (localStorage). Untuk rekap compliance lintas perangkat, sambungkan ke Google Drive (lihat [Menyambung ke Google Drive](#menyambung-ke-google-drive-mode-sheets)).
 - **Verifikasi QR** di mode `mock` hanya berlaku di perangkat yang sama. Verifikasi lintas perangkat butuh mode `sheets`.
-- **Kredensial service account** (`GOOGLE_PRIVATE_KEY` dkk.) tersimpan sebagai environment variable di Vercel, bukan di kode — jangan pernah commit file JSON service account ke Git.
+- **Kredensial OAuth** (`GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REFRESH_TOKEN`) tersimpan sebagai environment variable di Vercel, bukan di kode — jangan pernah commit ke Git. `refresh_token` setara "kunci masuk selamanya" ke akun Drive yang dipakai; kalau bocor, cabut aksesnya di [myaccount.google.com/permissions](https://myaccount.google.com/permissions) (cari nama app OAuth-nya) lalu ulangi skrip otorisasi buat dapat token baru.
 - **PDF sertifikat** dibuat di browser (html2canvas + jsPDF); hasil mengikuti tampilan kartu di layar.
 
 ---

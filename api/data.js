@@ -1,78 +1,91 @@
 // ============================================================
-// Backend Sharing Session -- pengganti Apps Script.
-// Data TETAP di Google Sheet yang sama (biar gampang dicek manual),
-// cuma "pintu"-nya diganti: dari Apps Script (lambat, cold-start berat)
-// jadi Vercel serverless function yang bicara langsung ke Google Sheets
-// API v4 + Drive API v3 lewat service account.
+// Backend Sharing Session -- penyimpanan Google Drive.
+// Data disimpan sbg 4 file JSON (employees/topics/sessions/participations)
+// di satu folder Google Drive, di dalam SHARED DRIVE Workspace (wajib --
+// service account TIDAK PERNAH dapat kuota penyimpanan sendiri di My Drive
+// biasa, kebijakan Google sejak 2020; kuota Shared Drive milik organisasi,
+// bukan milik akun, jadi service account bisa baca/tulis di sana selama
+// jadi member Shared Drive itu).
 //
-// Kontrak endpoint (action-based, satu handler) sengaja dibuat SAMA
-// PERSIS dengan Apps Script lama supaya assets/api.js di sisi klien
-// tidak perlu diubah sama sekali -- cuma appsScriptUrl di config.js
-// yang diarahkan ke sini.
+// Kontrak endpoint (action-based, satu handler) TIDAK BERUBAH dari versi
+// Sheets sebelumnya -- assets/api.js di sisi klien tidak perlu diubah.
 // ============================================================
 const { google } = require('googleapis');
 
-const SPREADSHEET_ID = process.env.GOOGLE_SPREADSHEET_ID;
+const FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
-const ROSTER = 'Master_Karyawan';
-const RESULTS = 'Partisipasi';
-const TOPICS = 'Topics';
-const SESSIONS = 'Session';
+
+const FILES = { employees: 'employees.json', topics: 'topics.json', sessions: 'sessions.json', participations: 'participations.json' };
 
 function getAuth() {
   return new google.auth.JWT({
     email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
     key: (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
-    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    scopes: ['https://www.googleapis.com/auth/drive'],
   });
 }
 
-// Klien dipakai ulang antar-invocation kalau instance function masih
-// "hangat" (Vercel Fluid Compute) -- lumayan ngirit dibanding re-auth tiap
-// panggilan, walau tidak dijamin selalu kepakai (instance bisa cold lagi).
-let _sheets;
-function clients() {
-  if (!_sheets) {
-    const auth = getAuth();
-    _sheets = google.sheets({ version: 'v4', auth });
-  }
-  return { sheets: _sheets };
+// Klien & fileId dipakai ulang antar-invocation kalau instance function
+// masih "hangat" (Vercel Fluid Compute) -- irit dibanding re-auth + re-cari
+// file tiap panggilan; aman karena fileId tidak berubah selama filenya
+// tidak dihapus manual dari Drive.
+let _drive;
+function drive() {
+  if (!_drive) _drive = google.drive({ version: 'v3', auth: getAuth() });
+  return _drive;
 }
 
-// ---- util tanggal ----
-// Sheets API balikin tanggal sebagai serial number (hari sejak 30 Des 1899,
-// epoch yang sama dengan Excel) kalau selnya kebetulan bertipe Date -- ini
-// bisa kejadian di baris LAMA yang ditulis Apps Script dulu (sebelum fix
-// RAW input di bawah). Baris BARU dari backend ini tidak akan kena masalah
-// ini sama sekali karena selalu ditulis pakai valueInputOption RAW (Sheets
-// tidak akan coba "pintar" mengubah teks tanggal jadi sel bertipe Date).
-function serialToDateStr(v) {
-  if (typeof v === 'number') {
-    // Sel legacy bertipe Date (dari sebelum tulis pakai RAW) -- jam-nya
-    // tidak pernah bermakna (selalu tengah malam), jadi aman disederhanakan
-    // jadi tanggal polos.
-    const ms = Date.UTC(1899, 11, 30) + v * 86400000;
-    return new Date(ms).toISOString().slice(0, 10);
-  }
-  // String ditulis apa adanya (RAW) -- BUKAN dipotong ke 10 karakter, supaya
-  // "yyyy-MM-ddTHH:mm" (sesi dengan jam spesifik) tidak kehilangan jamnya.
-  return String(v || '');
+const _fileIds = {};
+// Cari file JSON berdasarkan nama di dalam FOLDER_ID; bikin baru (isi array
+// kosong) kalau belum ada -- self-heal di folder Drive baru/kosong.
+async function fileId(key) {
+  if (_fileIds[key]) return _fileIds[key];
+  const d = drive();
+  const name = FILES[key];
+  const q = `name='${name}' and '${FOLDER_ID}' in parents and trashed=false`;
+  const found = await d.files.list({ q, fields: 'files(id)', supportsAllDrives: true, includeItemsFromAllDrives: true });
+  if (found.data.files.length) return (_fileIds[key] = found.data.files[0].id);
+  const created = await d.files.create({
+    requestBody: { name, parents: [FOLDER_ID] },
+    media: { mimeType: 'application/json', body: '[]' },
+    fields: 'id', supportsAllDrives: true,
+  });
+  return (_fileIds[key] = created.data.id);
 }
 
-// Kolom "waktu" (submittedAt) di Partisipasi: baris LAMA (ditulis backend
-// Apps Script sebelum migrasi ke sini) pakai objek Date asli, kebaca balik
-// sebagai serial number oleh Sheets API. new Date(angka) di klien
-// menafsirkan angka itu sbg milidetik-sejak-epoch, bukan hari-sejak-1899 --
-// hasilnya tanggal nyasar ke "1 Januari 1970". Baris BARU (ditulis lewat
-// appendRow RAW di sini sbg string ISO) tidak kena masalah ini sama sekali.
-// Presisi jam utk baris lama diabaikan (dianggap tengah malam) -- cukup
-// utk data lama yg cuma dipakai buat riwayat, tidak krusial persis jamnya.
-function serialToISODateTime(v) {
-  if (typeof v === 'number') {
-    const ms = Date.UTC(1899, 11, 30) + Math.floor(v) * 86400000;
-    return new Date(ms).toISOString();
-  }
-  return String(v || '');
+async function readJSON(key) {
+  const id = await fileId(key);
+  const res = await drive().files.get({ fileId: id, alt: 'media', supportsAllDrives: true });
+  let data = res.data;
+  if (Buffer.isBuffer(data)) data = data.toString('utf8');
+  if (Array.isArray(data)) return data; // googleapis auto-parse kalau Content-Type application/json
+  try { return JSON.parse(data || '[]'); } catch (e) { return []; }
+}
+
+// Timpa SELURUH isi file dengan array baru -- Drive API tidak punya partial
+// update konten file, jadi tiap tulis = baca-lengkap -> ubah -> tulis-lengkap.
+// Race theoretically mungkin kalau 2 penulisan ke koleksi yg SAMA persis
+// bersamaan (dua baca-lama saling menimpa tulisan satu sama lain) -- risiko
+// sama seperti dulu di Sheets (LockService tidak ada di sana juga), diterima
+// utk kiosk fisik yang dipakai bergantian satu per satu. File juga cuma
+// tumbuh (tidak dipangkas) -- kalau participations.json jadi besar & lambat
+// dlm hitungan tahun, upgrade-nya arsipkan data lama ke file terpisah per
+// tahun, atau pindah ke database sungguhan.
+async function writeJSON(key, arr) {
+  const id = await fileId(key);
+  await drive().files.update({ fileId: id, media: { mimeType: 'application/json', body: JSON.stringify(arr) }, supportsAllDrives: true });
+}
+
+async function saveByKey(key, keyField, keyVal, obj) {
+  const list = await readJSON(key);
+  const i = list.findIndex(x => String(x[keyField]) === String(keyVal));
+  if (i === -1) list.push(obj); else list[i] = obj;
+  await writeJSON(key, list);
+}
+
+async function deleteByKey(key, keyField, keyVal) {
+  const list = await readJSON(key);
+  await writeJSON(key, list.filter(x => String(x[keyField]) !== String(keyVal)));
 }
 
 function jakartaParts(date) {
@@ -83,150 +96,81 @@ function jakartaParts(date) {
   return p; // { year, month, day }
 }
 
-// ---- baca/tulis sheet ----
-async function getRows(sheetName) {
-  const { sheets } = clients();
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: sheetName,
-    valueRenderOption: 'UNFORMATTED_VALUE',
-  });
-  return res.data.values || [];
-}
-
-function colIndexer(header) {
-  return (name) => header.indexOf(name);
-}
-
-// RAW (bukan USER_ENTERED) -- teks tanggal "2026-07-01" TETAP jadi teks,
-// tidak diubah otomatis jadi sel bertipe Date. Ini akar masalah yang dulu
-// bikin sesi "tidak terdeteksi" di versi Apps Script (lihat komentar di
-// serialToDateStr di atas) -- dengan RAW, masalah itu tidak bisa terulang.
-async function appendRow(sheetName, rowValues) {
-  const { sheets } = clients();
-  await sheets.spreadsheets.values.append({
-    spreadsheetId: SPREADSHEET_ID,
-    range: sheetName,
-    valueInputOption: 'RAW',
-    requestBody: { values: [rowValues] },
-  });
-}
-
-async function getSheetIdByName(name) {
-  const { sheets } = clients();
-  const meta = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID, fields: 'sheets.properties' });
-  const found = meta.data.sheets.find(s => s.properties.title === name);
-  return found ? found.properties.sheetId : null;
-}
-
-// Simpan (tambah/timpa) baris berdasarkan kolom kunci, mengisi tiap kolom
-// sesuai NAMA header (bukan posisi) -- sama seperti saveRow() Apps Script
-// lama, supaya aman walau urutan/isi kolom sheet berbeda.
-async function saveRowByKey(sheetName, keyCol, keyVal, valuesByName) {
-  const rows = await getRows(sheetName);
-  const head = rows[0] || [];
-  const ci = head.indexOf(keyCol);
-  const rowValues = head.map(h => (h in valuesByName ? valuesByName[h] : ''));
-  for (let i = 1; i < rows.length; i++) {
-    if (String(rows[i][ci]) === String(keyVal)) {
-      const { sheets } = clients();
-      const rowNum = i + 1;
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: SPREADSHEET_ID,
-        range: `${sheetName}!A${rowNum}:${colLetter(rowValues.length)}${rowNum}`,
-        valueInputOption: 'RAW',
-        requestBody: { values: [rowValues] },
-      });
-      return;
-    }
-  }
-  await appendRow(sheetName, rowValues);
-}
-
-async function deleteRowByKey(sheetName, keyCol, keyVal) {
-  const rows = await getRows(sheetName);
-  const head = rows[0] || [];
-  const ci = head.indexOf(keyCol);
-  for (let i = 1; i < rows.length; i++) {
-    if (String(rows[i][ci]) === String(keyVal)) {
-      const sheetId = await getSheetIdByName(sheetName);
-      const { sheets } = clients();
-      await sheets.spreadsheets.batchUpdate({
-        spreadsheetId: SPREADSHEET_ID,
-        requestBody: {
-          requests: [{ deleteDimension: { range: { sheetId, dimension: 'ROWS', startIndex: i, endIndex: i + 1 } } }],
-        },
-      });
-      return;
-    }
-  }
-}
-
-function colLetter(n) {
-  let s = '';
-  while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); }
-  return s;
-}
-
-// ---- logic per endpoint (nama & bentuk balikan sama persis dgn Apps Script lama) ----
-async function findEmployee(nik) {
-  const key = String(nik || '').trim();
-  const list = await listEmployees();
-  return list.find(e => e.nik === key) || {};
-}
-
-async function listEmployees() {
-  const rows = await getRows(ROSTER);
-  const head = rows.shift() || [];
-  const c = colIndexer(head);
-  return rows.map(r => ({
-    nik: String(r[c('NIK')] || '').trim(), nama: r[c('NAMA')], perusahaan: r[c('PERUSAHAAN')],
-    jabatan: r[c('JABATAN')], departemen: r[c('DEPARTEMEN')],
-  })).filter(e => e.nama);
-}
-
 function companyCode(perusahaan) {
   return String(perusahaan || '').replace(/^PT\s+/i, '').trim().split(/\s+/)[0].toUpperCase() || 'NA';
 }
 
-// Tidak ada padanan LockService di Sheets API -- dua submit yang benar2
+// ---- logic per endpoint (nama & bentuk balikan sama persis dgn versi Sheets) ----
+async function listEmployees() {
+  return (await readJSON('employees')).filter(e => e.nama);
+}
+
+async function findEmployee(nik) {
+  const key = String(nik || '').trim();
+  return (await listEmployees()).find(e => e.nik === key) || {};
+}
+
+async function listTopics() { return readJSON('topics'); }
+async function listSessions() { return readJSON('sessions'); }
+
+// Tidak ada padanan LockService di Drive API -- dua submit yang benar2
 // bersamaan (beda milidetik) secara teori bisa dapat nomor sertifikat yang
 // sama. Risikonya rendah untuk kiosk fisik yang dipakai bergantian satu
 // per satu; kalau nanti dipakai multi-kiosk serentak dan ini jadi masalah
 // nyata, upgrade-nya: tambah Vercel KV sebagai lock terdistribusi.
-async function nextCertNo(perusahaan) {
+async function nextCertNo(perusahaan, list) {
   const { year, month } = jakartaParts(new Date());
   const suffix = '/SS/' + companyCode(perusahaan) + '/' + month + '/' + year.slice(2);
-  const rows = await getRows(RESULTS);
-  const head = rows.shift() || [];
-  const ci = head.indexOf('certificateNo');
-  const count = rows.filter(r => r[ci] && String(r[ci]).indexOf(suffix) !== -1).length;
+  const count = list.filter(r => r.certificateNo && String(r.certificateNo).indexOf(suffix) !== -1).length;
   return String(count + 1).padStart(3, '0') + suffix;
 }
 
-async function appendResult(p) {
-  const certificateNo = p.passed ? await nextCertNo(p.perusahaan) : null;
-  await appendRow(RESULTS, [
-    new Date().toISOString(), p.nik, p.nama, p.perusahaan, p.topicCode, p.sessionId,
-    p.attemptNo, p.score, p.passed, certificateNo, p.verificationToken, p.answerBreakdown || '',
-  ]);
-  return certificateNo;
+// Peringkat "ketepatan & kecepatan" per topik -- HANYA percobaan LULUS
+// dipakai, 1 terbaik per NIK (skor tertinggi, lalu durasi tersinggat sbg
+// tie-break). Sengaja tidak dipakai sbg leaderboard publik yg selalu tampil
+// (lihat komentar di assets/app.js soal renderCertificate) -- cuma dihitung
+// di sini & ditampilkan ke pemiliknya sendiri kalau top-3, supaya tidak
+// mendorong semua peserta buru-buru lewatin materi K3 demi ranking (cuma
+// yang KEBETULAN cepat+tepat dapat notifikasi, bukan tujuan yang dikejar).
+function computeRank(list, topicCode, nik) {
+  const bestPerNik = new Map();
+  for (const r of list) {
+    if (r.topicCode !== topicCode || !r.passed) continue;
+    const key = String(r.nik || '').trim();
+    const cur = bestPerNik.get(key);
+    const dur = typeof r.durationMs === 'number' ? r.durationMs : Infinity;
+    if (!cur || r.score > cur.score || (r.score === cur.score && dur < cur.dur)) {
+      bestPerNik.set(key, { score: r.score, dur });
+    }
+  }
+  const ranked = [...bestPerNik.entries()].sort((a, b) => b[1].score - a[1].score || a[1].dur - b[1].dur);
+  const idx = ranked.findIndex(([k]) => k === String(nik || '').trim());
+  return idx === -1 ? null : { rank: idx + 1, total: ranked.length };
 }
 
-async function getResultsLite() {
-  const rows = await getRows(RESULTS);
-  const head = rows.shift() || [];
-  const c = colIndexer(head);
-  return rows.map(r => ({
-    nik: String(r[c('nik')]), nama: r[c('nama')], perusahaan: r[c('perusahaan')],
-    sessionId: String(r[c('sessionId')]), topicCode: r[c('topicCode')], passed: r[c('passed')], score: r[c('score')],
-    certificateNo: r[c('certificateNo')], verificationToken: r[c('verificationToken')],
-    submittedAt: serialToISODateTime(r[c('waktu')]),
-  }));
+async function appendResult(p) {
+  const list = await readJSON('participations');
+  const certificateNo = p.passed ? await nextCertNo(p.perusahaan, list) : null;
+  // Klien selalu kirim answerBreakdown sbg string JSON (lihat assets/app.js) --
+  // di-parse di sini supaya tersimpan sbg array asli, bukan string berlapis.
+  let answerBreakdown = p.answerBreakdown;
+  if (typeof answerBreakdown === 'string') {
+    try { answerBreakdown = JSON.parse(answerBreakdown || '[]'); } catch (e) { answerBreakdown = []; }
+  }
+  const durationMs = typeof p.durationMs === 'number' ? p.durationMs : null;
+  list.push({
+    submittedAt: new Date().toISOString(), nik: p.nik, nama: p.nama, perusahaan: p.perusahaan,
+    topicCode: p.topicCode, sessionId: p.sessionId, attemptNo: p.attemptNo, score: p.score,
+    passed: p.passed, certificateNo, verificationToken: p.verificationToken, answerBreakdown: answerBreakdown || [],
+    durationMs,
+  });
+  await writeJSON('participations', list);
+  const rankInfo = p.passed ? computeRank(list, p.topicCode, p.nik) : null;
+  return { certificateNo, rank: rankInfo ? rankInfo.rank : null, total: rankInfo ? rankInfo.total : null };
 }
 
 async function findByToken(token) {
-  const hit = (await getResultsLite()).find(r => r.verificationToken === token);
+  const hit = (await readJSON('participations')).find(r => r.verificationToken === token);
   return hit ? {
     nama: hit.nama, nik: hit.nik, perusahaan: hit.perusahaan, topicCode: hit.topicCode,
     certificateNo: hit.certificateNo, score: hit.score, verificationToken: token,
@@ -235,7 +179,7 @@ async function findByToken(token) {
 
 async function findExisting(nik, sessionId) {
   const key = String(nik).trim();
-  const hits = (await getResultsLite()).filter(r => r.nik.trim() === key && r.sessionId === String(sessionId) && r.passed);
+  const hits = (await readJSON('participations')).filter(r => String(r.nik).trim() === key && String(r.sessionId) === String(sessionId) && r.passed);
   if (!hits.length) return {};
   const hit = hits[hits.length - 1];
   return { score: hit.score, certificateNo: hit.certificateNo, verificationToken: hit.verificationToken, submittedAt: hit.submittedAt };
@@ -247,56 +191,20 @@ async function findExisting(nik, sessionId) {
 // data 1 NIK, bukan seluruh tabel.
 async function findHistory(nik) {
   const key = String(nik || '').trim();
-  return (await getResultsLite())
-    .filter(r => r.nik.trim() === key && r.passed)
+  return (await readJSON('participations'))
+    .filter(r => String(r.nik).trim() === key && r.passed)
     .sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
 }
 
 async function listParticipations() {
-  const rows = await getRows(RESULTS);
-  const head = rows.shift() || [];
-  const c = colIndexer(head);
-  return rows.map(r => {
-    let answerBreakdown = [];
-    try { answerBreakdown = JSON.parse(r[c('answerBreakdown')] || '[]'); } catch (e) { /* data lama/rusak -- abaikan */ }
-    return {
-      submittedAt: serialToISODateTime(r[c('waktu')]), nik: r[c('nik')], nama: r[c('nama')], perusahaan: r[c('perusahaan')],
-      topicCode: r[c('topicCode')], sessionId: r[c('sessionId')], attemptNo: r[c('attemptNo')],
-      score: r[c('score')], passed: r[c('passed')], certificateNo: r[c('certificateNo')],
-      verificationToken: r[c('verificationToken')], answerBreakdown,
-    };
-  }).reverse();
-}
-
-async function listTopics() {
-  const rows = await getRows(TOPICS);
-  const head = rows.shift() || [];
-  const c = colIndexer(head);
-  return rows.map(r => ({
-    code: r[c('code')], title: r[c('title')], passThreshold: r[c('passThreshold')],
-    material: r[c('material')], materialImage: r[c('materialImage')],
-    questions: JSON.parse(r[c('questionsJson')] || '[]'),
-  }));
-}
-
-async function listSessions() {
-  const rows = await getRows(SESSIONS);
-  const head = rows.shift() || [];
-  const c = colIndexer(head);
-  return rows.map(r => ({
-    id: r[c('id')], topicCode: r[c('topicCode')], title: r[c('title')],
-    validFrom: serialToDateStr(r[c('validFrom')]), validUntil: serialToDateStr(r[c('validUntil')]),
-    targetCompanies: String(r[c('targetCompanies')] || '').split(',').map(s => s.trim()).filter(Boolean),
-    status: r[c('status')],
-  }));
+  return (await readJSON('participations')).slice().reverse();
 }
 
 // ---- upload gambar materi (Vercel Blob) ----
-// Dulu ke Google Drive lewat service account, tapi service account TIDAK
-// PERNAH punya kuota penyimpanan di Drive biasa (kebijakan Google sejak 2020
-// -- perlu Shared Drive/Workspace atau OAuth delegation, tidak tersedia untuk
-// akun Gmail pribadi). Vercel Blob tidak punya masalah kuota ini dan sudah
-// satu ekosistem dengan hosting-nya.
+// Bukan ke folder Drive di atas -- Vercel Blob sudah cukup & satu ekosistem
+// dgn hosting-nya, jadi dibiarkan seperti semula. Shared Drive sekarang
+// tersedia (lihat atas), jadi kalau nanti mau konsolidasi ke Drive juga
+// bisa -- belum dilakukan di sini karena tidak diminta.
 async function uploadImage(p) {
   const { put } = require('@vercel/blob');
   const buffer = Buffer.from(p.base64, 'base64');
@@ -364,7 +272,7 @@ module.exports = async (req, res) => {
       if (typeof body === 'string') body = JSON.parse(body || '{}');
       const { action, payload: p, adminToken } = body || {};
 
-      if (action === 'participation') return res.json({ ok: true, certificateNo: await appendResult(p) });
+      if (action === 'participation') return res.json({ ok: true, ...await appendResult(p) });
       // admin_login sengaja di luar gerbang isAdmin -- ini justru tempat
       // token sesi PERTAMA KALI diterbitkan, belum ada token buat dicek.
       // 12 jam cukup buat satu shift kerja; auto-logout idle (15 menit,
@@ -376,21 +284,21 @@ module.exports = async (req, res) => {
       if (!isAdmin(adminToken)) return res.json({ ok: false, error: 'unauthorized' });
 
       if (action === 'topic_save') {
-        await saveRowByKey(TOPICS, 'code', p.code, {
+        await saveByKey('topics', 'code', p.code, {
           code: p.code, title: p.title, passThreshold: p.passThreshold,
-          material: p.material, materialImage: p.materialImage, questionsJson: JSON.stringify(p.questions),
+          material: p.material, materialImage: p.materialImage, questions: p.questions,
         });
         return res.json({ ok: true });
       }
-      if (action === 'topic_delete') { await deleteRowByKey(TOPICS, 'code', p.code); return res.json({ ok: true }); }
+      if (action === 'topic_delete') { await deleteByKey('topics', 'code', p.code); return res.json({ ok: true }); }
       if (action === 'session_save') {
-        await saveRowByKey(SESSIONS, 'id', p.id, {
+        await saveByKey('sessions', 'id', p.id, {
           id: p.id, topicCode: p.topicCode, title: p.title, validFrom: p.validFrom, validUntil: p.validUntil,
-          targetCompanies: (p.targetCompanies || []).join(','), status: p.status,
+          targetCompanies: p.targetCompanies || [], status: p.status,
         });
         return res.json({ ok: true });
       }
-      if (action === 'session_delete') { await deleteRowByKey(SESSIONS, 'id', p.id); return res.json({ ok: true }); }
+      if (action === 'session_delete') { await deleteByKey('sessions', 'id', p.id); return res.json({ ok: true }); }
       if (action === 'upload_image') { return res.json({ ok: true, url: await uploadImage(p) }); }
       return res.json({ ok: false });
     }

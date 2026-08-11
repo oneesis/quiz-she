@@ -4,10 +4,12 @@
    dataSource:
      'mock'   -> pakai data contoh di file ini. Jalan langsung di
                  hosting statis apa pun tanpa backend sama sekali.
-     'sheets' -> baca daftar karyawan & simpan hasil ke Google Sheet
-                 lewat backend sendiri (api/data.js, serverless
-                 function di Vercel yang bicara langsung ke Google
-                 Sheets API -- bukan Apps Script). Isi apiUrl di
+     'sheets' -> baca daftar karyawan & simpan hasil ke Google Drive
+                 (file JSON) lewat backend sendiri (api/data.js,
+                 serverless function di Vercel yang bicara langsung
+                 ke Google Drive API lewat service account). Nama
+                 mode ini historis (dulu memang Google Sheets) --
+                 belum diganti supaya diff minimal. Isi apiUrl di
                  bawah. (lihat README)
    ============================================================ */
 window.CONFIG = {
@@ -40,7 +42,7 @@ window.CONFIG = {
 /* ============================================================
    DATA CONTOH  (hanya dipakai saat dataSource = 'mock')
    Di produksi, employees & (opsional) topics/sessions diambil
-   dari Google Sheet lewat backend sendiri (lihat api/data.js).
+   dari Google Drive lewat backend sendiri (lihat api/data.js).
    ============================================================ */
 window.SAMPLE = {
   // Cocok dengan kolom tab Master_Karyawan: PERUSAHAAN, SUBCONT, NAMA, NIK, JABATAN, DEPARTEMEN, NO WHATSAPP

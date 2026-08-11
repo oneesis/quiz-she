@@ -62,6 +62,25 @@
   }
   function writeOverride(key, list) { store.set(key, JSON.stringify(list)); }
 
+  // Peringkat "ketepatan & kecepatan" per topik -- sama persis dgn
+  // computeRank di api/data.js (server), diduplikasi di sini krn mockApi
+  // tidak lewat server. Lihat komentar lengkap di api/data.js.
+  function computeRank(list, topicCode, nik) {
+    const bestPerNik = new Map();
+    for (const r of list) {
+      if (r.topicCode !== topicCode || !r.passed) continue;
+      const key = String(r.nik || '').trim();
+      const cur = bestPerNik.get(key);
+      const dur = typeof r.durationMs === 'number' ? r.durationMs : Infinity;
+      if (!cur || r.score > cur.score || (r.score === cur.score && dur < cur.dur)) {
+        bestPerNik.set(key, { score: r.score, dur });
+      }
+    }
+    const ranked = [...bestPerNik.entries()].sort((a, b) => b[1].score - a[1].score || a[1].dur - b[1].dur);
+    const idx = ranked.findIndex(([k]) => k === String(nik || '').trim());
+    return idx === -1 ? null : { rank: idx + 1, total: ranked.length };
+  }
+
   function buildActiveSessions(employee, sessions, topics) {
     return sessions
       .filter(s => s.status === 'published' && todayInRange(s.validFrom, s.validUntil))
@@ -105,7 +124,8 @@
       const list = JSON.parse(store.get('participations') || '[]');
       list.push(full);
       store.set('participations', JSON.stringify(list));
-      return { certificateNo };
+      const rankInfo = rec.passed ? computeRank(list, rec.topicCode, rec.nik) : null;
+      return { certificateNo, rank: rankInfo ? rankInfo.rank : null, total: rankInfo ? rankInfo.total : null };
     },
     async findByToken(token) {
       const list = JSON.parse(store.get('participations') || '[]');
@@ -201,7 +221,7 @@
     },
     async saveParticipation(rec) {
       const data = await this._post('participation', rec);
-      return { certificateNo: (data && data.certificateNo) || null };
+      return { certificateNo: (data && data.certificateNo) || null, rank: (data && data.rank) || null, total: (data && data.total) || null };
     },
     async findByToken(token) {
       const data = await this._get({ action: 'verify', token });

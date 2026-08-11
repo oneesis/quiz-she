@@ -474,8 +474,10 @@
       verificationToken: S.cert ? S.cert.token : null,
       submittedAt: new Date().toISOString(),
       answerBreakdown: JSON.stringify(answerBreakdown),
+      durationMs: S.durationMs,
     });
     if (S.cert) S.cert.no = saved.certificateNo;
+    S.rank = saved.rank || null; // dipakai renderResult -- cuma tampil kalau top-3, lihat komentar di sana
     clearProgress(S.employee.nik, S.session.id); // sudah terkirim -- progres tersimpan tidak dibutuhkan lagi
 
     renderResult(threshold);
@@ -514,6 +516,19 @@
     $('#result-correct').textContent = `${S.correctCount}/${total}`;
     $('#result-wrong').textContent = total - S.correctCount;
     $('#result-duration').textContent = fmtDuration(S.durationMs);
+
+    // Badge peringkat ketepatan+kecepatan -- sengaja cuma tampil kalau top-3
+    // (bukan ke SEMUA peserta, mis. "peringkat ke-47") supaya tidak jadi
+    // leaderboard yang mendorong buru-buru lewatin materi K3 demi ranking.
+    // Lihat computeRank di assets/api.js / api/data.js.
+    const rankEl = $('#result-rank-note');
+    const showRank = S.passed && S.rank && S.rank <= 3;
+    rankEl.classList.toggle('hidden', !showRank);
+    if (showRank) {
+      rankEl.textContent = S.rank === 1
+        ? `🏆 Kamu terbaik ke-1 untuk ketepatan & kecepatan menjawab topik ini!`
+        : `🎉 Kamu peringkat ke-${S.rank} untuk ketepatan & kecepatan menjawab topik ini!`;
+    }
 
     $('#btn-cert').classList.toggle('hidden', !S.passed);
     $('#btn-retry').classList.toggle('hidden', S.passed);

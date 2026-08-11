@@ -391,8 +391,12 @@
                 <button type="button" class="editor-btn" data-cmd="justifyLeft" title="Rata kiri"><span class="material-symbols-outlined text-[16px]">format_align_left</span></button>
                 <button type="button" class="editor-btn" data-cmd="justifyCenter" title="Rata tengah"><span class="material-symbols-outlined text-[16px]">format_align_center</span></button>
                 <button type="button" class="editor-btn" data-cmd="justifyRight" title="Rata kanan"><span class="material-symbols-outlined text-[16px]">format_align_right</span></button>
+                <span class="w-px h-5 bg-outline-variant mx-1"></span>
+                <button type="button" class="editor-btn" id="btn-import-doc" title="Import materi PDF atau PPT (disisipkan sebagai tautan)"><span class="material-symbols-outlined text-[16px]">attach_file</span>&nbsp;PDF/PPT</button>
               </div>
               <div class="editor-body text-sm" id="t-material" contenteditable="true" data-placeholder="Tulis materi di sini…"></div>
+              <input type="file" accept=".pdf,.ppt,.pptx,application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation" id="t-doc" class="hidden" />
+              <p id="t-doc-status" class="text-xs text-on-surface-variant mt-1"></p>
             </div>
             <div class="flex items-center justify-between pt-2 flex-wrap gap-2">
               <h3 class="font-bold text-primary">Bank Soal</h3>

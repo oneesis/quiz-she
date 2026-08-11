@@ -485,6 +485,59 @@
     }
   }
 
+  // ponytail: import PDF/PPT = unggah ke Vercel Blob lewat endpoint upload_image
+  // yang generik, lalu sisipkan tautannya ke HTML materi. Tanpa kolom/schema
+  // baru & tanpa ubah sisi peserta -- app.js merender topic.material sebagai
+  // HTML mentah, jadi tautannya otomatis muncul. Isinya tidak diekstrak jadi
+  // teks; berkas dibuka/diunduh apa adanya (PPT tak bisa dirender di browser).
+  const DOC_MAX_BYTES = 3.3 * 1024 * 1024; // body serverless Vercel ~4.5MB, base64 +~33%
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result).split(',')[1]);
+      r.onerror = () => reject(new Error('Gagal membaca berkas'));
+      r.readAsDataURL(file);
+    });
+  }
+  function insertMaterialDocLink(url, name) {
+    const p = document.createElement('p');
+    const a = document.createElement('a');
+    a.href = url; a.target = '_blank'; a.rel = 'noopener';
+    a.textContent = '📄 ' + name;
+    a.setAttribute('style', 'display:inline-block;padding:8px 14px;border-radius:10px;background:#e8f3ec;color:#1f4d33;font-weight:700;text-decoration:none;margin:6px 0');
+    p.appendChild(a);
+    $('#t-material').appendChild(p);
+  }
+  async function handleDocFileChange(ev) {
+    const file = ev.target.files[0];
+    ev.target.value = '';
+    if (!file) return;
+    const status = $('#t-doc-status');
+    if (API.mode !== 'sheets') {
+      status.textContent = 'Import materi hanya tersedia saat tersambung ke Google Sheet.';
+      status.className = 'text-xs text-error mt-1';
+      return;
+    }
+    if (file.size > DOC_MAX_BYTES) {
+      status.textContent = `Berkas terlalu besar (${(file.size / 1024 / 1024).toFixed(1)}MB). Maksimal ~3MB — kompres atau bagi filenya dulu.`;
+      status.className = 'text-xs text-error mt-1';
+      return;
+    }
+    status.textContent = 'Mengunggah…';
+    status.className = 'text-xs text-on-surface-variant mt-1';
+    try {
+      const base64 = await fileToBase64(file);
+      const url = await API.uploadImage(base64, file.name, file.type || 'application/octet-stream');
+      if (!url) throw new Error('no url');
+      insertMaterialDocLink(url, file.name);
+      status.textContent = 'Materi ditambahkan sebagai tautan di bawah teks materi.';
+      status.className = 'text-xs text-green-700 mt-1';
+    } catch (e) {
+      status.textContent = 'Gagal mengunggah: ' + (e && e.message ? e.message : 'coba lagi.');
+      status.className = 'text-xs text-error mt-1';
+    }
+  }
+
   // ============================================================
   // IMPOR SOAL DARI CSV
   // ============================================================
@@ -1194,6 +1247,9 @@
     $('#btn-topic-delete').onclick = deleteTopicConfirm;
     $('#btn-topic-duplicate').onclick = duplicateTopicConfirm;
     $('#t-image').addEventListener('change', handleImageFileChange);
+    $('#btn-import-doc').addEventListener('mousedown', (e) => e.preventDefault());
+    $('#btn-import-doc').addEventListener('click', () => $('#t-doc').click());
+    $('#t-doc').addEventListener('change', handleDocFileChange);
     bindMaterialEditor();
     $('#btn-remove-image').onclick = () => setImagePreview('');
     $('#btn-download-csv-template').onclick = downloadCsvTemplate;

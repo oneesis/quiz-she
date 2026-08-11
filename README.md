@@ -108,22 +108,42 @@ Situs statis tidak bisa membaca/menulis Drive privat sendiri secara aman. Jembat
 
 Nama mode di kode masih `'sheets'` (peninggalan versi sebelumnya, di `assets/config.js`/`assets/api.js`) — sengaja tidak diganti supaya diff migrasi minimal; secara fungsi backend-nya sekarang 100% Google Drive, bukan Google Sheets lagi.
 
-**Butuh Google Workspace + Shared Drive** — service account biasa **tidak pernah** dapat kuota penyimpanan di My Drive pribadi (kebijakan Google sejak 2020). Kuota Shared Drive milik organisasi (bukan milik satu akun), jadi service account bisa baca/tulis di sana selama terdaftar sebagai *member*-nya. Kalau organisasi belum punya Google Workspace, pola di dokumen ini **tidak akan jalan** — alternatifnya OAuth delegation ke akun Gmail asli, jauh lebih rumit dari service account biasa dan di luar cakupan dokumen ini.
+Service account biasa **tidak pernah** dapat kuota penyimpanan sendiri di My Drive (kebijakan Google sejak 2020). Ada 2 cara mengatasi ini — pakai salah satu:
+
+| | Shared Drive | Domain-wide delegation |
+|---|---|---|
+| Butuh | Bisa buat Shared Drive (kadang dimatikan admin org) | Super Admin authorize di Admin Console |
+| Kuota dipakai | Milik Shared Drive/organisasi | Milik user Workspace yang di-*impersonate* |
+| Setup Drive | Buat Shared Drive, tambah service account jadi member | Cukup folder biasa di My Drive user itu |
+| Env var tambahan | — | `GOOGLE_IMPERSONATE_EMAIL` |
+
+Dokumen ini pakai **domain-wide delegation** (opsi yang dipakai proyek ini saat ini) — kode di `api/data.js` sebenarnya mendukung dua-duanya sekaligus (lihat komentar di bagian atas file), tinggal isi atau kosongkan `GOOGLE_IMPERSONATE_EMAIL`.
+
+### Langkah 1a — Domain-wide delegation (opsi yang dipakai)
+
+1. Buka [console.cloud.google.com](https://console.cloud.google.com), buat/pilih project, **APIs & Services → Library** — enable **Google Drive API**.
+2. **APIs & Services → Credentials → Create Credentials → Service Account**. Nama bebas.
+3. Service account itu → **Keys → Add Key → Create new key → JSON**. Simpan baik-baik, **jangan pernah commit ke repo**. Catat `client_email` dan `client_id` dari file ini.
+4. **Google Admin Console** (admin.google.com, perlu **Super Admin**) → **Security → Access and data control → API controls → Domain-wide Delegation → Add new**:
+   - **Client ID**: `client_id` dari langkah 3 (bukan `client_email`).
+   - **OAuth scopes**: `https://www.googleapis.com/auth/drive`
+5. Pilih **1 user Workspace asli** yang akan "ditumpangi" identitasnya (mis. akun kerja pemilik aplikasi ini) — service account akan bertindak seolah-olah jadi user itu, jadi kuota Drive-nya ikut kuota user itu sendiri. Catat emailnya.
+6. Di My Drive user itu, buat/pakai 1 folder (boleh pakai folder yang sudah ada) untuk data aplikasi. Salin ID-nya dari URL (bagian setelah `/folders/`). **Tidak perlu** Shared Drive maupun langkah share-menyembagikan — karena "jadi" user itu, service account otomatis punya akses yang sama seperti user itu ke foldernya sendiri.
+
+File `employees.json`/`topics.json`/`sessions.json`/`participations.json` **dibuat otomatis** (isi `[]`) di folder ini saat pertama kali dipakai — tidak perlu dibuat manual.
+
+### Langkah 1b — Shared Drive (alternatif kalau tidak mau delegation)
+
+1-4 sama seperti di atas (Google Cloud + service account + catat `client_email`).
+5. Di Google Drive (akun Workspace), buat **Shared Drive** baru (atau pakai yang sudah ada) → **Manage members** → tempel `client_email` → beri akses **Content Manager**.
+6. Di dalam Shared Drive itu, buat 1 folder baru, salin ID-nya dari URL.
+
+Kalau organisasi tidak punya Google Workspace sama sekali (Gmail pribadi biasa), **kedua opsi di atas tidak akan jalan** — tidak ada solusi murah lain selain pindah ke Workspace atau ganti penyimpanan (mis. balik ke pola Vercel Blob/KV seperti gambar materi).
 
 **Pembagian peran** (sama seperti sebelumnya, cuma tempat simpannya beda):
 - **Roster karyawan** → dibaca dari `employees.json`.
 - **Konten kuis (topik/sesi)** → bawaan dari `config.js` (di repo), tapi begitu Panel Admin dipakai dalam mode ini, topik/sesi juga dibaca & ditulis lewat `topics.json` / `sessions.json` supaya semua kiosk melihat perubahan yang sama.
 - **Hasil / partisipasi** → ditulis ke `participations.json` untuk rekap compliance & laporan di Panel Admin.
-
-### Langkah 1 — Google Cloud (service account) + Shared Drive
-
-1. Buka [console.cloud.google.com](https://console.cloud.google.com), buat/pilih project.
-2. **APIs & Services → Library** — enable **Google Drive API**.
-3. **APIs & Services → Credentials → Create Credentials → Service Account**. Nama bebas.
-4. Masuk ke service account yang baru dibuat → tab **Keys → Add Key → Create new key → JSON**. Simpan file JSON-nya baik-baik — ini kredensial rahasia, **jangan pernah di-commit ke repo**.
-5. Dari file JSON itu, catat nilai `client_email`.
-6. Di Google Drive (akun Workspace), buat **Shared Drive** baru (atau pakai yang sudah ada) — mis. "Quiz SHE" — lalu **Manage members** → tempel `client_email` dari langkah 5 → beri akses **Content Manager** (cukup untuk baca/tulis/buat file, tidak perlu Manager penuh).
-7. Di dalam Shared Drive itu, buat 1 folder baru (mis. "Data") untuk data aplikasi. Buka folder itu, salin ID-nya dari URL (bagian setelah `/folders/`). File `employees.json`/`topics.json`/`sessions.json`/`participations.json` **dibuat otomatis** (isi `[]`) di folder ini saat pertama kali dipakai — tidak perlu dibuat manual.
 
 Kalau sebelumnya sudah punya data produksi di Google Sheet (mode Sheets versi lama) dan mau dipindahkan, itu migrasi data satu-kali yang perlu dikerjakan manual (unduh tiap tab sebagai JSON lalu upload ke folder ini dengan nama file di atas) — bilang kalau mau dibuatkan skrip migrasinya, belum dibuat di sini karena belum tentu dibutuhkan.
 
@@ -141,7 +161,8 @@ Project di Vercel → **Settings → Environment Variables**, tambah:
 |---|---|
 | `GOOGLE_SERVICE_ACCOUNT_EMAIL` | `client_email` dari file JSON |
 | `GOOGLE_PRIVATE_KEY` | `private_key` dari file JSON (tempel apa adanya, termasuk `-----BEGIN PRIVATE KEY-----`) |
-| `GOOGLE_DRIVE_FOLDER_ID` | ID folder dari langkah 1.7 |
+| `GOOGLE_DRIVE_FOLDER_ID` | ID folder (dari langkah 1a.6 kalau pakai delegation, atau 1b.6 kalau pakai Shared Drive) |
+| `GOOGLE_IMPERSONATE_EMAIL` | **cuma kalau pakai delegation (1a)** — email user Workspace yang di-*impersonate*. Kosongkan/hapus kalau pakai Shared Drive (1b). |
 | `ADMIN_TOKEN` | sama persis dengan `CONFIG.admin.password` di `assets/config.js` |
 
 Kalau sebelumnya sempat pakai mode Sheets, `GOOGLE_SPREADSHEET_ID` boleh dihapus — tidak dipakai lagi oleh `api/data.js`.

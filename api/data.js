@@ -1,11 +1,20 @@
 // ============================================================
 // Backend Sharing Session -- penyimpanan Google Drive.
 // Data disimpan sbg 4 file JSON (employees/topics/sessions/participations)
-// di satu folder Google Drive, di dalam SHARED DRIVE Workspace (wajib --
-// service account TIDAK PERNAH dapat kuota penyimpanan sendiri di My Drive
-// biasa, kebijakan Google sejak 2020; kuota Shared Drive milik organisasi,
-// bukan milik akun, jadi service account bisa baca/tulis di sana selama
-// jadi member Shared Drive itu).
+// di satu folder Google Drive. Service account TIDAK PERNAH dapat kuota
+// penyimpanan sendiri di My Drive biasa (kebijakan Google sejak 2020) --
+// butuh salah satu dari dua ini:
+//   1. Shared Drive -- FOLDER_ID ada di dalam Shared Drive Workspace, service
+//      account jadi member-nya (kuota milik Shared Drive, bukan akun). TIDAK
+//      butuh GOOGLE_IMPERSONATE_EMAIL.
+//   2. Domain-wide delegation -- GOOGLE_IMPERSONATE_EMAIL diisi email user
+//      Workspace asli; service account "menyamar" jadi user itu (perlu
+//      di-authorize Super Admin di Admin Console -> Security -> API
+//      controls -> Domain-wide Delegation, pakai Client ID service account).
+//      FOLDER_ID tinggal folder biasa di My Drive user itu, kuotanya ikut
+//      kuota user itu sendiri -- tidak perlu Shared Drive sama sekali.
+// Kedua mode pakai kode yang SAMA di bawah -- tinggal ada/tidaknya
+// GOOGLE_IMPERSONATE_EMAIL yang menentukan.
 //
 // Kontrak endpoint (action-based, satu handler) TIDAK BERUBAH dari versi
 // Sheets sebelumnya -- assets/api.js di sisi klien tidak perlu diubah.
@@ -22,6 +31,7 @@ function getAuth() {
     email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
     key: (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
     scopes: ['https://www.googleapis.com/auth/drive'],
+    subject: process.env.GOOGLE_IMPERSONATE_EMAIL || undefined,
   });
 }
 

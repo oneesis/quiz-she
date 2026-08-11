@@ -490,7 +490,7 @@
   // baru & tanpa ubah sisi peserta -- app.js merender topic.material sebagai
   // HTML mentah, jadi tautannya otomatis muncul. Isinya tidak diekstrak jadi
   // teks; berkas dibuka/diunduh apa adanya (PPT tak bisa dirender di browser).
-  const DOC_MAX_BYTES = 3.3 * 1024 * 1024; // body serverless Vercel ~4.5MB, base64 +~33%
+  const DOC_MAX_BYTES = 10 * 1024 * 1024; // cap 10MB (base64 +~33% -> ~13MB body; Vercel Functions kini terima body s.d. 100MB)
   function fileToBase64(file) {
     return new Promise((resolve, reject) => {
       const r = new FileReader();
@@ -519,7 +519,7 @@
       return;
     }
     if (file.size > DOC_MAX_BYTES) {
-      status.textContent = `Berkas terlalu besar (${(file.size / 1024 / 1024).toFixed(1)}MB). Maksimal ~3MB — kompres atau bagi filenya dulu.`;
+      status.textContent = `Berkas terlalu besar (${(file.size / 1024 / 1024).toFixed(1)}MB). Maksimal 10MB — kompres atau bagi filenya dulu.`;
       status.className = 'text-xs text-error mt-1';
       return;
     }

@@ -1,8 +1,12 @@
 // ============================================================
-// Backend Sharing Session -- penyimpanan Google Drive.
-// Data disimpan sbg 4 file JSON (employees/topics/sessions/participations)
-// di satu folder Google Drive, di My Drive akun Google biasa (bukan Shared
-// Drive, bukan Workspace).
+// Backend Sharing Session -- penyimpanan Google Drive + roster live-Sheets.
+// - topics/sessions/participations: 4 file JSON di satu folder Google
+//   Drive, di My Drive akun Google biasa (bukan Shared Drive/Workspace).
+// - employees (roster): dibaca LANGSUNG tiap request dari tab
+//   `Master_Karyawan` di spreadsheet HR yang sudah ada (dipakai bareng
+//   aplikasi lain di kantor, mis. inspeksi/hazard report) -- BUKAN
+//   disalin ke Drive, supaya kalau HR update roster di sana, otomatis
+//   kepakai di sini juga. GOOGLE_ROSTER_SPREADSHEET_ID nunjuk ke sheet itu.
 //
 // Auth pakai OAuth client biasa + refresh token (BUKAN service account) --
 // service account TIDAK PERNAH dapat kuota penyimpanan sendiri di My Drive
@@ -11,7 +15,9 @@
 // tidak tersedia di sini. OAuth client biasa (login manusia sungguhan sekali
 // di awal, lalu refresh_token dipakai backend seterusnya) jalan di akun
 // Google APA PUN, termasuk Gmail pribadi -- itu kenapa dipilih di sini.
-// Skrip satu-kali buat dapat refresh_token-nya ada di README.
+// Token-nya scope Drive + Sheets readonly sekaligus (satu refresh_token
+// dipakai utk dua API). Skrip satu-kali buat dapat refresh_token-nya ada
+// di README.
 //
 // Kontrak endpoint (action-based, satu handler) TIDAK BERUBAH dari versi
 // Sheets sebelumnya -- assets/api.js di sisi klien tidak perlu diubah.
@@ -19,9 +25,10 @@
 const { google } = require('googleapis');
 
 const FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
+const ROSTER_SPREADSHEET_ID = process.env.GOOGLE_ROSTER_SPREADSHEET_ID;
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN;
 
-const FILES = { employees: 'employees.json', topics: 'topics.json', sessions: 'sessions.json', participations: 'participations.json' };
+const FILES = { topics: 'topics.json', sessions: 'sessions.json', participations: 'participations.json' };
 
 function getAuth() {
   const oauth2 = new google.auth.OAuth2(process.env.GOOGLE_OAUTH_CLIENT_ID, process.env.GOOGLE_OAUTH_CLIENT_SECRET);
@@ -33,10 +40,14 @@ function getAuth() {
 // masih "hangat" (Vercel Fluid Compute) -- irit dibanding re-auth + re-cari
 // file tiap panggilan; aman karena fileId tidak berubah selama filenya
 // tidak dihapus manual dari Drive.
-let _drive;
+let _drive, _sheets;
 function drive() {
   if (!_drive) _drive = google.drive({ version: 'v3', auth: getAuth() });
   return _drive;
+}
+function sheetsApi() {
+  if (!_sheets) _sheets = google.sheets({ version: 'v4', auth: getAuth() });
+  return _sheets;
 }
 
 const _fileIds = {};
@@ -105,8 +116,21 @@ function companyCode(perusahaan) {
 }
 
 // ---- logic per endpoint (nama & bentuk balikan sama persis dgn versi Sheets) ----
+// Dibaca LANGSUNG dari Sheets tiap panggilan (tidak di-cache) -- sama
+// seperti perilaku backend Sheets lama, supaya perubahan roster oleh HR
+// langsung kepakai tanpa perlu redeploy/migrasi ulang. Header kolom persis
+// (case-sensitive): NIK | NAMA | PERUSAHAAN | JABATAN | DEPARTEMEN.
 async function listEmployees() {
-  return (await readJSON('employees')).filter(e => e.nama);
+  const res = await sheetsApi().spreadsheets.values.get({
+    spreadsheetId: ROSTER_SPREADSHEET_ID, range: 'Master_Karyawan', valueRenderOption: 'UNFORMATTED_VALUE',
+  });
+  const rows = res.data.values || [];
+  const head = rows.shift() || [];
+  const c = (name) => head.indexOf(name);
+  return rows.map(r => ({
+    nik: String(r[c('NIK')] || '').trim(), nama: r[c('NAMA')], perusahaan: r[c('PERUSAHAAN')],
+    jabatan: r[c('JABATAN')], departemen: r[c('DEPARTEMEN')],
+  })).filter(e => e.nama);
 }
 
 async function findEmployee(nik) {

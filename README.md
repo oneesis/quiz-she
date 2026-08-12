@@ -42,7 +42,7 @@ admin.html              Panel admin (dashboard, topik, sesi, laporan, karyawan)
 assets/styles.css       Tampilan kiosk (identitas hazard-stripe, kartu sertifikat)
 assets/config.js        KONFIGURASI + konten kuis (topik, soal, sesi) + data contoh
 assets/api.js           Lapisan data: mode 'mock' & 'sheets'
-api/data.js             Backend (Vercel serverless function) -- baca/tulis Google Drive
+api/data.js             Backend (Vercel serverless function) -- baca/tulis Google Sheets
 assets/app.js           Alur aplikasi kiosk
 assets/admin.js         Alur panel admin
 ```
@@ -79,7 +79,7 @@ Navigasi lewat sidebar kiri, lima menu:
 - **Topik** — tambah/edit/hapus topik: kode, judul, ambang lulus, gambar materi (opsional), materi (editor WYSIWYG), dan bank soal (ketik manual atau impor CSV). Detail di bawah.
 - **Sesi** — jadwalkan topik untuk tampil di kiosk: rentang tanggal berlaku, target perusahaan (opsional), status `draft`/`published`. Hanya sesi `published` & masih dalam rentang tanggal yang muncul di kiosk.
 - **Laporan** — ringkasan per perusahaan (jumlah peserta, lulus/belum, rata-rata skor, % kelulusan) di atas, lalu tabel detail per peserta yang bisa difilter per perusahaan, dengan tombol unduh CSV.
-- **Karyawan** — daftar seluruh karyawan (nama, NIK, perusahaan, jabatan, departemen) dengan pencarian. Baca saja — untuk mengubah roster, edit `SAMPLE.employees` di `config.js` (mode mock) atau tab `Master_Karyawan` di spreadsheet HR (mode sheets, lihat [Menyambung ke Google Drive](#menyambung-ke-google-drive-mode-sheets)) — dibaca langsung/live, bukan disalin ke Drive.
+- **Karyawan** — daftar seluruh karyawan (nama, NIK, perusahaan, jabatan, departemen) dengan pencarian. Baca saja — untuk mengubah roster, edit `SAMPLE.employees` di `config.js` (mode mock) atau tab `Master_Karyawan` di spreadsheet HR (mode sheets, lihat [Menyambung ke Google Sheets](#menyambung-ke-google-sheets-mode-sheets)) — dibaca langsung/live tiap request.
 
 ### Format materi
 
@@ -89,7 +89,7 @@ Topik LAMA yang materinya masih format teks-polos (`## ` subjudul, `- ` bullet, 
 
 ### Gambar materi
 
-Di editor topik ada field **Gambar Materi** (opsional) — pilih file dari perangkat, otomatis terupload ke **Vercel Blob** (bukan folder Drive di bawah — lihat [Menyambung ke Google Drive](#menyambung-ke-google-drive-mode-sheets) soal kenapa dipisah), lalu link-nya tersimpan di kolom `materialImage`. Di kiosk, gambar tampil di atas teks materi dan bisa diketuk untuk **diperbesar** (lightbox layar penuh, ketuk gambar untuk zoom in/out). Upload hanya berfungsi di mode `sheets` — di mode `mock` tidak ada tempat penyimpanan file, jadi kontrol upload akan menampilkan pesan bahwa fitur ini tidak tersedia.
+Di editor topik ada field **Gambar Materi** (opsional) — pilih file dari perangkat, otomatis terupload ke **Vercel Blob** (terpisah dari Sheets di bawah — lihat [Menyambung ke Google Sheets](#menyambung-ke-google-sheets-mode-sheets)), lalu link-nya tersimpan di kolom `materialImage`. Di kiosk, gambar tampil di atas teks materi dan bisa diketuk untuk **diperbesar** (lightbox layar penuh, ketuk gambar untuk zoom in/out). Upload hanya berfungsi di mode `sheets` — di mode `mock` tidak ada tempat penyimpanan file, jadi kontrol upload akan menampilkan pesan bahwa fitur ini tidak tersedia.
 
 ### Impor soal lewat CSV
 
@@ -102,44 +102,42 @@ Soal yang berhasil diparsing ditambahkan ke bank soal yang sudah ada (tidak meni
 
 ---
 
-## Menyambung ke Google Drive (mode `sheets`)
+## Menyambung ke Google Sheets (mode `sheets`)
 
-Situs statis tidak bisa membaca/menulis Drive/Sheets privat sendiri secara aman. Jembatannya = **`api/data.js`**, satu serverless function di Vercel yang bicara ke **Google Drive API v3** & **Google Sheets API v4** sekaligus. Backend-nya *hybrid*, sengaja beda tempat simpan per jenis data:
+Situs statis tidak bisa membaca/menulis Sheets privat sendiri secara aman. Jembatannya = **`api/data.js`**, satu serverless function di Vercel yang bicara ke **Google Sheets API v4**. Dua spreadsheet dipakai:
 
-- **Roster karyawan** → dibaca **langsung/live** dari tab `Master_Karyawan` di spreadsheet HR yang sudah ada (dipakai bareng aplikasi lain di kantor, mis. inspeksi/hazard report) — bukan disalin. Begitu HR update roster di sana, otomatis kepakai di kiosk, tanpa redeploy/migrasi ulang.
-- **Topik, sesi, partisipasi** → 3 file JSON (`topics.json`, `sessions.json`, `participations.json`) di satu folder Google Drive — bisa dibuka/diunduh manual kapan saja lewat Drive.
+- **`GOOGLE_SHEET_ID`** — spreadsheet milik aplikasi ini sendiri, tab `Topics` / `Session` / `Partisipasi`. Aplikasi baca & tulis penuh ke sini.
+- **`GOOGLE_ROSTER_SPREADSHEET_ID`** — spreadsheet HR yang sudah ada, dipakai bareng aplikasi lain di kantor (mis. inspeksi/hazard report) — tab `Master_Karyawan` dibaca **live** tiap request (read-only, tidak pernah ditulis). Begitu HR update roster di sana, otomatis kepakai di kiosk tanpa redeploy/migrasi ulang.
 
-Kenapa dipisah begini (bukan semua di satu tempat): roster itu sumber kebenarannya ada di luar aplikasi ini (dikelola HR, dipakai aplikasi lain juga) — masuk akal dibaca live dari sana. Topik/sesi/partisipasi murni milik aplikasi ini sendiri — lebih simpel & cepat sebagai file JSON di Drive drpd tabel Sheets.
+Kenapa dua spreadsheet, bukan satu: roster sumber kebenarannya ada di luar aplikasi ini (dikelola HR, dipakai aplikasi lain juga) — dibaca live dari tempat aslinya. Topik/sesi/partisipasi murni milik aplikasi ini sendiri — spreadsheet terpisah, tidak campur dengan tab-tab aplikasi lain.
 
-Nama mode di kode masih `'sheets'` (peninggalan versi sebelumnya, di `assets/config.js`/`assets/api.js`) — sengaja tidak diganti supaya diff migrasi minimal.
+Nama mode di kode masih `'sheets'` (di `assets/config.js`/`assets/api.js`).
 
-**Auth pakai OAuth client biasa + refresh token — BUKAN service account.** Service account tidak pernah dapat kuota penyimpanan sendiri di My Drive (kebijakan Google sejak 2020), dan dua workaround-nya (Shared Drive, domain-wide delegation) sama-sama butuh Google Workspace + admin. OAuth client biasa (login manusia sungguhan **sekali** di awal buat kasih izin, lalu backend pakai *refresh token* seterusnya tanpa perlu login ulang) jalan di akun Google **apa pun** — Gmail pribadi, Google One, atau Workspace — karena yang dipakai adalah kuota/akses akun manusia itu sendiri. Satu `refresh_token` yang sama dipakai utk Drive & Sheets sekaligus (scope-nya minta dua-duanya).
+**Auth pakai OAuth client biasa + refresh token — BUKAN service account.** Service account tidak pernah dapat kuota/akses tulis mandiri tanpa Google Workspace + admin (Shared Drive/domain-wide delegation, dua-duanya butuh admin). OAuth client biasa (login manusia sungguhan **sekali** di awal buat kasih izin, lalu backend pakai *refresh token* seterusnya tanpa perlu login ulang) jalan di akun Google **apa pun** — Gmail pribadi, Google One, atau Workspace.
 
 ### Langkah 1 — Google Cloud (OAuth client)
 
 1. Buka [console.cloud.google.com](https://console.cloud.google.com), buat/pilih project.
-2. **APIs & Services → Library** — enable **Google Drive API** dan **Google Sheets API**.
+2. **APIs & Services → Library** — enable **Google Sheets API**.
 3. **APIs & Services → OAuth consent screen** — kalau belum pernah diisi: User Type **External**, isi nama app & email kontak seadanya, lalu di bagian **Test users** tambahkan email akun Google yang akan dipakai (langkah 5). Status **Testing** saja sudah cukup, tidak perlu publish/verifikasi Google.
 4. **APIs & Services → Credentials → Create Credentials → OAuth client ID** — Application type **Desktop app**, nama bebas. Setelah dibuat, catat **Client ID** & **Client Secret** (atau unduh JSON-nya).
-5. Jalankan skrip otorisasi satu-kali (lihat di bawah), minta scope **Drive + Sheets readonly sekaligus** — ini yang minta kamu login lewat browser & klik "Allow", lalu keluar `refresh_token`. Login pakai akun Google yang mau dipakai jadi tempat penyimpanan data Drive (kuota Drive akun itu yang dipakai) — akun ini juga harus punya akses baca ke spreadsheet HR di langkah 7.
-6. Di My Drive akun itu, buat/pakai 1 folder untuk data aplikasi (boleh folder yang sudah ada). Salin ID-nya dari URL (bagian setelah `/folders/`).
-7. Catat ID spreadsheet HR yang punya tab `Master_Karyawan` (bagian URL antara `/d/` dan `/edit`) — ini spreadsheet yang SUDAH ADA, dipakai bersama, bukan dibuat baru.
+5. Jalankan skrip otorisasi satu-kali (lihat di bawah), scope **`.../auth/spreadsheets`** (baca-tulis) — minta login lewat browser & klik "Allow", lalu keluar `refresh_token`. Login pakai akun Google yang punya akses **edit** ke spreadsheet langkah 6 dan akses **baca** ke spreadsheet roster langkah 7.
+6. Buat/pakai 1 spreadsheet untuk topik/sesi/partisipasi (boleh spreadsheet kosong — tab `Topics`/`Session`/`Partisipasi` dibuat otomatis kalau belum ada). Catat ID-nya (bagian URL antara `/d/` dan `/edit`).
+7. Catat ID spreadsheet HR yang punya tab `Master_Karyawan` — ini spreadsheet yang SUDAH ADA, dipakai bersama, bukan dibuat baru.
 
-File `topics.json`/`sessions.json`/`participations.json` **dibuat otomatis** (isi `[]`) di folder Drive itu saat pertama kali dipakai — tidak perlu dibuat manual. Roster (`Master_Karyawan`) tidak pernah ditulis oleh aplikasi ini — cuma dibaca (read-only), jadi tab-nya harus sudah ada & terisi duluan di spreadsheet HR-nya, dengan header (baris 1) persis: `NIK | NAMA | PERUSAHAAN | JABATAN | DEPARTEMEN`.
+Header (baris 1) tab `Master_Karyawan` di spreadsheet roster, persis: `NIK | NAMA | PERUSAHAAN | JABATAN | DEPARTEMEN` — read-only, tidak pernah ditulis aplikasi ini, jadi harus sudah terisi duluan.
 
-**Skrip otorisasi satu-kali** (dapat `refresh_token`) — minta dibuatkan & dijalankan bareng lewat chat kalau butuh; intinya generate URL consent Google pakai Client ID/Secret dari langkah 4 dengan scope `.../auth/drive` + `.../auth/spreadsheets.readonly`, buka di browser, login & Allow, lalu tukar `code` hasil redirect jadi `refresh_token` lewat endpoint token Google. Sekali jalan saja — hasilnya (`refresh_token`) disimpan sbg env var (langkah 2), bukan dijalankan tiap request.
+**Skrip otorisasi satu-kali** (dapat `refresh_token`) — minta dibuatkan & dijalankan bareng lewat chat kalau butuh; intinya generate URL consent Google pakai Client ID/Secret dari langkah 4 dengan scope `.../auth/spreadsheets`, buka di browser, login & Allow, lalu tukar `code` hasil redirect jadi `refresh_token` lewat endpoint token Google. Sekali jalan saja — hasilnya disimpan sbg env var (langkah 2), bukan dijalankan tiap request.
 
 **Pembagian peran:**
-- **Roster karyawan** → dibaca live dari tab `Master_Karyawan` di spreadsheet HR (langkah 1.7) — lihat penjelasan di atas.
-- **Konten kuis (topik/sesi)** → bawaan dari `config.js` (di repo), tapi begitu Panel Admin dipakai dalam mode ini, topik/sesi juga dibaca & ditulis lewat `topics.json` / `sessions.json` di Drive supaya semua kiosk melihat perubahan yang sama.
-- **Hasil / partisipasi** → ditulis ke `participations.json` di Drive untuk rekap compliance & laporan di Panel Admin.
+- **Roster karyawan** → dibaca live dari tab `Master_Karyawan`, spreadsheet roster (langkah 1.7).
+- **Konten kuis (topik/sesi)** → bawaan dari `config.js` (di repo), tapi begitu Panel Admin dipakai dalam mode ini, topik/sesi juga dibaca & ditulis lewat tab `Topics`/`Session` di spreadsheet aplikasi (langkah 1.6) supaya semua kiosk melihat perubahan yang sama.
+- **Hasil / partisipasi** → ditulis ke tab `Partisipasi` untuk rekap compliance & laporan di Panel Admin.
 
-Kalau sebelumnya sudah punya data produksi lama (di Sheet lain / format lain) dan mau dipindahkan, itu migrasi data satu-kali yang perlu dikerjakan manual atau minta dibuatkan skripnya lewat chat — belum ada skrip baku di sini karena bentuk sumber datanya bisa beda-beda tiap kasus.
-
-Bentuk tiap file JSON di Drive (array of object):
-- `topics.json`: `{ code, title, passThreshold, material, materialImage, questions }` — `questions` array asli (bukan string `questionsJson` seperti versi Sheet lama)
-- `sessions.json`: `{ id, topicCode, title, validFrom, validUntil, targetCompanies, status }` — `targetCompanies` array string (bukan CSV)
-- `participations.json`: diisi otomatis oleh backend saat ada kuis selesai, tidak perlu diisi manual. Field `durationMs` (lama pengerjaan kuis dlm milidetik) dipakai buat badge "peringkat ketepatan & kecepatan" di layar hasil kiosk — lihat [Peringkat ketepatan & kecepatan](#peringkat-ketepatan--kecepatan) di bawah.
+Header (baris 1) tiap tab di spreadsheet aplikasi, persis:
+- `Topics`: `code | title | passThreshold | material | materialImage | questionsJson`
+- `Session`: `id | topicCode | title | validFrom | validUntil | targetCompanies | status`
+- `Partisipasi`: `waktu | nik | nama | perusahaan | topicCode | sessionId | attemptNo | score | passed | certificateNo | verificationToken | answerBreakdown | durationMs` — `durationMs` (lama pengerjaan kuis dlm milidetik) dipakai buat badge "peringkat ketepatan & kecepatan" di layar hasil kiosk, lihat [Peringkat ketepatan & kecepatan](#peringkat-ketepatan--kecepatan) di bawah. Tab ini diisi otomatis oleh backend, tidak perlu diisi manual.
 
 ### Langkah 2 — Environment variables di Vercel
 
@@ -149,20 +147,20 @@ Project di Vercel → **Settings → Environment Variables**, tambah:
 |---|---|
 | `GOOGLE_OAUTH_CLIENT_ID` | Client ID dari langkah 1.4 |
 | `GOOGLE_OAUTH_CLIENT_SECRET` | Client Secret dari langkah 1.4 |
-| `GOOGLE_OAUTH_REFRESH_TOKEN` | hasil skrip otorisasi di langkah 1.5 (scope Drive + Sheets) |
-| `GOOGLE_DRIVE_FOLDER_ID` | ID folder dari langkah 1.6 (topik/sesi/partisipasi) |
+| `GOOGLE_OAUTH_REFRESH_TOKEN` | hasil skrip otorisasi di langkah 1.5 |
+| `GOOGLE_SHEET_ID` | ID spreadsheet dari langkah 1.6 (topik/sesi/partisipasi) |
 | `GOOGLE_ROSTER_SPREADSHEET_ID` | ID spreadsheet HR dari langkah 1.7 (roster karyawan, live) |
 | `ADMIN_TOKEN` | sama persis dengan `CONFIG.admin.password` di `assets/config.js` |
 
-Kalau sebelumnya sempat pakai mode Sheets lama (satu spreadsheet utk semua data) atau percobaan service account, `GOOGLE_SPREADSHEET_ID`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY` boleh dihapus — tidak dipakai lagi oleh `api/data.js`.
+Kalau sebelumnya sempat pakai versi Google Drive (JSON) atau percobaan service account, `GOOGLE_DRIVE_FOLDER_ID`, `GOOGLE_SPREADSHEET_ID`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY` boleh dihapus — tidak dipakai lagi oleh `api/data.js`.
 
 Redeploy project setelah menambah/mengubah env var (Vercel tidak otomatis redeploy hanya karena env var berubah).
 
-Upload gambar materi topik **tetap** pakai Vercel Blob (terpisah dari folder data Drive di atas, lihat [Gambar materi](#gambar-materi)) — sudah aktif kalau `BLOB_READ_WRITE_TOKEN` sudah ada, tidak berubah oleh migrasi ini.
+Upload gambar materi topik **tetap** pakai Vercel Blob (terpisah dari Sheets di atas, lihat [Gambar materi](#gambar-materi)) — sudah aktif kalau `BLOB_READ_WRITE_TOKEN` sudah ada.
 
 ### Langkah 3 — Aktifkan di client
 
-Di `assets/config.js`: `dataSource: 'sheets'`, `apiUrl: '/api/data'` (relatif — otomatis mengarah ke domain Vercel yang sama, tidak perlu diisi manual per-environment). Tidak berubah dari sebelumnya — kontrak endpoint sama persis, cuma isi `api/data.js` yang diganti isinya dari Sheets ke Drive.
+Di `assets/config.js`: `dataSource: 'sheets'`, `apiUrl: '/api/data'` (relatif — otomatis mengarah ke domain Vercel yang sama, tidak perlu diisi manual per-environment). Tidak pernah perlu diubah lintas migrasi backend — kontrak endpoint sama persis, cuma isi `api/data.js` yang berubah.
 
 ### Cara kerja `api/data.js` (ringkas)
 
@@ -186,7 +184,7 @@ Kode lengkapnya ada di `api/data.js` di repo ini — otomatis ikut ter-deploy ti
 
 *`admin_login` tidak butuh `adminToken` (belum ada token untuk dicek), tapi tetap butuh `password` yang cocok dengan `ADMIN_TOKEN` di payload-nya.
 
-Tiap tulis (`topic_save`, `session_save`, `participation`, dll.) membaca seluruh file JSON koleksi terkait, mengubahnya di memori, lalu menimpa seluruh file dengan `files.update` — Drive API tidak punya partial-update konten file atau padanan `LockService`. Risiko race (dua tulisan ke koleksi yang SAMA persis bersamaan saling menimpa) secara teori ada, sama seperti keterbatasan versi Sheets sebelumnya — kecil dampaknya untuk pemakaian kiosk fisik satu-per-satu. Kalau nanti dipakai multi-kiosk serentak dan ini jadi masalah nyata, upgrade-nya: tambah lock terdistribusi (mis. Vercel KV). File `participations.json` juga cuma tumbuh, tidak pernah dipangkas — kalau dalam hitungan tahun jadi besar & lambat, upgrade-nya arsipkan data lama ke file terpisah per tahun.
+Baca/tulis pakai `valueInputOption: RAW` (bukan `USER_ENTERED`) supaya teks tanggal ("2026-07-01") tidak diam-diam diubah Sheets jadi sel bertipe Date. Tidak ada padanan `LockService` di Sheets API — dua submit yang benar-benar bersamaan (beda milidetik) secara teori bisa dapat nomor sertifikat yang sama. Risikonya rendah untuk kiosk fisik yang dipakai bergantian satu per satu; kalau nanti dipakai multi-kiosk serentak dan ini jadi masalah nyata, upgrade-nya: tambah lock terdistribusi (mis. Vercel KV).
 
 `adminToken` yang dikirim setelah login **bukan** password mentah lagi, melainkan token sesi bertanda tangan HMAC (`signSession`/`verifySession` di `api/data.js`) yang menyimpan kedaluwarsanya sendiri (12 jam) — diverifikasi ulang tiap request tanpa perlu database/KV tambahan.
 
@@ -197,9 +195,9 @@ Tiap tulis (`topic_save`, `session_save`, `participation`, dll.) membaca seluruh
 - **Privasi roster.** Jangan publikasikan seluruh isi tab `Master_Karyawan` (spreadsheet HR) ke web publik. Dengan pola di atas, aksi publik (`employee`, `verify`, `existing`) hanya membalas data 1 orang/1 sesi — bukan seluruh daftar. Aksi yang membongkar banyak data sekaligus (`employees`, `participations`) mensyaratkan `adminToken` yang cocok. Hindari menaruh NIK/no. HP di file yang di-commit publik.
 - **Keamanan login rendah.** "Login" hanya pencocokan NIK, tanpa password — memang sesuai kebutuhan kiosk yang ringan, tapi bukan autentikasi kuat. Jangan pakai pola ini untuk data sensitif.
 - **Panel Admin tetap satu password bersama** (bukan akun per-orang) — cukup untuk tim kecil yang saling percaya, bukan untuk banyak admin dengan hak berbeda-beda. Tapi di mode `sheets`, password aslinya **tidak lagi tersimpan/terkirim ke browser**: `CONFIG.admin.password` di `config.js` cuma dipakai mode `mock` (demo lokal). Login sungguhan mengirim password ke `api/data.js`, dicek di server terhadap `ADMIN_TOKEN` (env var Vercel, tidak pernah ke klien), dan yang dibalas ke browser cuma **token sesi** bertanda tangan (HMAC) yang kedaluwarsa sendiri dalam 12 jam — bukan passwordnya. Siapa pun yang buka "View Source" tidak akan menemukan password aslinya lagi. Kalau butuh lebih dari ini (akun per-admin, audit log siapa mengubah apa), itu perubahan lebih besar — taruh `admin.html` di balik autentikasi level hosting atau bangun sistem akun sungguhan.
-- **Tanpa mode `sheets`, hasil tidak terekam terpusat.** Mode `mock` menyimpan hasil hanya di browser perangkat itu (localStorage). Untuk rekap compliance lintas perangkat, sambungkan ke Google Drive (lihat [Menyambung ke Google Drive](#menyambung-ke-google-drive-mode-sheets)).
+- **Tanpa mode `sheets`, hasil tidak terekam terpusat.** Mode `mock` menyimpan hasil hanya di browser perangkat itu (localStorage). Untuk rekap compliance lintas perangkat, sambungkan ke Google Sheets (lihat [Menyambung ke Google Sheets](#menyambung-ke-google-sheets-mode-sheets)).
 - **Verifikasi QR** di mode `mock` hanya berlaku di perangkat yang sama. Verifikasi lintas perangkat butuh mode `sheets`.
-- **Kredensial OAuth** (`GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REFRESH_TOKEN`) tersimpan sebagai environment variable di Vercel, bukan di kode — jangan pernah commit ke Git. `refresh_token` setara "kunci masuk selamanya" ke akun Drive yang dipakai; kalau bocor, cabut aksesnya di [myaccount.google.com/permissions](https://myaccount.google.com/permissions) (cari nama app OAuth-nya) lalu ulangi skrip otorisasi buat dapat token baru.
+- **Kredensial OAuth** (`GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REFRESH_TOKEN`) tersimpan sebagai environment variable di Vercel, bukan di kode — jangan pernah commit ke Git. `refresh_token` setara "kunci masuk selamanya" ke akun Google yang dipakai; kalau bocor, cabut aksesnya di [myaccount.google.com/permissions](https://myaccount.google.com/permissions) (cari nama app OAuth-nya) lalu ulangi skrip otorisasi buat dapat token baru.
 - **PDF sertifikat** dibuat di browser (html2canvas + jsPDF); hasil mengikuti tampilan kartu di layar.
 
 ---
@@ -210,7 +208,7 @@ Di layar Hasil (setelah kuis, sebelum sertifikat), peserta yang **lulus** dan te
 
 Sengaja **bukan leaderboard publik yang selalu tampil ke semua orang** (mis. "kamu peringkat ke-47") — kalau semua orang melihat peringkatnya, itu bisa mendorong buru-buru lewatin materi K3 demi ranking, yang bertentangan dengan tujuan aplikasi ini (materi keselamatan kerja). Dengan cuma memunculkan badge ke top-3 yang KEBETULAN cepat & tepat, sebagian besar peserta tidak pernah melihat sinyal kompetitif apa pun. Kalau ternyata pola pakainya justru mendorong buru-buru meski dibatasi begini, opsinya: matikan badge ini sepenuhnya, atau ganti jadi murni berbasis skor (tanpa `durationMs`) — tinggal ubah `computeRank` di `assets/api.js` & `api/data.js`.
 
-Butuh `durationMs` di `participations.json` (lihat [Bentuk tiap file](#langkah-1--google-cloud-service-account--shared-drive) di atas) — dihitung di klien (`Date.now()` saat kuis dibuka sampai disubmit, lihat `assets/app.js`), jadi tidak akurat kalau ada jeda tanpa aktivitas yang tidak sampai memicu `idleResetSeconds` (kiosk di-reset otomatis kalau idle lebih lama dari itu).
+Butuh kolom `durationMs` di tab `Partisipasi` (lihat header tab di [Menyambung ke Google Sheets](#menyambung-ke-google-sheets-mode-sheets) di atas) — dihitung di klien (`Date.now()` saat kuis dibuka sampai disubmit, lihat `assets/app.js`), jadi tidak akurat kalau ada jeda tanpa aktivitas yang tidak sampai memicu `idleResetSeconds` (kiosk di-reset otomatis kalau idle lebih lama dari itu).
 
 ---
 

@@ -196,6 +196,12 @@ async function getStatusKerjaMap(roster) {
     const bridgedId = bridgeByNik.get(emp.nik);
     if (bridgedId) match = karyawan.find(r => r.id === bridgedId);
     if (!match) match = karyawan.find(r => r.status === 'approved' && String(r.nrp || '').trim() === emp.nik && namaCocok(r.nama, emp.nama));
+    if (emp.nik === '10230035') console.log('[cuti-diag]', JSON.stringify({
+      nik: emp.nik, nama: emp.nama, bridgedId: bridgedId || null,
+      matchFound: !!match, matchId: match?.id, matchNama: match?.nama, matchNrp: match?.nrp,
+      matchStatus: match?.status, cutiMulai: match?.cutiMulai, cutiSelesai: match?.cutiSelesai,
+      karyawanRowCount: karyawan.length,
+    }));
     if (!match || !match.cutiMulai || !match.cutiSelesai) { byNik.set(emp.nik, 'aktif'); continue; }
     if (today < new Date(match.cutiMulai)) { byNik.set(emp.nik, 'aktif'); continue; }
     if (today <= new Date(match.cutiSelesai)) { byNik.set(emp.nik, 'cuti'); continue; }

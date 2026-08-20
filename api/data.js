@@ -143,15 +143,85 @@ function colLetter(n) {
   return s;
 }
 
+// ---- cuti (2026-08-20) ----
+// Roster app ini (Master_Karyawan) tidak kenal status cuti -- SISTER MINER
+// adalah source of truth. Cross-read spreadsheet SISTER MINER (+ SIMANTRA K3
+// utk bridge akun_karyawan & gate Reinduksi Pasca Cuti TR_REINDUKSI), sama
+// pola & bridge yang dipakai di hazard-report-sap/api/index.js.
+function namaCocok(a, b) {
+  const na = String(a || '').trim().toUpperCase();
+  const nb = String(b || '').trim().toUpperCase();
+  return Boolean(na && nb) && (na.includes(nb) || nb.includes(na));
+}
+
+function rowsToObjects(rows) {
+  const [header, ...body] = rows;
+  if (!header) return [];
+  return body.map(r => Object.fromEntries(header.map((h, i) => [String(h).trim(), r[i] ?? ''])));
+}
+
+let _statusKerjaCache = null; // { at, byNik: Map<nik, statusKerja> }
+
+/** statusKerja ("aktif"|"cuti"|"wajib_reinduksi") per NIK di `roster`. Env var
+ * SISTER_MINER_SPREADSHEET_ID belum diset -> Map kosong (semua "aktif"). */
+async function getStatusKerjaMap(roster) {
+  const sisterId = process.env.SISTER_MINER_SPREADSHEET_ID;
+  if (!sisterId) return new Map();
+  const now = Date.now();
+  if (_statusKerjaCache && now - _statusKerjaCache.at < 30_000) return _statusKerjaCache.byNik;
+
+  let karyawan, bridgeByNik = new Map(), records = [];
+  try {
+    karyawan = rowsToObjects(await getRows('Karyawan', sisterId));
+    const simantraId = process.env.SIMANTRA_SPREADSHEET_ID;
+    if (simantraId) {
+      for (const r of rowsToObjects(await getRows('akun_karyawan', simantraId))) {
+        if (r.nik) bridgeByNik.set(String(r.nik).trim(), r.karyawan_id);
+      }
+      records = rowsToObjects(await getRows('training_records', simantraId));
+    }
+  } catch (err) {
+    // Fail-open (2026-08-20): salah ID / akun OAuth belum di-share akses ke
+    // spreadsheet SISTER MINER TIDAK BOLEH bikin listEmployees() (dipakai di
+    // mana-mana) patah -- cuma bikin fitur cuti mati sementara.
+    console.error('[cuti] gagal baca SISTER MINER/SIMANTRA, fitur cuti nonaktif sementara:', err.message);
+    return new Map();
+  }
+
+  const byNik = new Map();
+  // Bug (2026-08-21): bandingin Date lengkap (dgn jam) ke new Date(tanggal)
+  // (selalu jam 00:00 UTC) bikin cutiSelesai cuma "cuti" di milidetik pertama
+  // harinya. Fix: banding string tanggal kalender (YYYY-MM-DD) di zona WIB.
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
+  for (const emp of roster) {
+    if (!emp.nik) continue;
+    let match;
+    const bridgedId = bridgeByNik.get(emp.nik);
+    if (bridgedId) match = karyawan.find(r => r.id === bridgedId);
+    if (!match) match = karyawan.find(r => r.status === 'approved' && String(r.nrp || '').trim() === emp.nik && namaCocok(r.nama, emp.nama));
+    if (!match || !match.cutiMulai || !match.cutiSelesai) { byNik.set(emp.nik, 'aktif'); continue; }
+    if (today < match.cutiMulai) { byNik.set(emp.nik, 'aktif'); continue; }
+    if (today <= match.cutiSelesai) { byNik.set(emp.nik, 'cuti'); continue; }
+    const done = records.some(r => r.karyawan_id === match.id && r.training_id === 'TR_REINDUKSI'
+      && r.status === 'Hadir' && (r.tanggal_selesai || '') >= match.cutiSelesai);
+    byNik.set(emp.nik, done ? 'aktif' : 'wajib_reinduksi');
+  }
+  _statusKerjaCache = { at: now, byNik };
+  return byNik;
+}
+
 // ---- logic per endpoint ----
 async function listEmployees() {
   const rows = await getRows(ROSTER, ROSTER_SPREADSHEET_ID);
   const head = rows.shift() || [];
   const c = colIndexer(head);
-  return rows.map(r => ({
+  const list = rows.map(r => ({
     nik: String(r[c('NIK')] || '').trim(), nama: r[c('NAMA')], perusahaan: r[c('PERUSAHAAN')],
     jabatan: r[c('JABATAN')], departemen: r[c('DEPARTEMEN')],
   })).filter(e => e.nama);
+
+  const statusByNik = await getStatusKerjaMap(list);
+  return list.map(e => ({ ...e, statusKerja: statusByNik.get(e.nik) || 'aktif' }));
 }
 
 async function findEmployee(nik) {

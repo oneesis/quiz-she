@@ -856,7 +856,7 @@
         const scopeNiks = new Set();
         topicSessions.forEach(s => {
           const scope = (s.targetCompanies || []).length ? lastEmployees.filter(e => s.targetCompanies.includes(e.perusahaan)) : lastEmployees;
-          scope.forEach(e => scopeNiks.add(e.nik));
+          scope.filter(e => e.statusKerja !== 'cuti').forEach(e => scopeNiks.add(e.nik)); // Cuti (2026-08-20)
         });
         total = scopeNiks.size;
         passed = [...scopeNiks].filter(nik => passedNiks.has(nik)).length;
@@ -1074,9 +1074,10 @@
       if (!lastEmployees.length) lastEmployees = await API.listEmployees();
       if (!lastReports.length) lastReports = await API.listParticipations();
 
-      const scope = (session.targetCompanies || []).length
+      const scope = ((session.targetCompanies || []).length
         ? lastEmployees.filter(e => session.targetCompanies.includes(e.perusahaan))
-        : lastEmployees;
+        : lastEmployees
+      ).filter(e => e.statusKerja !== 'cuti'); // Cuti (2026-08-20) -- dikecualikan dari kewajiban
       const forSession = lastReports.filter(p => p.sessionId === sessionId);
       const passedNiks = new Set(forSession.filter(p => p.passed).map(p => p.nik));
       // status dihitung sekali di sini & ditempel ke tiap objek karyawan --

@@ -6,6 +6,18 @@
 (function () {
   const C = window.CONFIG;
   let adminToken = null; // diisi admin.js setelah login; dikirim ke backend untuk aksi admin
+  // Dipanggil admin.js (lewat API.setOnUnauthorized) begitu server balas
+  // "unauthorized" -- token sesi admin kedaluwarsa (12 jam) atau tidak
+  // valid. Sengaja cuma sekali per kejadian (unauthorizedHandled) supaya
+  // request yang gagal beruntun (mis. listParticipations + listEmployees
+  // bareng) tidak nge-alert berkali-kali; direset begitu login baru berhasil.
+  let onUnauthorized = null;
+  let unauthorizedHandled = false;
+  function reportUnauthorized() {
+    if (unauthorizedHandled || !onUnauthorized) return;
+    unauthorizedHandled = true;
+    onUnauthorized();
+  }
 
   // ---- penyimpanan aman (localStorage bila tersedia, jika tidak in-memory) ----
   const mem = {};
@@ -187,8 +199,13 @@
     async _get(params) {
       const url = C.apiUrl + '?' + new URLSearchParams(params).toString();
       const res = await fetch(url);
-      if (!res.ok) throw new Error('Gagal menghubungi server data');
-      return res.json();
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        const msg = (data && data.error) || 'Gagal menghubungi server data';
+        if (msg === 'unauthorized') reportUnauthorized();
+        throw new Error(msg);
+      }
+      return data;
     },
     async _post(action, payload) {
       const res = await fetch(C.apiUrl, {
@@ -200,7 +217,11 @@
       // Teruskan pesan error asli dari server (mis. kuota Drive habis, sesi
       // admin kedaluwarsa) -- dulu dibuang diganti teks generik sehingga
       // penyebab sebenarnya tidak pernah terlihat di UI.
-      if (!res.ok || (data && data.ok === false)) throw new Error((data && data.error) || 'Gagal menyimpan ke server data');
+      if (!res.ok || (data && data.ok === false)) {
+        const msg = (data && data.error) || 'Gagal menyimpan ke server data';
+        if (msg === 'unauthorized') reportUnauthorized();
+        throw new Error(msg);
+      }
       return data;
     },
     async findEmployee(nik) {
@@ -285,7 +306,8 @@
     findByToken: (t) => impl.findByToken(t),
     listParticipations: () => impl.listParticipations(),
     listEmployees: () => impl.listEmployees(),
-    setAdminToken: (t) => { adminToken = t; },
+    setAdminToken: (t) => { adminToken = t; if (t) unauthorizedHandled = false; },
+    setOnUnauthorized: (fn) => { onUnauthorized = fn; },
     listTopics: () => impl.listTopics(),
     saveTopic: (t) => impl.saveTopic(t),
     deleteTopic: (code) => impl.deleteTopic(code),

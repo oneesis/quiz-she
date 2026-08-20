@@ -346,8 +346,20 @@ module.exports = async (req, res) => {
       if (a === 'sessions')       return res.json(await listSessions());
       if (a === 'existing')       return res.json(await findExisting(req.query.nik, req.query.sessionId));
       if (a === 'history')        return res.json(await findHistory(req.query.nik));
-      if (a === 'participations') return res.json(isAdmin(req.query.adminToken) ? await listParticipations() : []);
-      if (a === 'employees')      return res.json(isAdmin(req.query.adminToken) ? await listEmployees() : []);
+      // Dulu balas array kosong diam-diam kalau adminToken tidak valid/kedaluwarsa
+      // -- di UI itu keliatan PERSIS sama dengan "memang belum ada data", jadi
+      // sesi admin yang habis bikin seluruh Laporan/Karyawan keliatan kosong
+      // tanpa penjelasan. Sekarang 401 dengan error jelas, supaya klien bisa
+      // bedakan "kedaluwarsa" dari "kosong beneran" (lihat onUnauthorized di
+      // assets/api.js).
+      if (a === 'participations') {
+        if (!isAdmin(req.query.adminToken)) return res.status(401).json({ error: 'unauthorized' });
+        return res.json(await listParticipations());
+      }
+      if (a === 'employees') {
+        if (!isAdmin(req.query.adminToken)) return res.status(401).json({ error: 'unauthorized' });
+        return res.json(await listEmployees());
+      }
       return res.json({});
     }
 

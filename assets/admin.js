@@ -1281,6 +1281,15 @@
     $$('[data-org-name]').forEach(el => el.textContent = C.org.name);
     $$('[data-org-subtitle]').forEach(el => el.textContent = C.org.subtitle);
     bind();
+    // Server balas "unauthorized" (401) kalau adminToken kedaluwarsa/tidak
+    // valid -- dulu action GET (participations/employees) malah balas array
+    // kosong diam-diam, jadi Laporan/Karyawan keliatan "kosong" padahal
+    // sebenarnya cuma sesinya habis. Sekarang langsung logout otomatis +
+    // pesan jelas, bukan dibiarkan nyangkut di layar yang keliatan kosong.
+    API.setOnUnauthorized(() => {
+      doLogout();
+      alert('Sesi admin sudah habis (kedaluwarsa setelah 12 jam). Silakan login lagi.');
+    });
     const savedToken = sessionStorage.getItem(AUTH_KEY);
     if (savedToken) { API.setAdminToken(savedToken); openDashboard(); }
   });

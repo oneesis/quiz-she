@@ -189,22 +189,19 @@ async function getStatusKerjaMap(roster) {
   }
 
   const byNik = new Map();
-  const today = new Date();
+  // Bug (2026-08-21): bandingin Date lengkap (dgn jam) ke new Date(tanggal)
+  // (selalu jam 00:00 UTC) bikin cutiSelesai cuma "cuti" di milidetik pertama
+  // harinya. Fix: banding string tanggal kalender (YYYY-MM-DD) di zona WIB.
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
   for (const emp of roster) {
     if (!emp.nik) continue;
     let match;
     const bridgedId = bridgeByNik.get(emp.nik);
     if (bridgedId) match = karyawan.find(r => r.id === bridgedId);
     if (!match) match = karyawan.find(r => r.status === 'approved' && String(r.nrp || '').trim() === emp.nik && namaCocok(r.nama, emp.nama));
-    if (emp.nik === '10230035') console.log('[cuti-diag]', JSON.stringify({
-      nik: emp.nik, nama: emp.nama, bridgedId: bridgedId || null,
-      matchFound: !!match, matchId: match?.id, matchNama: match?.nama, matchNrp: match?.nrp,
-      matchStatus: match?.status, cutiMulai: match?.cutiMulai, cutiSelesai: match?.cutiSelesai,
-      karyawanRowCount: karyawan.length,
-    }));
     if (!match || !match.cutiMulai || !match.cutiSelesai) { byNik.set(emp.nik, 'aktif'); continue; }
-    if (today < new Date(match.cutiMulai)) { byNik.set(emp.nik, 'aktif'); continue; }
-    if (today <= new Date(match.cutiSelesai)) { byNik.set(emp.nik, 'cuti'); continue; }
+    if (today < match.cutiMulai) { byNik.set(emp.nik, 'aktif'); continue; }
+    if (today <= match.cutiSelesai) { byNik.set(emp.nik, 'cuti'); continue; }
     const done = records.some(r => r.karyawan_id === match.id && r.training_id === 'TR_REINDUKSI'
       && r.status === 'Hadir' && (r.tanggal_selesai || '') >= match.cutiSelesai);
     byNik.set(emp.nik, done ? 'aktif' : 'wajib_reinduksi');

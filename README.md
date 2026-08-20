@@ -151,6 +151,8 @@ Project di Vercel → **Settings → Environment Variables**, tambah:
 | `GOOGLE_SHEET_ID` | ID spreadsheet dari langkah 1.6 (topik/sesi/partisipasi) |
 | `GOOGLE_ROSTER_SPREADSHEET_ID` | ID spreadsheet HR dari langkah 1.7 (roster karyawan, live) |
 | `ADMIN_TOKEN` | sama persis dengan `CONFIG.admin.password` di `assets/config.js` |
+| `SISTER_MINER_SPREADSHEET_ID` | (2026-08-20, opsional) ID spreadsheet SISTER MINER — cross-read status cuti karyawan biar dikecualikan dari kewajiban Sharing Session. Kosong = fitur cuti tidak aktif (semua dianggap aktif). **Akun Google OAuth yang diotorisasi di langkah 1.4/1.5 harus punya akses baca ke spreadsheet ini** (beda dari service account yang dipakai app lain). |
+| `SIMANTRA_SPREADSHEET_ID` | (2026-08-20, opsional) ID spreadsheet SIMANTRA K3 — cross-read bridge `akun_karyawan` & training `TR_REINDUKSI`, dipakai bareng `SISTER_MINER_SPREADSHEET_ID`. Sama syarat akses baca untuk akun OAuth-nya. |
 
 Kalau sebelumnya sempat pakai versi Google Drive (JSON) atau percobaan service account, `GOOGLE_DRIVE_FOLDER_ID`, `GOOGLE_SPREADSHEET_ID`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY` boleh dihapus — tidak dipakai lagi oleh `api/data.js`.
 

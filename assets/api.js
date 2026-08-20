@@ -94,6 +94,9 @@
   }
 
   function buildActiveSessions(employee, sessions, topics) {
+    // Cuti (2026-08-20) -- karyawan sedang cuti dikecualikan dari kewajiban
+    // Sharing Session (statusKerja diisi server, lihat api/data.js listEmployees()).
+    if (employee.statusKerja === 'cuti') return [];
     return sessions
       .filter(s => s.status === 'published' && todayInRange(s.validFrom, s.validUntil))
       .filter(s => !(s.targetCompanies || []).length || s.targetCompanies.includes(employee.perusahaan))

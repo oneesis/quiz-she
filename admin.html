@@ -191,6 +191,19 @@
             </button>
           </div>
 
+          <div class="bg-white rounded-2xl border border-outline-variant card-shadow overflow-hidden">
+            <div class="px-6 py-4 border-b border-outline-variant bg-surface-container-low">
+              <h3 class="font-bold text-primary">Buat Laporan PPT</h3>
+              <p class="text-xs text-on-surface-variant mt-0.5">Pilih sesi yang mau masuk ke laporan, lalu unduh sebagai PowerPoint.</p>
+            </div>
+            <div class="p-6 space-y-4">
+              <div id="ppt-session-list" class="space-y-2 border border-outline-variant rounded-lg p-3 max-h-56 overflow-y-auto"></div>
+              <button id="btn-export-ppt" class="flex items-center gap-2 px-4 py-2.5 bg-primary text-white font-bold rounded-lg hover:opacity-90 transition">
+                <span class="material-symbols-outlined text-[18px]">slideshow</span>Unduh PPTX
+              </button>
+            </div>
+          </div>
+
           <!-- Ringkasan per Topik butuh lebih lebar dari per Perusahaan (1 kolom
                ekstra "Belum Mengerjakan" + nama topik yang lebih panjang) --
                grid 8 kolom, 3:5 bukan 1:1, biar tabel topik tidak perlu

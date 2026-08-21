@@ -763,6 +763,7 @@
       // (ringkasan topik, dropdown analitik, Belum Lulus per Sesi) butuh
       // sessions terisi, jadi ditunggu dulu kalau belum ada.
       if (!sessions.length) await reloadData();
+      renderPptSessionChecklist();
       lastReports = await API.listParticipations();
       renderCompanySummary(lastReports);
       await renderTopicSummary(lastReports);
@@ -1014,9 +1015,10 @@
   // Dipecah perusahaan -> departemen -> {total, passed}, dari scope karyawan
   // & passedNiks yang sama dengan tabel "Belum Lulus per Sesi" di bawahnya
   // (satu sumber data, satu dropdown sesi -- tidak ada logika ganda).
-  function renderDeptChart(scope, passedNiks) {
-    const wrap = $('#dept-chart');
-    if (!scope.length) { wrap.innerHTML = `<p class="text-sm text-on-surface-variant">Tidak ada karyawan dalam cakupan sesi ini.</p>`; return; }
+  // { [perusahaan]: { [departemen]: {total, passed} } } -- dipakai renderDeptChart
+  // (web) dan computeSessionStats/exportReportPpt (laporan PPT) supaya logika
+  // pengelompokan cuma ada di satu tempat.
+  function groupByCompanyDept(scope, passedNiks) {
     const companies = {};
     scope.forEach(e => {
       const co = e.perusahaan || 'Tanpa perusahaan';
@@ -1026,6 +1028,13 @@
       d.total++;
       if (passedNiks.has(e.nik)) d.passed++;
     });
+    return companies;
+  }
+
+  function renderDeptChart(scope, passedNiks) {
+    const wrap = $('#dept-chart');
+    if (!scope.length) { wrap.innerHTML = `<p class="text-sm text-on-surface-variant">Tidak ada karyawan dalam cakupan sesi ini.</p>`; return; }
+    const companies = groupByCompanyDept(scope, passedNiks);
     wrap.innerHTML = Object.keys(companies).sort().map(co => {
       const depts = companies[co];
       const rows = Object.keys(depts).sort().map(dept => {
@@ -1065,6 +1074,16 @@
     await computeMissingReport(sel.value);
   }
 
+  // Karyawan yang wajib ikut sesi ini: roster difilter targetCompanies (atau
+  // semua kalau kosong), dikurangi yang sedang cuti. Dipakai computeMissingReport
+  // (web) dan computeSessionStats (laporan PPT) -- satu sumber logika "wajib".
+  function computeSessionScope(session) {
+    return ((session.targetCompanies || []).length
+      ? lastEmployees.filter(e => session.targetCompanies.includes(e.perusahaan))
+      : lastEmployees
+    ).filter(e => e.statusKerja !== 'cuti'); // Cuti (2026-08-20) -- dikecualikan dari kewajiban
+  }
+
   async function computeMissingReport(sessionId) {
     const body = $('#missing-report-body');
     body.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-on-surface-variant">Memuat…</td></tr>`;
@@ -1074,10 +1093,7 @@
       if (!lastEmployees.length) lastEmployees = await API.listEmployees();
       if (!lastReports.length) lastReports = await API.listParticipations();
 
-      const scope = ((session.targetCompanies || []).length
-        ? lastEmployees.filter(e => session.targetCompanies.includes(e.perusahaan))
-        : lastEmployees
-      ).filter(e => e.statusKerja !== 'cuti'); // Cuti (2026-08-20) -- dikecualikan dari kewajiban
+      const scope = computeSessionScope(session);
       const forSession = lastReports.filter(p => p.sessionId === sessionId);
       const passedNiks = new Set(forSession.filter(p => p.passed).map(p => p.nik));
       // status dihitung sekali di sini & ditempel ke tiap objek karyawan --
@@ -1109,6 +1125,145 @@
       $$('.history-link', body).forEach(b => b.onclick = () => openEmployeeHistory(b.dataset.nik, b.dataset.nama));
     } catch (e) {
       body.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-error">Gagal memuat. Periksa koneksi lalu coba lagi.</td></tr>`;
+    }
+  }
+
+  // ============================================================
+  // LAPORAN PPT (pilih sesi -> unduh .pptx)
+  // ============================================================
+  // Bentuknya sengaja sama dengan baris "Ringkasan per Topik" tapi per SATU
+  // sesi (bukan digabung semua sesi 1 topik) -- laporan ini user pilih sesi
+  // spesifik, bukan topik.
+  async function computeSessionStats(session) {
+    const scope = computeSessionScope(session);
+    const forSession = lastReports.filter(p => p.sessionId === session.id);
+    const passedNiks = new Set(forSession.filter(p => p.passed).map(p => p.nik));
+    const attemptedNiks = new Set(forSession.map(p => p.nik));
+    const topic = topics.find(t => t.code === session.topicCode);
+    return {
+      session, topicTitle: topic ? topic.title : session.topicCode,
+      total: scope.length,
+      passed: scope.filter(e => passedNiks.has(e.nik)).length,
+      notAttempted: scope.filter(e => !attemptedNiks.has(e.nik)).length,
+      avgScore: forSession.length ? Math.round(forSession.reduce((s, p) => s + (Number(p.score) || 0), 0) / forSession.length) : 0,
+      byCompanyDept: groupByCompanyDept(scope, passedNiks),
+    };
+  }
+
+  function renderPptSessionChecklist() {
+    const wrap = $('#ppt-session-list');
+    if (!sessions.length) { wrap.innerHTML = `<p class="text-sm text-on-surface-variant">Belum ada sesi.</p>`; return; }
+    wrap.innerHTML = sessions.map(s => {
+      const topic = topics.find(t => t.code === s.topicCode);
+      const label = escapeHtml(s.title || (topic ? topic.title : s.topicCode));
+      return `<label class="flex items-center gap-2 text-sm">
+        <input type="checkbox" class="ppt-session-checkbox w-4 h-4 accent-[#1f4d33]" value="${escapeAttr(s.id)}" checked />
+        <span>${label} <span class="text-on-surface-variant">· ${escapeHtml(s.validFrom || '-')} – ${escapeHtml(s.validUntil || '-')}</span></span>
+      </label>`;
+    }).join('');
+  }
+
+  // Sama seperti loadScript di assets/app.js (dipakai buat html2canvas/jsPDF)
+  // -- diduplikasi ke sini karena admin.js & app.js dua closure terpisah
+  // tanpa module system bersama.
+  const loadedScripts = {};
+  function loadScript(src) {
+    if (!loadedScripts[src]) {
+      loadedScripts[src] = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = src; s.onload = resolve; s.onerror = () => reject(new Error('gagal memuat ' + src));
+        document.head.appendChild(s);
+      });
+    }
+    return loadedScripts[src];
+  }
+  const PPTXGENJS_SRC = 'https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js';
+
+  async function exportReportPpt() {
+    const ids = $$('.ppt-session-checkbox:checked').map(cb => cb.value);
+    if (!ids.length) { alert('Pilih minimal 1 sesi dulu.'); return; }
+    const btn = $('#btn-export-ppt');
+    const originalLabel = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Menyiapkan…';
+    try {
+      await loadScript(PPTXGENJS_SRC);
+      if (!lastEmployees.length) lastEmployees = await API.listEmployees();
+      if (!lastReports.length) lastReports = await API.listParticipations();
+      const selected = sessions.filter(s => ids.includes(s.id));
+      const stats = await Promise.all(selected.map(computeSessionStats));
+
+      const pptx = new window.PptxGenJS();
+      pptx.layout = 'LAYOUT_16x9'; // 10x5.63in, bawaan library -- tidak perlu defineLayout custom
+      const primary = '12271C', accent = 'A6E100';
+
+      // ---- sampul ----
+      const cover = pptx.addSlide();
+      cover.background = { color: primary };
+      cover.addImage({ path: 'assets/Logo EBL.png', x: 0.5, y: 0.5, w: 0.9, h: 0.9 });
+      cover.addText('Laporan Capaian Sharing Session', { x: 0.5, y: 1.8, w: 9, h: 1, fontSize: 28, bold: true, color: 'FFFFFF' });
+      cover.addText(`${C.org.name} -- dibuat ${new Date().toLocaleDateString('id-ID')}`, { x: 0.5, y: 2.7, w: 9, fontSize: 14, color: accent });
+      cover.addText(`${stats.length} sesi: ` + stats.map(s => s.session.title || s.topicTitle).join(', '), { x: 0.5, y: 3.2, w: 9, h: 1.5, fontSize: 11, color: 'FFFFFF' });
+
+      // ---- ringkasan gabungan ----
+      // Dijumlah per-sesi, BUKAN per-orang-unik -- satu orang yang masuk
+      // cakupan >1 sesi terpilih kehitung berkali-kali. Dilabeli jelas di
+      // judul angkanya supaya tidak disalahartikan sebagai headcount unik.
+      const sumTotal = stats.reduce((s, x) => s + x.total, 0);
+      const sumPassed = stats.reduce((s, x) => s + x.passed, 0);
+      const overallRate = sumTotal ? Math.round((sumPassed / sumTotal) * 100) : 0;
+      const summarySlide = pptx.addSlide();
+      summarySlide.addText('Ringkasan Capaian Keseluruhan', { x: 0.5, y: 0.3, w: 9, fontSize: 22, bold: true, color: primary });
+      const kpis = [
+        ['Total Partisipasi Wajib\n(gabungan sesi terpilih)', String(sumTotal)],
+        ['Lulus', String(sumPassed)],
+        ['% Lulus Gabungan', overallRate + '%'],
+      ];
+      kpis.forEach(([label, value], i) => {
+        const x = 0.5 + i * 3.1;
+        summarySlide.addShape(pptx.ShapeType.roundRect, { x, y: 1.2, w: 2.8, h: 1.6, fill: { color: 'F2F4EE' }, line: { color: 'CDD6C8' }, rectRadius: 0.1 });
+        summarySlide.addText(value, { x, y: 1.35, w: 2.8, h: 0.8, align: 'center', fontSize: 32, bold: true, color: primary });
+        summarySlide.addText(label, { x, y: 2.1, w: 2.8, h: 0.6, align: 'center', fontSize: 11, color: '4C5750' });
+      });
+
+      // ---- tabel breakdown per sesi ----
+      const tableSlide = pptx.addSlide();
+      tableSlide.addText('Breakdown per Sesi', { x: 0.5, y: 0.3, w: 9, fontSize: 22, bold: true, color: primary });
+      const head = ['Sesi', 'Peserta', 'Lulus', 'Belum Lulus', 'Rata-rata', 'Belum Mengerjakan', '% Lulus'].map(t => ({
+        text: t, options: { bold: true, fill: { color: primary }, color: 'FFFFFF', fontSize: 10 },
+      }));
+      const rows = stats.map(s => {
+        const rate = s.total ? Math.round((s.passed / s.total) * 100) : 0;
+        return [s.session.title || s.topicTitle, s.total, s.passed, s.total - s.passed, s.avgScore + '%', s.notAttempted, rate + '%']
+          .map(v => ({ text: String(v), options: { fontSize: 10 } }));
+      });
+      tableSlide.addTable([head, ...rows], { x: 0.5, y: 1.1, w: 9, autoPage: true, border: { color: 'CDD6C8', pt: 0.5 } });
+
+      // ---- 1 slide chart per sesi (1 chart per perusahaan kalau sesi itu
+      // menyasar >1 perusahaan) ----
+      stats.forEach(s => {
+        const companies = Object.keys(s.byCompanyDept).sort();
+        companies.forEach(co => {
+          const depts = s.byCompanyDept[co];
+          const labels = Object.keys(depts).sort();
+          if (!labels.length) return;
+          const values = labels.map(d => depts[d].total ? Math.round((depts[d].passed / depts[d].total) * 100) : 0);
+          const chartSlide = pptx.addSlide();
+          chartSlide.addText(`${s.session.title || s.topicTitle} -- ${co}`, { x: 0.5, y: 0.3, w: 9, fontSize: 18, bold: true, color: primary });
+          chartSlide.addText('% Lulus per Departemen', { x: 0.5, y: 0.85, w: 9, fontSize: 11, color: '4C5750' });
+          chartSlide.addChart(pptx.ChartType.bar, [{ name: '% Lulus', labels, values }], {
+            x: 0.5, y: 1.3, w: 9, h: 4, barDir: 'bar', showValue: true, chartColors: [accent],
+            valAxisMaxVal: 100, valAxisTitle: '% Lulus', catAxisLabelFontSize: 9,
+          });
+        });
+      });
+
+      pptx.writeFile({ fileName: `Laporan-Sharing-Session-${new Date().toISOString().slice(0, 10)}.pptx` });
+    } catch (e) {
+      alert('Gagal membuat PPT. Coba lagi.');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalLabel;
     }
   }
 
@@ -1264,6 +1419,7 @@
     $('#btn-session-delete').onclick = deleteSessionConfirm;
 
     $('#btn-export-csv').onclick = exportCsv;
+    $('#btn-export-ppt').onclick = exportReportPpt;
     $('#reports-company-filter').onchange = applyReportFilters;
     $('#reports-topic-filter').onchange = applyReportFilters;
     $('#reports-from').onchange = applyReportFilters;

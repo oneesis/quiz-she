@@ -1239,22 +1239,51 @@
       });
       tableSlide.addTable([head, ...rows], { x: 0.5, y: 1.1, w: 9, autoPage: true, border: { color: 'CDD6C8', pt: 0.5 } });
 
-      // ---- 1 slide chart per sesi (1 chart per perusahaan kalau sesi itu
-      // menyasar >1 perusahaan) ----
+      // 1 slide chart bar %lulus-per-departemen -- dipakai baik utk chart
+      // gabungan (semua sesi terpilih) maupun chart per sesi di bawah.
+      const addDeptChartSlide = (title, subtitle, depts) => {
+        const labels = Object.keys(depts).sort();
+        if (!labels.length) return;
+        const values = labels.map(d => depts[d].total ? Math.round((depts[d].passed / depts[d].total) * 100) : 0);
+        const chartSlide = pptx.addSlide();
+        chartSlide.addText(title, { x: 0.5, y: 0.3, w: 9, fontSize: 18, bold: true, color: primary });
+        chartSlide.addText(subtitle, { x: 0.5, y: 0.85, w: 9, fontSize: 11, color: '4C5750' });
+        chartSlide.addChart(pptx.ChartType.bar, [{ name: '% Lulus', labels, values }], {
+          x: 0.5, y: 1.3, w: 9, h: 4, barDir: 'bar', showValue: true, chartColors: [accent],
+          valAxisMaxVal: 100, valAxisTitle: '% Lulus', catAxisLabelFontSize: 9,
+        });
+      };
+
+      // ---- 1 slide gabungan per perusahaan, dijumlah dari SEMUA sesi
+      // terpilih -- overview ketercapaian tiap departemen sebelum masuk ke
+      // detail per sesi di bawah. Sama seperti KPI gabungan di atas, ini
+      // dijumlah per-instans-kehadiran-wajib (bukan per-orang-unik) kalau
+      // satu departemen kena cakupan >1 sesi terpilih.
+      const combinedByCompanyDept = {};
       stats.forEach(s => {
-        const companies = Object.keys(s.byCompanyDept).sort();
-        companies.forEach(co => {
-          const depts = s.byCompanyDept[co];
-          const labels = Object.keys(depts).sort();
-          if (!labels.length) return;
-          const values = labels.map(d => depts[d].total ? Math.round((depts[d].passed / depts[d].total) * 100) : 0);
-          const chartSlide = pptx.addSlide();
-          chartSlide.addText(`${s.session.title || s.topicTitle} -- ${co}`, { x: 0.5, y: 0.3, w: 9, fontSize: 18, bold: true, color: primary });
-          chartSlide.addText('% Lulus per Departemen', { x: 0.5, y: 0.85, w: 9, fontSize: 11, color: '4C5750' });
-          chartSlide.addChart(pptx.ChartType.bar, [{ name: '% Lulus', labels, values }], {
-            x: 0.5, y: 1.3, w: 9, h: 4, barDir: 'bar', showValue: true, chartColors: [accent],
-            valAxisMaxVal: 100, valAxisTitle: '% Lulus', catAxisLabelFontSize: 9,
+        Object.keys(s.byCompanyDept).forEach(co => {
+          const src = s.byCompanyDept[co];
+          const dst = combinedByCompanyDept[co] || (combinedByCompanyDept[co] = {});
+          Object.keys(src).forEach(dept => {
+            const d = dst[dept] || (dst[dept] = { total: 0, passed: 0 });
+            d.total += src[dept].total;
+            d.passed += src[dept].passed;
           });
+        });
+      });
+      Object.keys(combinedByCompanyDept).sort().forEach(co => {
+        addDeptChartSlide(
+          `Ketercapaian Semua Departemen -- ${co}`,
+          `Gabungan ${stats.length} sesi terpilih -- % Lulus per Departemen`,
+          combinedByCompanyDept[co]
+        );
+      });
+
+      // ---- detail: 1 slide chart per sesi (1 chart per perusahaan kalau
+      // sesi itu menyasar >1 perusahaan) ----
+      stats.forEach(s => {
+        Object.keys(s.byCompanyDept).sort().forEach(co => {
+          addDeptChartSlide(`${s.session.title || s.topicTitle} -- ${co}`, '% Lulus per Departemen', s.byCompanyDept[co]);
         });
       });
 

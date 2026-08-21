@@ -852,7 +852,11 @@
       const topicSessions = sessions.filter(s => s.topicCode === topicCode);
       const passedNiks = new Set(attempts.filter(p => p.passed).map(p => p.nik));
       const attemptedNiks = new Set(attempts.map(p => p.nik));
-      let total, passed, notAttempted;
+      // "Belum Lulus" = SUDAH mengerjakan tapi nilainya belum tercapai --
+      // beda dari "Belum Mengerjakan" (belum coba sama sekali). Dulu "Belum
+      // Lulus" = total-passed, yang diam-diam mencampur kedua kelompok itu
+      // jadi satu angka.
+      let total, passed, notAttempted, belumLulus;
       if (topicSessions.length) {
         const scopeNiks = new Set();
         topicSessions.forEach(s => {
@@ -862,15 +866,19 @@
         total = scopeNiks.size;
         passed = [...scopeNiks].filter(nik => passedNiks.has(nik)).length;
         notAttempted = [...scopeNiks].filter(nik => !attemptedNiks.has(nik)).length;
+        belumLulus = [...scopeNiks].filter(nik => attemptedNiks.has(nik) && !passedNiks.has(nik)).length;
       } else {
         // topik tanpa sesi terjadwal (mis. data lama) -- tidak ada cakupan
         // roster yg bisa dihitung, fallback ke jumlah orang yg pernah coba.
+        // Semua yg terhitung "total" di sini sudah pasti pernah mencoba
+        // (definisi fallback-nya), jadi belumLulus = total-passed valid.
         total = attemptedNiks.size;
         passed = passedNiks.size;
         notAttempted = null;
+        belumLulus = total - passed;
       }
       const avg = attempts.length ? Math.round(attempts.reduce((s, p) => s + (Number(p.score) || 0), 0) / attempts.length) : 0;
-      groups[topicCode || 'Tanpa topik'] = { total, passed, notAttempted, avg };
+      groups[topicCode || 'Tanpa topik'] = { total, passed, notAttempted, belumLulus, avg };
     });
 
     const wrap = $('#topic-summary-body');
@@ -881,8 +889,9 @@
       const rate = g.total ? Math.round((g.passed / g.total) * 100) : 0;
       return `<tr>
         <td class="px-4 py-3 font-medium">${escapeHtml(name)}</td><td class="px-4 py-3">${g.total}</td><td class="px-4 py-3">${g.passed}</td>
-        <td class="px-4 py-3">${g.total - g.passed}</td><td class="px-4 py-3">${g.avg}%</td>
+        <td class="px-4 py-3">${g.belumLulus}</td>
         <td class="px-4 py-3">${g.notAttempted == null ? '-' : g.notAttempted}</td>
+        <td class="px-4 py-3">${g.avg}%</td>
         <td class="px-4 py-3 font-bold text-primary">${rate}%</td>
       </tr>`;
     }).join('');
@@ -1144,6 +1153,9 @@
       session, topicTitle: topic ? topic.title : session.topicCode,
       total: scope.length,
       passed: scope.filter(e => passedNiks.has(e.nik)).length,
+      // "Belum Lulus" = SUDAH mengerjakan tapi nilainya belum tercapai --
+      // beda dari "Belum Mengerjakan" (belum coba sama sekali).
+      belumLulus: scope.filter(e => attemptedNiks.has(e.nik) && !passedNiks.has(e.nik)).length,
       notAttempted: scope.filter(e => !attemptedNiks.has(e.nik)).length,
       avgScore: forSession.length ? Math.round(forSession.reduce((s, p) => s + (Number(p.score) || 0), 0) / forSession.length) : 0,
       byCompanyDept: groupByCompanyDept(scope, passedNiks),
@@ -1229,12 +1241,12 @@
       // ---- tabel breakdown per sesi ----
       const tableSlide = pptx.addSlide();
       tableSlide.addText('Breakdown per Sesi', { x: 0.5, y: 0.3, w: 9, fontSize: 22, bold: true, color: primary });
-      const head = ['Sesi', 'Peserta', 'Lulus', 'Belum Lulus', 'Rata-rata', 'Belum Mengerjakan', '% Lulus'].map(t => ({
+      const head = ['Sesi', 'Peserta', 'Lulus', 'Belum Lulus', 'Belum Mengerjakan', 'Rata-rata', '% Lulus'].map(t => ({
         text: t, options: { bold: true, fill: { color: primary }, color: 'FFFFFF', fontSize: 10 },
       }));
       const rows = stats.map(s => {
         const rate = s.total ? Math.round((s.passed / s.total) * 100) : 0;
-        return [s.session.title || s.topicTitle, s.total, s.passed, s.total - s.passed, s.avgScore + '%', s.notAttempted, rate + '%']
+        return [s.session.title || s.topicTitle, s.total, s.passed, s.belumLulus, s.notAttempted, s.avgScore + '%', rate + '%']
           .map(v => ({ text: String(v), options: { fontSize: 10 } }));
       });
       tableSlide.addTable([head, ...rows], { x: 0.5, y: 1.1, w: 9, autoPage: true, border: { color: 'CDD6C8', pt: 0.5 } });

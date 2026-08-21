@@ -1262,7 +1262,10 @@
         chartSlide.addText(subtitle, { x: 0.5, y: 0.85, w: 9, fontSize: 11, color: '4C5750' });
         chartSlide.addChart(pptx.ChartType.bar, [{ name: '% Lulus', labels, values }], {
           x: 0.5, y: 1.3, w: 9, h: 4, barDir: 'bar', showValue: true, chartColors: [accent],
-          valAxisMaxVal: 100, valAxisTitle: '% Lulus', catAxisLabelFontSize: 9,
+          // Angka yang tersimpan sudah 0-100 (bukan 0-1), jadi format "%" harus
+          // literal (dikutip) supaya tidak dikali 100 lagi jadi 5200% dst.
+          dataLabelFormatCode: '0"%"',
+          valAxisMaxVal: 100, valAxisTitle: '% Lulus', valAxisLabelFormatCode: '0"%"', catAxisLabelFontSize: 9,
         });
       };
 

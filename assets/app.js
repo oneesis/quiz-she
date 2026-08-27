@@ -699,6 +699,35 @@
     const vp = document.querySelector('meta[name=viewport]');
     if (vp && vp.dataset.prevContent) { vp.content = vp.dataset.prevContent; delete vp.dataset.prevContent; }
   }
+  // Unduh file gambar apa adanya (JPG/PNG asli), terpisah dari "Unduh Materi
+  // PDF" yang membungkus semuanya jadi 1 dokumen. Gambar materi bisa dari 2
+  // sumber -- Vercel Blob (upload baru, CORS terbuka) atau sisa link Google
+  // Drive lama -- yang belum tentu keduanya bisa di-fetch lintas domain.
+  // Coba cara terbaik (fetch+blob = langsung ke-download dengan nama file
+  // rapi); kalau gagal (CORS), fallback buka tab baru biar user simpan
+  // manual (klik kanan > Simpan Gambar) -- tetap jalan di kasus terburuk.
+  async function downloadLightboxImage() {
+    const src = $('#lightbox-img').src;
+    if (!src) return;
+    const btn = $('#lightbox-download');
+    btn.disabled = true;
+    try {
+      const res = await fetch(src);
+      if (!res.ok) throw new Error('fetch gagal');
+      const blob = await res.blob();
+      const ext = blob.type === 'image/png' ? 'png' : 'jpg';
+      const base = ((S.topic && (S.topic.code || S.topic.title)) || 'materi').replace(/[^a-zA-Z0-9]+/g, '-');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `Gambar-${base}.${ext}`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      window.open(src, '_blank');
+    } finally {
+      btn.disabled = false;
+    }
+  }
   // Scroll mouse (atau 2 jari di trackpad) = zoom manual bertahap, mengarah
   // ke posisi kursor (titik gambar di bawah kursor tetap di tempat yang sama
   // saat di-zoom) -- khusus desktop, di HP event 'wheel' praktis tidak pernah
@@ -776,6 +805,7 @@
 
     $('#material-image-btn').onclick = () => openLightbox($('#material-image').src);
     $('#lightbox-close').onclick = closeLightbox;
+    $('#lightbox-download').onclick = downloadLightboxImage;
     bindLightboxPan();
   }
 

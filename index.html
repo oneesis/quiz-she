@@ -107,15 +107,18 @@
       <!-- 4. MATERI -->
       <section class="screen" id="screen-material">
         <span class="eyebrow">Materi</span>
-        <div class="material-heading">
-          <span class="material-icon-badge" id="material-icon"></span>
-          <h1 class="screen-title" id="material-title"></h1>
+        <div id="material-capture">
+          <div class="material-heading">
+            <span class="material-icon-badge" id="material-icon"></span>
+            <h1 class="screen-title" id="material-title"></h1>
+            <button type="button" class="material-download-btn" id="btn-download-material" title="Unduh materi sebagai PDF">⬇ PDF</button>
+          </div>
+          <button type="button" class="material-image-btn" id="material-image-btn" hidden>
+            <img id="material-image" alt="Gambar materi" />
+            <span class="material-image-hint">Ketuk untuk perbesar</span>
+          </button>
+          <div class="material" id="material-body"></div>
         </div>
-        <button type="button" class="material-image-btn" id="material-image-btn" hidden>
-          <img id="material-image" alt="Gambar materi" />
-          <span class="material-image-hint">Ketuk untuk perbesar</span>
-        </button>
-        <div class="material" id="material-body"></div>
         <div class="btn-row">
           <button class="btn btn--ghost" id="btn-material-back">Kembali</button>
           <button class="btn btn--primary" id="btn-start-quiz">Mulai Kuis</button>

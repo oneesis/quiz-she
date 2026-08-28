@@ -589,33 +589,6 @@
     } finally { setBusy('#btn-download', false); btn.textContent = 'Unduh PDF'; }
   }
 
-  // Unduh materi (judul + gambar + teks) sebagai PDF -- sama persis pola-nya
-  // dengan downloadPdf() di atas. useCORS:true karena gambar materi dihosting
-  // di domain lain (Vercel Blob), bukan domain kiosk ini -- tanpa itu canvas
-  // "ternoda" (tainted) dan toDataURL() gagal.
-  async function downloadMaterialPdf() {
-    const btn = $('#btn-download-material');
-    setBusy('#btn-download-material', true, 'Menyiapkan…');
-    document.body.classList.add('is-capturing');
-    try {
-      await Promise.all([loadScript(HTML2CANVAS_SRC), loadScript(JSPDF_SRC)]);
-      const node = $('#material-capture');
-      const canvas = await html2canvas(node, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
-      const img = canvas.toDataURL('image/png');
-      const { jsPDF } = window.jspdf;
-      const orientation = canvas.width >= canvas.height ? 'landscape' : 'portrait';
-      const pdf = new jsPDF({ orientation, unit: 'px', format: [canvas.width, canvas.height] });
-      pdf.addImage(img, 'PNG', 0, 0, canvas.width, canvas.height);
-      const name = (S.topic.code || S.topic.title || 'materi').replace(/[^a-z0-9]+/gi, '-');
-      pdf.save(`Materi-${name}.pdf`);
-    } catch (e) {
-      alert('Gagal membuat PDF. Coba lagi.');
-    } finally {
-      document.body.classList.remove('is-capturing');
-      setBusy('#btn-download-material', false); btn.textContent = '⬇ PDF';
-    }
-  }
-
   // ============================================================
   // VERIFIKASI (dibuka dari QR: ?verify=TOKEN)
   // ============================================================
@@ -788,7 +761,6 @@
       if (S.materialFrom === 'history') { S.materialFrom = null; renderHistory(); return; }
       renderSessions();
     };
-    $('#btn-download-material').onclick = downloadMaterialPdf;
     $('#btn-view-history').onclick = () => renderHistory();
     $('#btn-history-back').onclick = () => renderSessions();
     $('#btn-start-quiz').onclick = startQuiz;

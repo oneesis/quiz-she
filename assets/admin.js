@@ -707,6 +707,59 @@
     }
   }
 
+  // ============================================================
+  // IMPORT DARI SAFETY TALK (hazard-report-sap)
+  // ============================================================
+  const SAP_API = 'https://sap-ebl.vercel.app/api';
+
+  async function openImportSTModal() {
+    const modal = $('#st-import-modal');
+    const list  = $('#st-import-list');
+    modal.classList.remove('hidden');
+    list.innerHTML = '<p class="text-on-surface-variant text-sm">Memuat jadwal Safety Talk…</p>';
+    try {
+      const res  = await fetch(SAP_API + '?action=getSafetyTalkPublic');
+      const json = await res.json();
+      const data = json.data || [];
+      if (!data.length) {
+        list.innerHTML = '<p class="text-on-surface-variant text-sm">Tidak ada jadwal Safety Talk aktif.</p>';
+        return;
+      }
+      list.innerHTML = data.map((st, i) => {
+        const tgl = st.tanggal ? new Date(st.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-';
+        return `
+          <button type="button" data-i="${i}" class="st-import-item w-full text-left p-4 border border-outline-variant rounded-xl hover:border-primary hover:bg-primary/5 transition space-y-1">
+            <p class="font-bold text-primary text-sm">${escapeHtml(st.judul || '-')}</p>
+            <p class="text-xs text-on-surface-variant"><span class="material-symbols-outlined text-xs align-text-bottom">calendar_today</span> ${escapeHtml(tgl)}${st.pemateri ? ' · ' + escapeHtml(st.pemateri) : ''}</p>
+            ${st.perusahaan_target ? `<p class="text-xs text-on-surface-variant"><span class="material-symbols-outlined text-xs align-text-bottom">business</span> ${escapeHtml(st.perusahaan_target)}</p>` : '<p class="text-xs text-on-surface-variant">Semua perusahaan</p>'}
+          </button>`;
+      }).join('');
+      $$('.st-import-item', list).forEach(btn => {
+        btn.onclick = () => importFromST(data[Number(btn.dataset.i)]);
+      });
+    } catch (e) {
+      list.innerHTML = `<p class="text-error text-sm">Gagal memuat: ${escapeHtml(e.message)}</p>`;
+    }
+  }
+
+  function importFromST(st) {
+    $('#st-import-modal').classList.add('hidden');
+    // Auto-fill judul sesi
+    $('#s-title').value = st.judul || '';
+    // Tanggal: isi validFrom = hari H jam 00:00, validUntil = hari H jam 23:59
+    if (st.tanggal) {
+      const d = st.tanggal.slice(0, 10); // YYYY-MM-DD
+      $('#s-from').value  = d + 'T00:00';
+      $('#s-until').value = d + 'T23:59';
+    }
+    // Target perusahaan: centang sesuai perusahaan_target (bila diisi)
+    if (st.perusahaan_target) {
+      $$('.s-company-checkbox').forEach(cb => {
+        cb.checked = cb.value === st.perusahaan_target;
+      });
+    }
+  }
+
   async function saveSessionForm(ev) {
     ev.preventDefault();
     const topicCode = $('#s-topic').value;
@@ -1461,6 +1514,7 @@
     $('#btn-session-cancel').onclick = () => switchTab('sessions');
     $('#btn-session-back').onclick = () => switchTab('sessions');
     $('#btn-session-delete').onclick = deleteSessionConfirm;
+    $('#btn-import-st').onclick = openImportSTModal;
 
     $('#btn-export-csv').onclick = exportCsv;
     $('#btn-export-ppt').onclick = exportReportPpt;

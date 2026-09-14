@@ -176,7 +176,11 @@ async function getSafetyTalkHadirSet(bulan) {
     const nikIdx   = head.indexOf('NIK');
     const bulanIdx = head.indexOf('BULAN');
     if (nikIdx === -1) return new Set();
-    const set = new Set(rows.slice(1)
+    const dataRows = rows.slice(1);
+    console.log('[st-debug2] rows:', dataRows.length, 'bulan_target:', bulan,
+      'sample_bulan:', dataRows.slice(0,3).map(r => JSON.stringify(r[bulanIdx])),
+      'sample_nik:', dataRows.slice(0,3).map(r => JSON.stringify(r[nikIdx])));
+    const set = new Set(dataRows
       .filter(r => !bulan || String(r[bulanIdx] || '').slice(0, 7) === bulan)
       .map(r => String(r[nikIdx] || '').trim())
       .filter(Boolean));

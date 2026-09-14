@@ -162,6 +162,32 @@ function rowsToObjects(rows) {
 
 let _statusKerjaCache = null; // { at, byNik: Map<nik, statusKerja> }
 
+// ---- Safety Talk exemption (2026-09-14) ----
+// Cross-read SafetyTalk_Absensi dari hazard-report-sap spreadsheet.
+// Env var SAFETY_TALK_SPREADSHEET_ID harus di-set, dan spreadsheet di-share
+// read-only ke OAuth account yang dipakai aplikasi ini.
+let _stCache = null, _stCacheTs = 0;
+async function getSafetyTalkHadirSet(bulan) {
+  if (!process.env.SAFETY_TALK_SPREADSHEET_ID) return new Set();
+  if (_stCache && Date.now() - _stCacheTs < 30_000) return _stCache;
+  try {
+    const rows = await getRows('SafetyTalk_Absensi', process.env.SAFETY_TALK_SPREADSHEET_ID);
+    const head = rows[0] || [];
+    const nikIdx   = head.indexOf('NIK');
+    const bulanIdx = head.indexOf('BULAN');
+    if (nikIdx === -1) return new Set();
+    const set = new Set(rows.slice(1)
+      .filter(r => !bulan || String(r[bulanIdx] || '') === bulan)
+      .map(r => String(r[nikIdx] || '').trim())
+      .filter(Boolean));
+    _stCache = set; _stCacheTs = Date.now();
+    return set;
+  } catch (err) {
+    console.error('[safety-talk] gagal cross-read, fitur exemption nonaktif:', err.message);
+    return new Set();
+  }
+}
+
 /** statusKerja ("aktif"|"cuti"|"wajib_reinduksi") per NIK di `roster`. Env var
  * SISTER_MINER_SPREADSHEET_ID belum diset -> Map kosong (semua "aktif"). */
 async function getStatusKerjaMap(roster) {
@@ -227,7 +253,14 @@ async function listEmployees() {
 async function findEmployee(nik) {
   const key = String(nik || '').trim();
   const list = await listEmployees();
-  return list.find(e => e.nik === key) || {};
+  const emp  = list.find(e => e.nik === key) || {};
+  if (!emp.nik) return emp;
+  // Cek exemption Safety Talk bulan ini
+  const { year, month } = jakartaParts(new Date());
+  const bulan = `${year}-${month}`;
+  const hadirSet = await getSafetyTalkHadirSet(bulan);
+  emp.safetyTalkHadir = hadirSet.has(key);
+  return emp;
 }
 
 function companyCode(perusahaan) {

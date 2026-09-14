@@ -180,6 +180,8 @@ async function getSafetyTalkHadirSet(bulan) {
       .filter(r => !bulan || String(r[bulanIdx] || '') === bulan)
       .map(r => String(r[nikIdx] || '').trim())
       .filter(Boolean));
+    // [debug] hapus setelah konfirmasi
+    console.log('[safety-talk-debug] totalRows:', rows.length, 'nikIdx:', nikIdx, 'bulanIdx:', bulanIdx, 'bulan:', bulan, 'setSize:', set.size, 'sample:', [...set].slice(0,3));
     _stCache = set; _stCacheTs = Date.now();
     return set;
   } catch (err) {

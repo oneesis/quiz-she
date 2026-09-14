@@ -744,19 +744,18 @@
 
   function importFromST(st) {
     $('#st-import-modal').classList.add('hidden');
-    // Auto-fill judul sesi
-    $('#s-title').value = st.judul || '';
-    // Tanggal: isi validFrom = hari H jam 00:00, validUntil = hari H jam 23:59
-    if (st.tanggal) {
-      const d = st.tanggal.slice(0, 10); // YYYY-MM-DD
-      $('#s-from').value  = d + 'T00:00';
-      $('#s-until').value = d + 'T23:59';
+    // Auto-fill form Topik dari data Safety Talk
+    $('#t-title').value = st.judul || '';
+    // Kode topik: gunakan ID Safety Talk (mis. ST-1234567890)
+    if (!editingTopicCode) {
+      $('#t-code').value = st.id || '';
     }
-    // Target perusahaan: centang sesuai perusahaan_target (bila diisi)
-    if (st.perusahaan_target) {
-      $$('.s-company-checkbox').forEach(cb => {
-        cb.checked = cb.value === st.perusahaan_target;
-      });
+    // Deskripsi materi jadi konten awal editor materi
+    if (st.deskripsi) {
+      const el = $('#t-material');
+      el.innerHTML = looksLikeHtml(st.deskripsi)
+        ? st.deskripsi
+        : legacyMaterialToHtml(st.deskripsi);
     }
   }
 
@@ -1509,12 +1508,13 @@
     $('#btn-import-csv').onclick = () => $('#csv-import-input').click();
     $('#csv-import-input').addEventListener('change', handleCsvFileChange);
 
+    $('#btn-import-st').onclick = openImportSTModal;
+
     $('#btn-new-session').onclick = () => openSessionEditor(null);
     $('#session-form').addEventListener('submit', saveSessionForm);
     $('#btn-session-cancel').onclick = () => switchTab('sessions');
     $('#btn-session-back').onclick = () => switchTab('sessions');
     $('#btn-session-delete').onclick = deleteSessionConfirm;
-    $('#btn-import-st').onclick = openImportSTModal;
 
     $('#btn-export-csv').onclick = exportCsv;
     $('#btn-export-ppt').onclick = exportReportPpt;

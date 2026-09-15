@@ -166,25 +166,40 @@ let _statusKerjaCache = null; // { at, byNik: Map<nik, statusKerja> }
 // Cross-read SafetyTalk_Absensi dari hazard-report-sap spreadsheet.
 // Env var SAFETY_TALK_SPREADSHEET_ID harus di-set, dan spreadsheet di-share
 // read-only ke OAuth account yang dipakai aplikasi ini.
+// Peta NIK -> STATUS_KEHADIRAN bulan itu. Sejak ONE-SAP mencatat SEMUA status
+// (2026-09-15), bukan cuma yang hadir, keberadaan baris saja TIDAK berarti
+// hadir -- harus dilihat statusnya:
+//   HADIR   -> exempt, tidak perlu kuis
+//   MANGKIR -> tidak boleh ikut kuis (tidak bisa diganti capaiannya)
+//   lainnya -> Cuti/Dinas Luar/Shift Malam/Libur = WAJIB kuis
+// Baris lama tanpa kolom/isi STATUS_KEHADIRAN dianggap HADIR (kompat mundur).
 let _stCache = null, _stCacheTs = 0;
-async function getSafetyTalkHadirSet(bulan) {
-  if (!process.env.SAFETY_TALK_SPREADSHEET_ID) return new Set();
+async function getSafetyTalkStatusMap(bulan) {
+  if (!process.env.SAFETY_TALK_SPREADSHEET_ID) return new Map();
   if (_stCache && Date.now() - _stCacheTs < 30_000) return _stCache;
   try {
     const rows = await getRows('SafetyTalk_Absensi', process.env.SAFETY_TALK_SPREADSHEET_ID);
     const head = rows[0] || [];
-    const nikIdx   = head.indexOf('NIK');
-    const bulanIdx = head.indexOf('BULAN');
-    if (nikIdx === -1) return new Set();
-    const set = new Set(rows.slice(1)
-      .filter(r => !bulan || String(r[bulanIdx] || '').slice(0, 7) === bulan)
-      .map(r => String(r[nikIdx] || '').trim())
-      .filter(Boolean));
-    _stCache = set; _stCacheTs = Date.now();
-    return set;
+    const nikIdx    = head.indexOf('NIK');
+    const bulanIdx  = head.indexOf('BULAN');
+    const statusIdx = head.indexOf('STATUS_KEHADIRAN');
+    if (nikIdx === -1) return new Map();
+    const map = new Map();
+    for (const r of rows.slice(1)) {
+      if (bulan && String(r[bulanIdx] || '').slice(0, 7) !== bulan) continue;
+      const nik = String(r[nikIdx] || '').trim();
+      if (!nik) continue;
+      const status = statusIdx === -1
+        ? 'HADIR'
+        : String(r[statusIdx] || 'HADIR').trim().toUpperCase() || 'HADIR';
+      // HADIR menang atas status lain kalau ada beberapa baris di bulan sama
+      if (map.get(nik) !== 'HADIR') map.set(nik, status);
+    }
+    _stCache = map; _stCacheTs = Date.now();
+    return map;
   } catch (err) {
     console.error('[safety-talk] gagal cross-read, fitur exemption nonaktif:', err.message);
-    return new Set();
+    return new Map();
   }
 }
 
@@ -255,11 +270,12 @@ async function findEmployee(nik) {
   const list = await listEmployees();
   const emp  = list.find(e => e.nik === key) || {};
   if (!emp.nik) return emp;
-  // Cek exemption Safety Talk bulan ini
+  // Cek status Safety Talk bulan ini
   const { year, month } = jakartaParts(new Date());
   const bulan = `${year}-${month}`;
-  const hadirSet = await getSafetyTalkHadirSet(bulan);
-  emp.safetyTalkHadir = hadirSet.has(key);
+  const status = (await getSafetyTalkStatusMap(bulan)).get(key) || '';
+  emp.safetyTalkStatus = status;          // '' = belum diabsen sama sekali
+  emp.safetyTalkHadir  = status === 'HADIR'; // hanya HADIR yang exempt dari kuis
   return emp;
 }
 

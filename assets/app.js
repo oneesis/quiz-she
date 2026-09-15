@@ -164,7 +164,18 @@
     try {
       const sessions = await API.activeSessions(S.employee);
       if (!sessions.length) {
-        wrap.innerHTML = '<div class="empty">Belum ada Sharing Session yang aktif hari ini. Silakan hubungi petugas SHE.</div>';
+        // Sebutkan alasannya -- "tidak ada sesi" yang generik bikin orang
+        // mengira sistemnya rusak padahal memang sengaja dikecualikan.
+        const emp = S.employee;
+        let msg = 'Belum ada Sharing Session yang aktif hari ini. Silakan hubungi petugas SHE.';
+        if (emp.statusKerja === 'cuti') {
+          msg = 'Kamu sedang tercatat cuti, jadi dikecualikan dari kewajiban Sharing Session.';
+        } else if (emp.safetyTalkHadir) {
+          msg = 'Kamu sudah hadir Safety Talk bulan ini — tidak perlu mengerjakan kuis.';
+        } else if (emp.safetyTalkStatus === 'MANGKIR') {
+          msg = 'Kamu tercatat <b>mangkir</b> pada Safety Talk bulan ini. Ketidakhadiran tanpa keterangan tidak dapat diganti dengan kuis. Silakan hubungi petugas SHE.';
+        }
+        wrap.innerHTML = `<div class="empty">${msg}</div>`;
         return;
       }
       const existingResults = await Promise.all(sessions.map(s => API.findExisting(S.employee.nik, s.id)));

@@ -97,8 +97,13 @@
     // Cuti (2026-08-20) -- karyawan sedang cuti dikecualikan dari kewajiban
     // Sharing Session (statusKerja diisi server, lihat api/data.js listEmployees()).
     if (employee.statusKerja === 'cuti') return [];
-    // Safety Talk (2026-09-14) -- sudah hadir Safety Talk bulan ini = exempt
+    // Safety Talk (2026-09-14) -- sudah hadir Safety Talk bulan ini = exempt.
+    // Status lain (Cuti/Dinas Luar/Shift Malam/Libur) justru WAJIB kuis, jadi
+    // JANGAN dikecualikan cuma karena namanya ada di absensi.
     if (employee.safetyTalkHadir) return [];
+    // Mangkir (2026-09-15) -- ketidakhadiran tanpa keterangan tidak bisa
+    // diganti kuis, jadi kuisnya memang tidak boleh dikerjakan.
+    if (employee.safetyTalkStatus === 'MANGKIR') return [];
     return sessions
       .filter(s => s.status === 'published' && todayInRange(s.validFrom, s.validUntil))
       .filter(s => !(s.targetCompanies || []).length || s.targetCompanies.includes(employee.perusahaan))

@@ -666,7 +666,7 @@
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
 
-  function openSessionEditor(session) {
+  async function openSessionEditor(session) {
     editingSessionId = session ? session.id : null;
     $('#session-editor-title').textContent = session ? 'Edit Sesi' : 'Sesi Baru';
     const sel = $('#s-topic');
@@ -679,13 +679,27 @@
     $('#s-until').value = session ? toDatetimeLocalValue(session.validUntil, true) : localDatetimeValue(endOfToday);
     $('#s-status').value = session ? session.status : 'draft';
     $('#btn-session-delete').hidden = !session;
-    populateCompanyCheckboxes(session ? (session.targetCompanies || []) : []);
     showPanel('panel-session-editor');
+    // Sesi lama pakai target tersimpan; sesi baru ikut target jadwal Safety Talk
+    // kalau topiknya hasil "Import dari Safety Talk" (kode topik = ID jadwal).
+    if (session) {
+      populateCompanyCheckboxes(session.targetCompanies || []);
+    } else {
+      const st = await safetyTalkForTopic(sel.value);
+      populateCompanyCheckboxes(companiesFromST(st), st);
+    }
+  }
+
+  /** Target perusahaan sesuai jadwal Safety Talk. Kosong = semua perusahaan —
+   *  kebetulan sama artinya di sisi sesi (tidak ada centang = berlaku semua). */
+  function companiesFromST(st) {
+    const target = st && String(st.perusahaan_target || '').trim();
+    return target ? [target] : [];
   }
 
   // Daftar centang perusahaan diisi dari roster karyawan (bukan diketik manual)
   // supaya tidak ada typo yang bikin target sesi diam-diam tidak kena siapa-siapa.
-  async function populateCompanyCheckboxes(selected) {
+  async function populateCompanyCheckboxes(selected, fromST) {
     const wrap = $('#s-companies-list');
     wrap.innerHTML = '<p class="text-xs text-on-surface-variant">Memuat daftar perusahaan…</p>';
     try {
@@ -697,7 +711,14 @@
         wrap.innerHTML = '<p class="text-xs text-on-surface-variant">Belum ada data perusahaan di roster karyawan.</p>';
         return;
       }
-      wrap.innerHTML = companies.map(c => `
+      const hint = fromST ? `
+        <p class="text-xs text-secondary bg-secondary-container/30 rounded-lg px-3 py-2 mb-2 flex items-start gap-1.5">
+          <span class="material-symbols-outlined text-sm">auto_awesome</span>
+          <span>Terisi otomatis dari jadwal Safety Talk <b>${escapeHtml(fromST.judul || fromST.id)}</b>${
+            companiesFromST(fromST).length ? '' : ' (semua perusahaan)'
+          }. Bisa diubah manual.</span>
+        </p>` : '';
+      wrap.innerHTML = hint + companies.map(c => `
         <label class="flex items-center gap-2 text-sm">
           <input type="checkbox" class="s-company-checkbox w-4 h-4 accent-[#1f4d33]" value="${escapeAttr(c)}" ${selected.includes(c) ? 'checked' : ''} />
           ${escapeHtml(c)}
@@ -712,15 +733,37 @@
   // ============================================================
   const SAP_API = 'https://sap-ebl.vercel.app/api';
 
+  // Jadwal Safety Talk, di-cache per muat halaman. Dipakai dua tempat: modal
+  // import topik, dan auto-isi target perusahaan di editor sesi.
+  let stCache = null;
+  async function loadSafetyTalks(force) {
+    if (stCache && !force) return stCache;
+    const res  = await fetch(SAP_API + '?action=getSafetyTalkPublic');
+    const json = await res.json();
+    stCache = json.data || [];
+    return stCache;
+  }
+
+  /** Jadwal Safety Talk yang tertaut ke kode topik. Linkage: "Import dari
+   *  Safety Talk" menyalin ID jadwal jadi kode topik, jadi cocokkan langsung.
+   *  Topik non-import (mis. "SS-LB3") tidak akan ketemu -> null. */
+  async function safetyTalkForTopic(topicCode) {
+    const code = String(topicCode || '').trim();
+    if (!code) return null;
+    try {
+      return (await loadSafetyTalks()).find(st => String(st.id).trim() === code) || null;
+    } catch { return null; } // ONE-SAP mati = fitur auto-isi mati, bukan editor sesi
+  }
+
   async function openImportSTModal() {
     const modal = $('#st-import-modal');
     const list  = $('#st-import-list');
     modal.classList.remove('hidden');
     list.innerHTML = '<p class="text-on-surface-variant text-sm">Memuat jadwal Safety Talk…</p>';
     try {
-      const res  = await fetch(SAP_API + '?action=getSafetyTalkPublic');
-      const json = await res.json();
-      const data = json.data || [];
+      // force: admin bisa baru saja membuat jadwal di ONE-SAP sambil halaman
+      // ini terbuka — cache lama akan menyembunyikannya dari daftar import.
+      const data = await loadSafetyTalks(true);
       if (!data.length) {
         list.innerHTML = '<p class="text-on-surface-variant text-sm">Tidak ada jadwal Safety Talk aktif.</p>';
         return;
@@ -1515,6 +1558,12 @@
     $('#btn-session-cancel').onclick = () => switchTab('sessions');
     $('#btn-session-back').onclick = () => switchTab('sessions');
     $('#btn-session-delete').onclick = deleteSessionConfirm;
+    // Ganti topik -> ikut target perusahaan jadwal Safety Talk-nya. Topik yang
+    // bukan hasil import tidak menimpa centang yang sudah ada.
+    $('#s-topic').onchange = async () => {
+      const st = await safetyTalkForTopic($('#s-topic').value);
+      if (st) populateCompanyCheckboxes(companiesFromST(st), st);
+    };
 
     $('#btn-export-csv').onclick = exportCsv;
     $('#btn-export-ppt').onclick = exportReportPpt;

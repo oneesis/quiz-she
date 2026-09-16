@@ -506,6 +506,16 @@ module.exports = async (req, res) => {
         if (!isAdmin(req.query.adminToken)) return res.status(401).json({ error: 'unauthorized' });
         return res.json(await listEmployees());
       }
+      if (a === 'safetyTalkStatuses') {
+        // Status kehadiran Safety Talk per NIK per jadwal (semua bulan) untuk
+        // Laporan admin: sesi hasil "Import dari Safety Talk" (topicCode = ID
+        // jadwal) mengecualikan yang HADIR/MANGKIR dari "belum lulus".
+        if (!isAdmin(req.query.adminToken)) return res.status(401).json({ error: 'unauthorized' });
+        const map = await getSafetyTalkStatusMap(null); // null = semua bulan
+        const out = {};
+        for (const [nik, bySched] of map) out[nik] = Object.fromEntries(bySched);
+        return res.json(out);
+      }
       return res.json({});
     }
 

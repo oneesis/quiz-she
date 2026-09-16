@@ -847,6 +847,10 @@
   // TAB LAPORAN
   // ============================================================
   let lastReports = [];
+  // Status Safety Talk per NIK per jadwal { nik: { 'ST-xxx': 'HADIR', ... } }.
+  // Dipakai computeSessionScope untuk mengecualikan HADIR/MANGKIR dari sesi
+  // hasil Import Safety Talk (mereka tidak boleh/tak perlu kuis).
+  let stStatusMap = {};
   async function renderReports() {
     const body = $('#reports-body');
     body.innerHTML = `<tr><td colspan="8" class="px-6 py-4 text-on-surface-variant">Memuat…</td></tr>`;
@@ -860,6 +864,7 @@
       if (!sessions.length) await reloadData();
       renderPptSessionChecklist();
       lastReports = await API.listParticipations();
+      stStatusMap = await API.listSafetyTalkStatuses().catch(() => ({}));
       renderCompanySummary(lastReports);
       await renderTopicSummary(lastReports);
       populateQuestionAnalyticsSessionSelect();
@@ -955,8 +960,8 @@
       if (topicSessions.length) {
         const scopeNiks = new Set();
         topicSessions.forEach(s => {
-          const scope = (s.targetCompanies || []).length ? lastEmployees.filter(e => s.targetCompanies.includes(e.perusahaan)) : lastEmployees;
-          scope.filter(e => e.statusKerja !== 'cuti').forEach(e => scopeNiks.add(e.nik)); // Cuti (2026-08-20)
+          // computeSessionScope: cuti + (untuk sesi Safety Talk) HADIR/MANGKIR dikecualikan
+          computeSessionScope(s).forEach(e => scopeNiks.add(e.nik));
         });
         total = scopeNiks.size;
         passed = [...scopeNiks].filter(nik => passedNiks.has(nik)).length;
@@ -1182,10 +1187,21 @@
   // semua kalau kosong), dikurangi yang sedang cuti. Dipakai computeMissingReport
   // (web) dan computeSessionStats (laporan PPT) -- satu sumber logika "wajib".
   function computeSessionScope(session) {
-    return ((session.targetCompanies || []).length
+    let scope = ((session.targetCompanies || []).length
       ? lastEmployees.filter(e => session.targetCompanies.includes(e.perusahaan))
       : lastEmployees
     ).filter(e => e.statusKerja !== 'cuti'); // Cuti (2026-08-20) -- dikecualikan dari kewajiban
+    // Sesi hasil "Import dari Safety Talk" (topicCode = ID jadwal): yang HADIR
+    // atau MANGKIR di jadwal itu bukan cakupan kuis -- hadir tidak perlu,
+    // mangkir tidak boleh -- jadi keluarkan dari "belum lulus" (2026-09-16).
+    const sched = String(session.topicCode || '').trim();
+    if (/^ST-/.test(sched)) {
+      scope = scope.filter(e => {
+        const st = stStatusMap[e.nik] && stStatusMap[e.nik][sched];
+        return st !== 'HADIR' && st !== 'MANGKIR';
+      });
+    }
+    return scope;
   }
 
   async function computeMissingReport(sessionId) {

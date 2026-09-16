@@ -172,6 +172,7 @@
       }));
     },
     async listEmployees() { return window.SAMPLE.employees; },
+    async listSafetyTalkStatuses() { return {}; },
 
     async listTopics() { return readOverride('admin_topics', window.SAMPLE.topics); },
     async saveTopic(topic) {
@@ -270,6 +271,10 @@
       const data = await this._get({ action: 'participations', adminToken: adminToken || '' });
       return Array.isArray(data) ? data : [];
     },
+    async listSafetyTalkStatuses() {
+      const data = await this._get({ action: 'safetyTalkStatuses', adminToken: adminToken || '' });
+      return (data && typeof data === 'object' && !data.error) ? data : {};
+    },
     async listEmployees() {
       const data = await this._get({ action: 'employees', adminToken: adminToken || '' });
       return Array.isArray(data) ? data : [];
@@ -324,6 +329,7 @@
     findByToken: (t) => impl.findByToken(t),
     listParticipations: () => impl.listParticipations(),
     listEmployees: () => impl.listEmployees(),
+    listSafetyTalkStatuses: () => impl.listSafetyTalkStatuses(),
     setAdminToken: (t) => { adminToken = t; if (t) unauthorizedHandled = false; },
     setOnUnauthorized: (fn) => { onUnauthorized = fn; },
     listTopics: () => impl.listTopics(),

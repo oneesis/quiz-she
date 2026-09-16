@@ -238,9 +238,9 @@
           msg = 'Kamu sedang tercatat cuti, jadi dikecualikan dari kewajiban Sharing Session.';
         } else if (emp.safetyTalkHadir) {
           msg = 'Kamu sudah hadir Safety Talk bulan ini — tidak perlu mengerjakan kuis.';
-        } else if (Object.values(emp.safetyTalkBySchedule || {}).includes('MANGKIR')) {
-          msg = 'Kamu tercatat <b>mangkir</b> pada Safety Talk bulan ini. Ketidakhadiran tanpa keterangan tidak dapat diganti dengan kuis. Silakan hubungi petugas SHE.';
         }
+        // Mangkir tidak lagi dikecualikan (2026-09-16) — mereka punya sesi kuis
+        // yang boleh dikerjakan (capaian tetap 0), jadi tak butuh pesan khusus.
         wrap.innerHTML = `<div class="empty">${msg}</div>`;
         return;
       }
@@ -331,10 +331,18 @@
   // ============================================================
   // 4. MATERI
   // ============================================================
+  // Mangkir di jadwal sesi ini? (kuis boleh dikerjakan tapi capaian tidak nambah)
+  function isMangkirSession(session) {
+    if (!session) return false;
+    const by = (S.employee && S.employee.safetyTalkBySchedule) || {};
+    return String(by[String(session.topicCode || '').trim()] || '') === 'MANGKIR';
+  }
+
   function renderMaterial() {
     $('#material-title').textContent = S.topic.title;
     $('#material-icon').innerHTML = window.topicIconSvg(S.topic);
     $('#material-body').innerHTML = renderMaterialText(S.topic.material);
+    $('#mangkir-note-material').classList.toggle('hidden', !isMangkirSession(S.session));
 
     const imgBtn = $('#material-image-btn');
     if (S.topic.materialImage) {
@@ -593,6 +601,7 @@
     $('#result-correct').textContent = `${S.correctCount}/${total}`;
     $('#result-wrong').textContent = total - S.correctCount;
     $('#result-duration').textContent = fmtDuration(S.durationMs);
+    $('#mangkir-note-result').classList.toggle('hidden', !isMangkirSession(S.session));
 
     // Badge peringkat ketepatan+kecepatan -- sengaja cuma tampil kalau top-3
     // (bukan ke SEMUA peserta, mis. "peringkat ke-47") supaya tidak jadi

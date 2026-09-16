@@ -108,11 +108,12 @@
         // Safety Talk" di admin) dinilai dari status orang ini DI JADWAL ITU
         // saja (2026-09-16) -- mangkir minggu lalu tidak memblokir kuis minggu
         // ini, dan hadir di jadwal A tidak membebaskan kuis jadwal B.
-        //   HADIR   -> sudah hadir, kuis tidak perlu
-        //   MANGKIR -> tidak bisa diganti kuis, jadi tidak boleh dikerjakan
-        //   lainnya -> Cuti/Dinas Luar/Shift Malam/Libur = WAJIB, tampilkan
+        //   HADIR   -> sudah hadir, kuis tidak perlu (disembunyikan)
+        //   MANGKIR -> BOLEH dikerjakan untuk pembelajaran (2026-09-16), tapi
+        //              capaian tetap 0 (dijaga capaian-sap.js & sync ONE-SAP)
+        //   lainnya -> Cuti/Dinas Luar/Shift Malam/Off/Security Jaga = WAJIB
         const st = bySched[String(s.topicCode || '').trim()];
-        if (st !== undefined) return st !== 'HADIR' && st !== 'MANGKIR';
+        if (st !== undefined) return st !== 'HADIR';
         // Sesi Sharing Session biasa: aturan lama (2026-09-14) tetap --
         // sudah hadir Safety Talk mana pun bulan ini = exempt.
         return !employee.safetyTalkHadir;

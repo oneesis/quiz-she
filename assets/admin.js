@@ -154,7 +154,7 @@
       if (!lastEmployees.length) lastEmployees = await API.listEmployees();
       if (!lastReports.length) lastReports = await API.listParticipations();
       const employees = lastEmployees, participations = lastReports;
-      const activeSessions = sessions.filter(s => s.status === 'published' && todayInRange(s.validFrom, s.validUntil));
+      const activeSessions = sessions.filter(s => s.status === 'published' && (isSTTopic(s.topicCode) || todayInRange(s.validFrom, s.validUntil)));
       const total = participations.length;
       const avgScore = total ? Math.round(participations.reduce((s, p) => s + (Number(p.score) || 0), 0) / total) : 0;
       const passRate = total ? Math.round(participations.filter(p => p.passed).length / total * 100) : 0;
@@ -620,7 +620,7 @@
   const statusPill = (status) => pill(status, status === 'published' ? 'good' : 'plain');
   const passPill = (passed) => pill(passed ? 'Lulus' : 'Belum lulus', passed ? 'good' : 'plain');
   const expiredPill = () => `<span class="inline-block px-2 py-0.5 rounded-full text-[11px] font-bold uppercase bg-error-container text-on-error-container">Kedaluwarsa</span>`;
-  const isExpired = (s) => new Date() > new Date(s.validUntil.length > 10 ? s.validUntil : s.validUntil + 'T23:59:59');
+  const isExpired = (s) => !isSTTopic(s.topicCode) && new Date() > new Date(s.validUntil.length > 10 ? s.validUntil : s.validUntil + 'T23:59:59');
 
   // validFrom/validUntil "yyyy-MM-dd" (sesi lama, sepanjang hari) atau
   // "yyyy-MM-ddTHH:mm" (sesi baru, jam spesifik) -- tampilkan jam cuma
@@ -644,7 +644,7 @@
           <div class="flex items-start justify-between gap-3">
             <div>
               <p class="font-bold text-primary">${escapeHtml(s.title || (topic ? topic.title : s.topicCode))}</p>
-              <p class="text-xs text-on-surface-variant mt-1">${escapeHtml(s.topicCode)} · ${fmtSessionDate(s.validFrom)} – ${fmtSessionDate(s.validUntil)}</p>
+              <p class="text-xs text-on-surface-variant mt-1">${escapeHtml(s.topicCode)} · ${isSTTopic(s.topicCode) ? 'Tanpa masa berlaku' : fmtSessionDate(s.validFrom) + ' – ' + fmtSessionDate(s.validUntil)}</p>
               <div class="mt-2 flex gap-2">${statusPill(s.status)}${s.status === 'published' && isExpired(s) ? expiredPill() : ''}</div>
             </div>
             <span class="material-symbols-outlined text-on-surface-variant">chevron_right</span>
@@ -679,6 +679,7 @@
     $('#s-until').value = session ? toDatetimeLocalValue(session.validUntil, true) : localDatetimeValue(endOfToday);
     $('#s-status').value = session ? session.status : 'draft';
     $('#btn-session-delete').hidden = !session;
+    toggleSessionDates();
     showPanel('panel-session-editor');
     // Sesi lama pakai target tersimpan; sesi baru ikut target jadwal Safety Talk
     // kalau topiknya hasil "Import dari Safety Talk" (kode topik = ID jadwal).
@@ -806,8 +807,13 @@
     ev.preventDefault();
     const topicCode = $('#s-topic').value;
     if (!topicCode) { alert('Buat topik terlebih dahulu.'); return; }
-    const validFrom = $('#s-from').value, validUntil = $('#s-until').value;
-    if (validUntil < validFrom) { alert('Tanggal "Berlaku Sampai" tidak boleh sebelum "Berlaku Dari".'); return; }
+    const isST = isSTTopic(topicCode);
+    // Sesi Safety Talk tanpa masa berlaku -> sentinel rentang sangat lebar,
+    // sehingga todayInRange (kalau terpanggil) selalu true. Gating & tampilan
+    // sudah mem-bypass ST secara eksplisit di tempat lain.
+    let validFrom = $('#s-from').value, validUntil = $('#s-until').value;
+    if (isST) { validFrom = '2000-01-01T00:00'; validUntil = '2099-12-31T23:59'; }
+    else if (validUntil < validFrom) { alert('Tanggal "Berlaku Sampai" tidak boleh sebelum "Berlaku Dari".'); return; }
     const session = {
       id: editingSessionId || ('S-' + Date.now().toString(36).toUpperCase()),
       topicCode,
@@ -1186,6 +1192,18 @@
   // Karyawan yang wajib ikut sesi ini: roster difilter targetCompanies (atau
   // semua kalau kosong), dikurangi yang sedang cuti. Dipakai computeMissingReport
   // (web) dan computeSessionStats (laporan PPT) -- satu sumber logika "wajib".
+  // Sesi kuis Safety Talk: kode topik = ID jadwal (mis. "ST-1789..."). Sesi ini
+  // tidak punya masa berlaku -- selalu aktif selama Published.
+  function isSTTopic(code) { return /^ST-/.test(String(code || '').trim()); }
+
+  // Tampil/sembunyikan field tanggal di editor sesi menurut topik terpilih.
+  function toggleSessionDates() {
+    const isST = isSTTopic($('#s-topic').value);
+    const row = $('#s-date-row'), note = $('#s-date-note');
+    if (row)  row.classList.toggle('hidden', isST);
+    if (note) note.classList.toggle('hidden', !isST);
+  }
+
   function computeSessionScope(session) {
     let scope = ((session.targetCompanies || []).length
       ? lastEmployees.filter(e => session.targetCompanies.includes(e.perusahaan))
@@ -1281,7 +1299,7 @@
       const label = escapeHtml(s.title || (topic ? topic.title : s.topicCode));
       return `<label class="flex items-center gap-2 text-sm">
         <input type="checkbox" class="ppt-session-checkbox w-4 h-4 accent-[#1f4d33]" value="${escapeAttr(s.id)}" checked />
-        <span>${label} <span class="text-on-surface-variant">· ${escapeHtml(s.validFrom || '-')} – ${escapeHtml(s.validUntil || '-')}</span></span>
+        <span>${label} <span class="text-on-surface-variant">· ${isSTTopic(s.topicCode) ? 'tanpa masa berlaku' : escapeHtml(s.validFrom || '-') + ' – ' + escapeHtml(s.validUntil || '-')}</span></span>
       </label>`;
     }).join('');
   }
@@ -1577,6 +1595,7 @@
     // Ganti topik -> ikut target perusahaan jadwal Safety Talk-nya. Topik yang
     // bukan hasil import tidak menimpa centang yang sudah ada.
     $('#s-topic').onchange = async () => {
+      toggleSessionDates();
       const st = await safetyTalkForTopic($('#s-topic').value);
       if (st) populateCompanyCheckboxes(companiesFromST(st), st);
     };

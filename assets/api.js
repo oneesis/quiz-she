@@ -99,7 +99,9 @@
     if (employee.statusKerja === 'cuti') return [];
     const bySched = employee.safetyTalkBySchedule || {};
     return sessions
-      .filter(s => s.status === 'published' && todayInRange(s.validFrom, s.validUntil))
+      // Sesi kuis Safety Talk (kode topik = ID jadwal) tanpa masa berlaku:
+      // selalu tampil selama Published. Sesi biasa tetap dibatasi rentang tanggal.
+      .filter(s => s.status === 'published' && (/^ST-/.test(String(s.topicCode || '')) || todayInRange(s.validFrom, s.validUntil)))
       .filter(s => !(s.targetCompanies || []).length || s.targetCompanies.includes(employee.perusahaan))
       .filter(s => {
         // Sesi kuis Safety Talk (kode topik = ID jadwal, lihat "Import dari

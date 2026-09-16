@@ -457,15 +457,19 @@
               <label class="block text-xs font-bold uppercase tracking-wide text-on-surface-variant mb-1" for="s-title">Judul Sesi (opsional)</label>
               <input class="admin-field" id="s-title" placeholder="kosongkan = pakai judul topik" />
             </div>
-            <div class="flex gap-4">
+            <div class="flex gap-4" id="s-date-row">
               <div class="flex-1">
                 <label class="block text-xs font-bold uppercase tracking-wide text-on-surface-variant mb-1" for="s-from">Berlaku Dari</label>
-                <input class="admin-field" id="s-from" type="datetime-local" required />
+                <input class="admin-field" id="s-from" type="datetime-local" />
               </div>
               <div class="flex-1">
                 <label class="block text-xs font-bold uppercase tracking-wide text-on-surface-variant mb-1" for="s-until">Berlaku Sampai</label>
-                <input class="admin-field" id="s-until" type="datetime-local" required />
+                <input class="admin-field" id="s-until" type="datetime-local" />
               </div>
+            </div>
+            <div id="s-date-note" class="hidden text-xs text-secondary bg-secondary-container/30 rounded-lg px-3 py-2 flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-sm">event_available</span>
+              <span>Sesi kuis Safety Talk selalu aktif selama Published — tanpa masa berlaku.</span>
             </div>
             <div>
               <label class="block text-xs font-bold uppercase tracking-wide text-on-surface-variant mb-1">Target Perusahaan (kosongkan semua centang = berlaku untuk semua perusahaan)</label>

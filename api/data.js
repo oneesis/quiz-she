@@ -332,6 +332,19 @@ function computeRank(list, topicCode, nik) {
   return idx === -1 ? null : { rank: idx + 1, total: ranked.length };
 }
 
+const SAP_SYNC_URL = 'https://sap-ebl.vercel.app/api?action=syncSafetyTalkQuiz';
+async function notifySafetyTalkQuiz(topicCode, nik) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), 5000);
+  try {
+    const r = await fetch(SAP_SYNC_URL + '&schedule_id=' + encodeURIComponent(topicCode) + '&nik=' + encodeURIComponent(nik), { signal: ctl.signal });
+    const j = await r.json().catch(() => ({}));
+    console.log('[safety-talk sync]', topicCode, nik, j.updated ? 'QUIZ_DONE=YA' : ('skip: ' + (j.reason || j.message || r.status)));
+  } catch (e) {
+    console.error('[safety-talk sync] gagal (kuis tetap tersimpan):', e.message);
+  } finally { clearTimeout(t); }
+}
+
 async function appendResult(p) {
   const certificateNo = p.passed ? await nextCertNo(p.perusahaan) : null;
   let answerBreakdown = p.answerBreakdown;
@@ -501,7 +514,19 @@ module.exports = async (req, res) => {
       if (typeof body === 'string') body = JSON.parse(body || '{}');
       const { action, payload: p, adminToken } = body || {};
 
-      if (action === 'participation') return res.json({ ok: true, ...await appendResult(p) });
+      if (action === 'participation') {
+        const result = await appendResult(p);
+        // Kuis Safety Talk (kode topik = ID jadwal ONE-SAP) yang LULUS: minta
+        // ONE-SAP menandai QUIZ_DONE sekarang juga supaya capaian karyawan itu
+        // langsung +1 -- tidak menunggu admin menyimpan ulang absensi. ONE-SAP
+        // memverifikasi balik ke sini sebelum menulis, jadi tidak perlu rahasia.
+        // Gagal/lambat TIDAK boleh menggagalkan submit kuis -- fire & forget
+        // dengan batas 5 detik, hasilnya cuma dicatat di log.
+        if (p && p.passed && /^ST-/.test(String(p.topicCode || ''))) {
+          await notifySafetyTalkQuiz(p.topicCode, p.nik);
+        }
+        return res.json({ ok: true, ...result });
+      }
       if (action === 'admin_login') {
         const ok = !!ADMIN_TOKEN && p && p.password === ADMIN_TOKEN;
         return res.json(ok ? { ok: true, token: signSession(Date.now() + 12 * 3600 * 1000) } : { ok: false });

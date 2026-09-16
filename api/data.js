@@ -264,7 +264,7 @@ async function listEmployees() {
   const c = colIndexer(head);
   const list = rows.map(r => ({
     nik: String(r[c('NIK')] || '').trim(), nama: r[c('NAMA')], perusahaan: r[c('PERUSAHAAN')],
-    jabatan: r[c('JABATAN')], departemen: r[c('DEPARTEMEN')],
+    jabatan: r[c('JABATAN')], departemen: r[c('DEPARTEMEN')], email: String(r[c('EMAIL')] || '').trim(),
   })).filter(e => e.nama);
 
   const statusByNik = await getStatusKerjaMap(list);

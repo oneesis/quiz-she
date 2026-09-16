@@ -81,6 +81,30 @@
         </div>
       </section>
 
+      <!-- 2b. DAFTAR EMAIL (wajib bila belum punya) -->
+      <section class="screen" id="screen-email">
+        <span class="eyebrow">Daftar Email</span>
+        <h1 class="screen-title">Daftarkan email kamu</h1>
+        <p class="lead">Kamu belum punya email terdaftar. Wajib didaftarkan &amp; diverifikasi dulu sebelum mengerjakan kuis.</p>
+        <div id="email-step1">
+          <label class="field-label" for="email-input">Alamat Email</label>
+          <input class="nik-field" type="email" id="email-input" placeholder="nama@email.com" inputmode="email" autocomplete="email" />
+          <div class="btn-row">
+            <button class="btn btn--ghost" data-back-login>Keluar</button>
+            <button class="btn btn--primary" id="btn-email-send">Kirim Kode</button>
+          </div>
+        </div>
+        <div id="email-step2" style="display:none">
+          <label class="field-label" for="email-otp">Kode 6 digit (cek email <b id="email-shown"></b>)</label>
+          <input class="nik-field" type="text" id="email-otp" inputmode="numeric" maxlength="6" placeholder="______" style="letter-spacing:8px;text-align:center;font-size:1.3rem" />
+          <div class="btn-row">
+            <button class="btn btn--ghost" id="btn-email-change">Ganti email</button>
+            <button class="btn btn--primary" id="btn-email-verify">Verifikasi</button>
+          </div>
+        </div>
+        <p id="email-msg" style="text-align:center;min-height:20px;font-size:.9rem;margin-top:10px"></p>
+      </section>
+
       <!-- 3. PILIH SESSION -->
       <section class="screen" id="screen-sessions">
         <span class="eyebrow">Pilih sesi</span>

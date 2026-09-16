@@ -155,6 +155,72 @@
   }
 
   // ============================================================
+  // 2b. DAFTAR EMAIL (wajib bila belum punya) — verifikasi lewat ONE-SAP
+  // ============================================================
+  const SAP_API = 'https://sap-ebl.vercel.app/api';
+  let _pendingEmail = '';
+
+  function _emailMsg(text, ok) {
+    const el = $('#email-msg');
+    el.textContent = text || '';
+    el.style.color = ok ? '#4a6300' : '#ba1a1a';
+  }
+
+  function renderEmail() {
+    $('#email-step1').style.display = 'block';
+    $('#email-step2').style.display = 'none';
+    $('#email-input').value = (S.employee && S.employee.email) || '';
+    $('#email-otp').value = '';
+    _emailMsg('');
+    show('screen-email');
+    setTimeout(() => $('#email-input').focus(), 50);
+  }
+
+  async function sendEmailCode() {
+    const email = $('#email-input').value.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { _emailMsg('Format email tidak valid.'); return; }
+    const btn = $('#btn-email-send'); btn.disabled = true; btn.textContent = 'Mengirim…';
+    _emailMsg('');
+    try {
+      const res = await fetch(SAP_API, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'requestEmailOtp', data: { nik: S.employee.nik, email } }),
+      });
+      const json = await res.json();
+      if (json.status !== 'success') throw new Error(json.message || 'Gagal mengirim kode.');
+      _pendingEmail = email;
+      $('#email-shown').textContent = email;
+      $('#email-step1').style.display = 'none';
+      $('#email-step2').style.display = 'block';
+      $('#email-otp').focus();
+      _emailMsg('Kode dikirim. Cek inbox / folder spam.', true);
+    } catch (e) {
+      _emailMsg(e.message);
+    } finally { btn.disabled = false; btn.textContent = 'Kirim Kode'; }
+  }
+
+  async function verifyEmailCode() {
+    const code = $('#email-otp').value.trim();
+    if (code.length < 6) { _emailMsg('Masukkan 6 digit kode.'); return; }
+    const btn = $('#btn-email-verify'); btn.disabled = true; btn.textContent = 'Memeriksa…';
+    _emailMsg('');
+    try {
+      const res = await fetch(SAP_API, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'verifyEmailOtp', data: { nik: S.employee.nik, email: _pendingEmail, code } }),
+      });
+      const json = await res.json();
+      if (json.status !== 'success') throw new Error(json.message || 'Verifikasi gagal.');
+      S.employee.email = json.email || _pendingEmail; // lanjut tanpa fetch ulang
+      _emailMsg('Email terverifikasi!', true);
+      setTimeout(() => renderSessions(), 600);
+    } catch (e) {
+      _emailMsg(e.message);
+      btn.disabled = false; btn.textContent = 'Verifikasi';
+    }
+  }
+
+  // ============================================================
   // 3. PILIH SESSION
   // ============================================================
   async function renderSessions() {
@@ -765,8 +831,19 @@
   function bind() {
     $('#btn-login').onclick = doLogin;
     $('#nik-input').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
-    $('#btn-confirm-yes').onclick = () => renderSessions();
+    $('#btn-confirm-yes').onclick = () => {
+      // Wajib punya email dulu sebelum mengerjakan kuis
+      if (!S.employee || !String(S.employee.email || '').trim()) { renderEmail(); return; }
+      renderSessions();
+    };
     $('#btn-confirm-no').onclick = () => { reset(); renderLogin(); show('screen-login'); };
+    $('#btn-email-send').onclick = () => sendEmailCode();
+    $('#btn-email-verify').onclick = () => verifyEmailCode();
+    $('#btn-email-change').onclick = () => {
+      $('#email-step2').style.display = 'none';
+      $('#email-step1').style.display = 'block';
+      $('#email-otp').value = ''; _emailMsg('');
+    };
     $$('[data-back-login]').forEach(b => b.onclick = () => { reset(); renderLogin(); show('screen-login'); });
     $('#btn-material-back').onclick = () => {
       if (S.materialFrom === 'history') { S.materialFrom = null; renderHistory(); return; }

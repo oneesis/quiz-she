@@ -97,16 +97,24 @@
     // Cuti (2026-08-20) -- karyawan sedang cuti dikecualikan dari kewajiban
     // Sharing Session (statusKerja diisi server, lihat api/data.js listEmployees()).
     if (employee.statusKerja === 'cuti') return [];
-    // Safety Talk (2026-09-14) -- sudah hadir Safety Talk bulan ini = exempt.
-    // Status lain (Cuti/Dinas Luar/Shift Malam/Libur) justru WAJIB kuis, jadi
-    // JANGAN dikecualikan cuma karena namanya ada di absensi.
-    if (employee.safetyTalkHadir) return [];
-    // Mangkir (2026-09-15) -- ketidakhadiran tanpa keterangan tidak bisa
-    // diganti kuis, jadi kuisnya memang tidak boleh dikerjakan.
-    if (employee.safetyTalkStatus === 'MANGKIR') return [];
+    const bySched = employee.safetyTalkBySchedule || {};
     return sessions
       .filter(s => s.status === 'published' && todayInRange(s.validFrom, s.validUntil))
       .filter(s => !(s.targetCompanies || []).length || s.targetCompanies.includes(employee.perusahaan))
+      .filter(s => {
+        // Sesi kuis Safety Talk (kode topik = ID jadwal, lihat "Import dari
+        // Safety Talk" di admin) dinilai dari status orang ini DI JADWAL ITU
+        // saja (2026-09-16) -- mangkir minggu lalu tidak memblokir kuis minggu
+        // ini, dan hadir di jadwal A tidak membebaskan kuis jadwal B.
+        //   HADIR   -> sudah hadir, kuis tidak perlu
+        //   MANGKIR -> tidak bisa diganti kuis, jadi tidak boleh dikerjakan
+        //   lainnya -> Cuti/Dinas Luar/Shift Malam/Libur = WAJIB, tampilkan
+        const st = bySched[String(s.topicCode || '').trim()];
+        if (st !== undefined) return st !== 'HADIR' && st !== 'MANGKIR';
+        // Sesi Sharing Session biasa: aturan lama (2026-09-14) tetap --
+        // sudah hadir Safety Talk mana pun bulan ini = exempt.
+        return !employee.safetyTalkHadir;
+      })
       .map(s => ({ ...s, topic: topics.find(t => t.code === s.topicCode) }))
       .filter(s => s.topic);
   }

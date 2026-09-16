@@ -166,12 +166,16 @@ let _statusKerjaCache = null; // { at, byNik: Map<nik, statusKerja> }
 // Cross-read SafetyTalk_Absensi dari hazard-report-sap spreadsheet.
 // Env var SAFETY_TALK_SPREADSHEET_ID harus di-set, dan spreadsheet di-share
 // read-only ke OAuth account yang dipakai aplikasi ini.
-// Peta NIK -> STATUS_KEHADIRAN bulan itu. Sejak ONE-SAP mencatat SEMUA status
-// (2026-09-15), bukan cuma yang hadir, keberadaan baris saja TIDAK berarti
-// hadir -- harus dilihat statusnya:
+// Peta NIK -> Map<SCHEDULE_ID, STATUS_KEHADIRAN> untuk bulan itu. Sejak ONE-SAP
+// mencatat SEMUA status (2026-09-15), bukan cuma yang hadir, keberadaan baris
+// saja TIDAK berarti hadir -- harus dilihat statusnya:
 //   HADIR   -> exempt, tidak perlu kuis
 //   MANGKIR -> tidak boleh ikut kuis (tidak bisa diganti capaiannya)
 //   lainnya -> Cuti/Dinas Luar/Shift Malam/Libur = WAJIB kuis
+// Dipetakan PER JADWAL (2026-09-16), bukan per bulan: kuis untuk jadwal B
+// dinilai dari status orang itu di jadwal B saja. Sebelumnya satu nilai
+// se-bulan, baris terakhir menang -- mangkir minggu lalu bisa memblokir
+// kuis minggu ini tergantung urutan baris di sheet (rapuh).
 // Baris lama tanpa kolom/isi STATUS_KEHADIRAN dianggap HADIR (kompat mundur).
 let _stCache = null, _stCacheTs = 0;
 async function getSafetyTalkStatusMap(bulan) {
@@ -183,6 +187,7 @@ async function getSafetyTalkStatusMap(bulan) {
     const nikIdx    = head.indexOf('NIK');
     const bulanIdx  = head.indexOf('BULAN');
     const statusIdx = head.indexOf('STATUS_KEHADIRAN');
+    const schedIdx  = head.indexOf('SCHEDULE_ID');
     if (nikIdx === -1) return new Map();
     const map = new Map();
     for (const r of rows.slice(1)) {
@@ -192,8 +197,9 @@ async function getSafetyTalkStatusMap(bulan) {
       const status = statusIdx === -1
         ? 'HADIR'
         : String(r[statusIdx] || 'HADIR').trim().toUpperCase() || 'HADIR';
-      // HADIR menang atas status lain kalau ada beberapa baris di bulan sama
-      if (map.get(nik) !== 'HADIR') map.set(nik, status);
+      const sched = schedIdx === -1 ? '' : String(r[schedIdx] || '').trim();
+      if (!map.has(nik)) map.set(nik, new Map());
+      map.get(nik).set(sched, status); // satu baris per (nik, jadwal) -- ONE-SAP menjamin
     }
     _stCache = map; _stCacheTs = Date.now();
     return map;
@@ -270,12 +276,20 @@ async function findEmployee(nik) {
   const list = await listEmployees();
   const emp  = list.find(e => e.nik === key) || {};
   if (!emp.nik) return emp;
-  // Cek status Safety Talk bulan ini
+  // Status Safety Talk bulan ini, per jadwal
   const { year, month } = jakartaParts(new Date());
   const bulan = `${year}-${month}`;
-  const status = (await getSafetyTalkStatusMap(bulan)).get(key) || '';
-  emp.safetyTalkStatus = status;          // '' = belum diabsen sama sekali
-  emp.safetyTalkHadir  = status === 'HADIR'; // hanya HADIR yang exempt dari kuis
+  const bySched = (await getSafetyTalkStatusMap(bulan)).get(key) || new Map();
+  const statuses = [...bySched.values()];
+  // { 'ST-1789...': 'MANGKIR', 'ST-1790...': 'LIBUR' } -- dipakai klien untuk
+  // menilai tiap sesi kuis Safety Talk dari jadwal yang bersangkutan saja.
+  emp.safetyTalkBySchedule = Object.fromEntries(bySched);
+  // Ringkasan bulanan, untuk sesi Sharing Session biasa (bukan kuis Safety Talk)
+  // dan pesan di layar kosong. Hadir di jadwal mana pun = hadir bulan ini.
+  emp.safetyTalkHadir  = statuses.includes('HADIR');
+  emp.safetyTalkStatus = emp.safetyTalkHadir ? 'HADIR'
+    : statuses.includes('MANGKIR') ? 'MANGKIR'
+    : (statuses[statuses.length - 1] || ''); // '' = belum diabsen sama sekali
   return emp;
 }
 

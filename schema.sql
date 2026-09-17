@@ -46,7 +46,7 @@ CREATE TABLE partisipasi (
   nama               TEXT,
   perusahaan         TEXT,
   topic_code         TEXT,
-  session_id         TEXT REFERENCES sesi(id) ON DELETE SET NULL,
+  session_id         TEXT,          -- referensi id sesi (longgar; sesi bisa dihapus tanpa merusak riwayat)
   attempt_no         INT,
   score              INT,                       -- 0..100
   passed             BOOLEAN NOT NULL DEFAULT FALSE,

@@ -265,13 +265,28 @@ async function getStatusKerjaMap(roster) {
 
 // ---- logic per endpoint ----
 async function listEmployees() {
-  const rows = await getRows(ROSTER, ROSTER_SPREADSHEET_ID);
-  const head = rows.shift() || [];
-  const c = colIndexer(head);
-  const list = rows.map(r => ({
-    nik: String(r[c('NIK')] || '').trim(), nama: r[c('NAMA')], perusahaan: r[c('PERUSAHAAN')],
-    jabatan: r[c('JABATAN')], departemen: r[c('DEPARTEMEN')], email: String(r[c('EMAIL')] || '').trim(),
-  })).filter(e => e.nama);
+  // Roster kini di Postgres (tabel karyawan, kolom data JSONB dgn key HEADER
+  // ASLI dari Master_Karyawan). Fallback ke Sheets bila kosong/gagal.
+  let list = [];
+  const sql = getSql();
+  if (sql) {
+    try {
+      const rows = await sql`SELECT data FROM karyawan`;
+      list = rows.map(x => x.data || {}).map(d => ({
+        nik: String(d['NIK'] || '').trim(), nama: d['NAMA'], perusahaan: d['PERUSAHAAN'],
+        jabatan: d['JABATAN'], departemen: d['DEPARTEMEN'], email: String(d['EMAIL'] || '').trim(),
+      })).filter(e => e.nama);
+    } catch { list = []; }
+  }
+  if (!list.length) {
+    const rows = await getRows(ROSTER, ROSTER_SPREADSHEET_ID);
+    const head = rows.shift() || [];
+    const c = colIndexer(head);
+    list = rows.map(r => ({
+      nik: String(r[c('NIK')] || '').trim(), nama: r[c('NAMA')], perusahaan: r[c('PERUSAHAAN')],
+      jabatan: r[c('JABATAN')], departemen: r[c('DEPARTEMEN')], email: String(r[c('EMAIL')] || '').trim(),
+    })).filter(e => e.nama);
+  }
 
   const statusByNik = await getStatusKerjaMap(list);
   return list.map(e => ({ ...e, statusKerja: statusByNik.get(e.nik) || 'aktif' }));

@@ -39,6 +39,17 @@ function clients() {
   return { sheets: _sheets };
 }
 
+// ── Postgres (Neon) — lazy, driver serverless HTTP ──────────────────────────
+// Dipakai untuk tabel `partisipasi` (Topics/Session/roster masih Google Sheets).
+let _sql = null;
+function getSql() {
+  if (_sql) return _sql;
+  if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL belum diset.');
+  const { neon } = require('@neondatabase/serverless');
+  _sql = neon(process.env.DATABASE_URL);
+  return _sql;
+}
+
 // ---- util tanggal ----
 // Sheets API balikin tanggal sebagai serial number (hari sejak 30 Des 1899,
 // epoch sama dengan Excel) kalau selnya kebetulan bertipe Date -- ini bisa
@@ -303,13 +314,11 @@ function companyCode(perusahaan) {
 // per satu; kalau nanti dipakai multi-kiosk serentak dan ini jadi masalah
 // nyata, upgrade-nya: tambah lock terdistribusi (mis. Vercel KV).
 async function nextCertNo(perusahaan) {
+  const sql = getSql();
   const { year, month } = jakartaParts(new Date());
   const suffix = '/SS/' + companyCode(perusahaan) + '/' + month + '/' + year.slice(2);
-  const rows = await getRows(RESULTS);
-  const head = rows.shift() || [];
-  const ci = head.indexOf('certificateNo');
-  const count = rows.filter(r => r[ci] && String(r[ci]).indexOf(suffix) !== -1).length;
-  return String(count + 1).padStart(3, '0') + suffix;
+  const r = await sql`SELECT count(*)::int AS n FROM partisipasi WHERE certificate_no LIKE ${'%' + suffix}`;
+  return String((r[0].n || 0) + 1).padStart(3, '0') + suffix;
 }
 
 // Peringkat "ketepatan & kecepatan" per topik -- HANYA percobaan LULUS
@@ -346,74 +355,106 @@ async function notifySafetyTalkQuiz(topicCode, nik) {
 }
 
 async function appendResult(p) {
-  const certificateNo = p.passed ? await nextCertNo(p.perusahaan) : null;
+  const sql = getSql();
+  const passed = !!p.passed;
   let answerBreakdown = p.answerBreakdown;
   if (typeof answerBreakdown === 'string') {
     try { answerBreakdown = JSON.parse(answerBreakdown || '[]'); } catch (e) { answerBreakdown = []; }
   }
-  const durationMs = typeof p.durationMs === 'number' ? p.durationMs : '';
-  await appendRow(RESULTS, [
-    new Date().toISOString(), p.nik, p.nama, p.perusahaan, p.topicCode, p.sessionId,
-    p.attemptNo, p.score, p.passed, certificateNo, p.verificationToken, JSON.stringify(answerBreakdown), durationMs,
-  ]);
-  const rankInfo = p.passed ? computeRank(await getResultsLite(), p.topicCode, p.nik) : null;
+  const durationMs = typeof p.durationMs === 'number' ? p.durationMs : null;
+
+  // Nomor sertifikat unik & berurutan. UNIQUE index certificate_no menolak
+  // duplikat (race di Sheets dulu bisa lolos) -- retry bila kebetulan bentrok.
+  let certificateNo = null;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    certificateNo = passed ? await nextCertNo(p.perusahaan) : null;
+    try {
+      await sql`
+        INSERT INTO partisipasi
+          (waktu, nik, nama, perusahaan, topic_code, session_id, attempt_no, score, passed,
+           certificate_no, verification_token, answer_breakdown, duration_ms)
+        VALUES
+          (now(), ${p.nik}, ${p.nama}, ${p.perusahaan}, ${p.topicCode}, ${p.sessionId},
+           ${p.attemptNo}, ${p.score}, ${passed}, ${certificateNo}, ${p.verificationToken},
+           ${JSON.stringify(answerBreakdown)}::jsonb, ${durationMs})`;
+      break;
+    } catch (e) {
+      if (String(e.code) === '23505' && passed && attempt < 4) continue; // cert bentrok → ambil nomor berikutnya
+      throw e;
+    }
+  }
+  const rankInfo = passed ? computeRank(await getResultsLite(), p.topicCode, p.nik) : null;
   return { certificateNo, rank: rankInfo ? rankInfo.rank : null, total: rankInfo ? rankInfo.total : null };
 }
 
 async function getResultsLite() {
-  const rows = await getRows(RESULTS);
-  const head = rows.shift() || [];
-  const c = colIndexer(head);
+  const sql = getSql();
+  const rows = await sql`
+    SELECT nik, nama, perusahaan, session_id, topic_code, passed, score,
+           certificate_no, verification_token, waktu, duration_ms FROM partisipasi`;
   return rows.map(r => ({
-    nik: String(r[c('nik')]), nama: r[c('nama')], perusahaan: r[c('perusahaan')],
-    sessionId: String(r[c('sessionId')]), topicCode: r[c('topicCode')], passed: r[c('passed')], score: r[c('score')],
-    certificateNo: r[c('certificateNo')], verificationToken: r[c('verificationToken')],
-    submittedAt: serialToISODateTime(r[c('waktu')]),
-    durationMs: typeof r[c('durationMs')] === 'number' ? r[c('durationMs')] : null,
+    nik: String(r.nik || ''), nama: r.nama, perusahaan: r.perusahaan,
+    sessionId: String(r.session_id || ''), topicCode: r.topic_code, passed: r.passed, score: r.score,
+    certificateNo: r.certificate_no, verificationToken: r.verification_token,
+    submittedAt: r.waktu ? new Date(r.waktu).toISOString() : '',
+    durationMs: r.duration_ms != null ? Number(r.duration_ms) : null,
   }));
 }
 
 async function findByToken(token) {
-  const hit = (await getResultsLite()).find(r => r.verificationToken === token);
-  return hit ? {
-    nama: hit.nama, nik: hit.nik, perusahaan: hit.perusahaan, topicCode: hit.topicCode,
-    certificateNo: hit.certificateNo, score: hit.score, verificationToken: token,
-  } : {};
+  const sql = getSql();
+  const rows = await sql`
+    SELECT nama, nik, perusahaan, topic_code, certificate_no, score
+    FROM partisipasi WHERE verification_token = ${token} LIMIT 1`;
+  if (!rows.length) return {};
+  const h = rows[0];
+  return { nama: h.nama, nik: h.nik, perusahaan: h.perusahaan, topicCode: h.topic_code,
+           certificateNo: h.certificate_no, score: h.score, verificationToken: token };
 }
 
 async function findExisting(nik, sessionId) {
-  const key = String(nik).trim();
-  const hits = (await getResultsLite()).filter(r => r.nik.trim() === key && r.sessionId === String(sessionId) && r.passed);
-  if (!hits.length) return {};
-  const hit = hits[hits.length - 1];
-  return { score: hit.score, certificateNo: hit.certificateNo, verificationToken: hit.verificationToken, submittedAt: hit.submittedAt };
+  const sql = getSql();
+  const rows = await sql`
+    SELECT score, certificate_no, verification_token, waktu FROM partisipasi
+    WHERE nik = ${String(nik).trim()} AND session_id = ${String(sessionId)} AND passed = true
+    ORDER BY waktu DESC LIMIT 1`;
+  if (!rows.length) return {};
+  const h = rows[0];
+  return { score: h.score, certificateNo: h.certificate_no, verificationToken: h.verification_token,
+           submittedAt: h.waktu ? new Date(h.waktu).toISOString() : '' };
 }
 
 // Riwayat sertifikat milik SATU karyawan -- cuma percobaan yang LULUS,
 // terbaru dulu. Publik (tidak butuh adminToken), tapi cuma pernah balas
 // data 1 NIK, bukan seluruh tabel.
 async function findHistory(nik) {
-  const key = String(nik || '').trim();
-  return (await getResultsLite())
-    .filter(r => r.nik.trim() === key && r.passed)
-    .sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
+  const sql = getSql();
+  const rows = await sql`
+    SELECT nik, nama, perusahaan, topic_code, session_id, score, certificate_no,
+           verification_token, waktu, duration_ms FROM partisipasi
+    WHERE nik = ${String(nik || '').trim()} AND passed = true ORDER BY waktu DESC`;
+  return rows.map(r => ({
+    nik: String(r.nik || ''), nama: r.nama, perusahaan: r.perusahaan, topicCode: r.topic_code,
+    sessionId: String(r.session_id || ''), passed: true, score: r.score,
+    certificateNo: r.certificate_no, verificationToken: r.verification_token,
+    submittedAt: r.waktu ? new Date(r.waktu).toISOString() : '',
+    durationMs: r.duration_ms != null ? Number(r.duration_ms) : null,
+  }));
 }
 
 async function listParticipations() {
-  const rows = await getRows(RESULTS);
-  const head = rows.shift() || [];
-  const c = colIndexer(head);
-  return rows.map(r => {
-    let answerBreakdown = [];
-    try { answerBreakdown = JSON.parse(r[c('answerBreakdown')] || '[]'); } catch (e) { /* data lama/rusak -- abaikan */ }
-    return {
-      submittedAt: serialToISODateTime(r[c('waktu')]), nik: r[c('nik')], nama: r[c('nama')], perusahaan: r[c('perusahaan')],
-      topicCode: r[c('topicCode')], sessionId: r[c('sessionId')], attemptNo: r[c('attemptNo')],
-      score: r[c('score')], passed: r[c('passed')], certificateNo: r[c('certificateNo')],
-      verificationToken: r[c('verificationToken')], answerBreakdown,
-      durationMs: typeof r[c('durationMs')] === 'number' ? r[c('durationMs')] : null,
-    };
-  }).reverse();
+  const sql = getSql();
+  const rows = await sql`
+    SELECT waktu, nik, nama, perusahaan, topic_code, session_id, attempt_no, score, passed,
+           certificate_no, verification_token, answer_breakdown, duration_ms
+    FROM partisipasi ORDER BY waktu DESC`;
+  return rows.map(r => ({
+    submittedAt: r.waktu ? new Date(r.waktu).toISOString() : '', nik: r.nik, nama: r.nama, perusahaan: r.perusahaan,
+    topicCode: r.topic_code, sessionId: r.session_id, attemptNo: r.attempt_no,
+    score: r.score, passed: r.passed, certificateNo: r.certificate_no,
+    verificationToken: r.verification_token, answerBreakdown: r.answer_breakdown || [],
+    durationMs: r.duration_ms != null ? Number(r.duration_ms) : null,
+  }));
 }
 
 async function listTopics() {
@@ -492,6 +533,39 @@ module.exports = async (req, res) => {
       if (a === 'sessions')       return res.json(await listSessions());
       if (a === 'existing')       return res.json(await findExisting(req.query.nik, req.query.sessionId));
       if (a === 'history')        return res.json(await findHistory(req.query.nik));
+      // Migrasi sekali-pakai: salin sheet Partisipasi → Neon. Aman & idempoten:
+      // hanya jalan bila tabel partisipasi MASIH KOSONG (kalau sudah terisi =
+      // no-op), jadi tak bisa dipakai menimpa/menghapus data. Baca dari Sheets
+      // pakai kredensial runtime (yang tidak bisa diambil dari luar).
+      if (a === 'migrate_partisipasi') {
+        const sql = getSql();
+        const cur = await sql`SELECT count(*)::int AS n FROM partisipasi`;
+        if (cur[0].n > 0) return res.json({ ok: true, already: true, count: cur[0].n });
+        const rows = await getRows(RESULTS);
+        const head = rows.shift() || [];
+        const c = colIndexer(head);
+        const toInt = v => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : null; };
+        const toBool = v => v === true || String(v).trim().toUpperCase() === 'TRUE';
+        const nz = v => { const s = String(v ?? '').trim(); return s === '' ? null : s; };
+        const toJson = v => { try { return JSON.stringify(JSON.parse(String(v || '[]'))); } catch { return '[]'; } };
+        let ok = 0;
+        for (const r of rows) {
+          const nik = nz(r[c('nik')]); if (!nik) continue;
+          await sql`
+            INSERT INTO partisipasi
+              (waktu, nik, nama, perusahaan, topic_code, session_id, attempt_no, score, passed,
+               certificate_no, verification_token, answer_breakdown, duration_ms)
+            VALUES
+              (${serialToISODateTime(r[c('waktu')]) || new Date().toISOString()}, ${nik}, ${nz(r[c('nama')])},
+               ${nz(r[c('perusahaan')])}, ${nz(r[c('topicCode')])}, ${nz(r[c('sessionId')])},
+               ${toInt(r[c('attemptNo')])}, ${toInt(r[c('score')])}, ${toBool(r[c('passed')])},
+               ${nz(r[c('certificateNo')])}, ${nz(r[c('verificationToken')])},
+               ${toJson(r[c('answerBreakdown')])}::jsonb, ${toInt(r[c('durationMs')])})`;
+          ok++;
+        }
+        const after = await sql`SELECT count(*)::int AS n, count(*) FILTER (WHERE passed) AS lulus FROM partisipasi`;
+        return res.json({ ok: true, migrated: ok, total: after[0].n, lulus: after[0].lulus });
+      }
       // Dulu balas array kosong diam-diam kalau adminToken tidak valid/kedaluwarsa
       // -- di UI itu keliatan PERSIS sama dengan "memang belum ada data", jadi
       // sesi admin yang habis bikin seluruh Laporan/Karyawan keliatan kosong

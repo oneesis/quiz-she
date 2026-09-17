@@ -3,6 +3,7 @@
   "private": true,
   "dependencies": {
     "googleapis": "^144.0.0",
-    "@vercel/blob": "^2.5.0"
+    "@vercel/blob": "^2.5.0",
+    "@neondatabase/serverless": "^0.10.4"
   }
 }

@@ -545,6 +545,9 @@ module.exports = async (req, res) => {
       // hanya jalan bila tabel partisipasi MASIH KOSONG (kalau sudah terisi =
       // no-op), jadi tak bisa dipakai menimpa/menghapus data. Baca dari Sheets
       // pakai kredensial runtime (yang tidak bisa diambil dari luar).
+      // Endpoint migrasi (sekali-pakai, sudah selesai) kini DIKUNCI — butuh sesi admin.
+      if (typeof a === 'string' && a.startsWith('migrate_') && !isAdmin(req.query.adminToken))
+        return res.status(401).json({ error: 'unauthorized' });
       if (a === 'migrate_partisipasi') {
         const sql = getSql();
         const cur = await sql`SELECT count(*)::int AS n FROM partisipasi`;

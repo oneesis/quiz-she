@@ -190,32 +190,27 @@ let _statusKerjaCache = null; // { at, byNik: Map<nik, statusKerja> }
 // Baris lama tanpa kolom/isi STATUS_KEHADIRAN dianggap HADIR (kompat mundur).
 let _stCache = null, _stCacheTs = 0;
 async function getSafetyTalkStatusMap(bulan) {
-  if (!process.env.SAFETY_TALK_SPREADSHEET_ID) return new Map();
+  if (!process.env.DATABASE_URL) return new Map();
   if (_stCache && Date.now() - _stCacheTs < 30_000) return _stCache;
   try {
-    const rows = await getRows('SafetyTalk_Absensi', process.env.SAFETY_TALK_SPREADSHEET_ID);
-    const head = rows[0] || [];
-    const nikIdx    = head.indexOf('NIK');
-    const bulanIdx  = head.indexOf('BULAN');
-    const statusIdx = head.indexOf('STATUS_KEHADIRAN');
-    const schedIdx  = head.indexOf('SCHEDULE_ID');
-    if (nikIdx === -1) return new Map();
+    // Absensi Safety Talk kini di Postgres (Neon), DB yang sama dengan ONE-SAP.
+    const sql = getSql();
+    const rows = bulan
+      ? await sql`SELECT nik, schedule_id, status_kehadiran FROM safety_talk_absensi WHERE substr(bulan,1,7) = ${bulan}`
+      : await sql`SELECT nik, schedule_id, status_kehadiran FROM safety_talk_absensi`;
     const map = new Map();
-    for (const r of rows.slice(1)) {
-      if (bulan && String(r[bulanIdx] || '').slice(0, 7) !== bulan) continue;
-      const nik = String(r[nikIdx] || '').trim();
+    for (const r of rows) {
+      const nik = String(r.nik || '').trim();
       if (!nik) continue;
-      const status = statusIdx === -1
-        ? 'HADIR'
-        : String(r[statusIdx] || 'HADIR').trim().toUpperCase() || 'HADIR';
-      const sched = schedIdx === -1 ? '' : String(r[schedIdx] || '').trim();
+      const status = String(r.status_kehadiran || 'HADIR').trim().toUpperCase() || 'HADIR';
+      const sched = String(r.schedule_id || '').trim();
       if (!map.has(nik)) map.set(nik, new Map());
-      map.get(nik).set(sched, status); // satu baris per (nik, jadwal) -- ONE-SAP menjamin
+      map.get(nik).set(sched, status);
     }
     _stCache = map; _stCacheTs = Date.now();
     return map;
   } catch (err) {
-    console.error('[safety-talk] gagal cross-read, fitur exemption nonaktif:', err.message);
+    console.error('[safety-talk] gagal baca Postgres, fitur exemption nonaktif:', err.message);
     return new Map();
   }
 }

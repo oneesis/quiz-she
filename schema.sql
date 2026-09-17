@@ -27,11 +27,11 @@ CREATE TABLE topik (
 -- ── Sesi (penjadwalan tampil di kiosk) ──────────────────────────────────────
 CREATE TABLE sesi (
   id                TEXT PRIMARY KEY,          -- "S-…"
-  topic_code        TEXT NOT NULL REFERENCES topik(code) ON DELETE CASCADE,
+  topic_code        TEXT NOT NULL,             -- referensi topik (longgar, tanpa FK — migrasi bertahap)
   title             TEXT,                       -- kosong = pakai judul topik
-  valid_from        TIMESTAMPTZ,                -- sesi Safety Talk (ST-*) diabaikan (tanpa masa berlaku)
-  valid_until       TIMESTAMPTZ,
-  target_companies  TEXT[] NOT NULL DEFAULT '{}',-- kosong = semua perusahaan
+  valid_from        TEXT,                       -- string tgl spt di app; sesi Safety Talk (ST-*) diabaikan
+  valid_until       TEXT,
+  target_companies  TEXT,                       -- comma-joined; kosong = semua perusahaan
   status            TEXT NOT NULL DEFAULT 'draft', -- draft/published
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );

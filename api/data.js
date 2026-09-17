@@ -458,25 +458,23 @@ async function listParticipations() {
 }
 
 async function listTopics() {
-  const rows = await getRows(TOPICS);
-  const head = rows.shift() || [];
-  const c = colIndexer(head);
+  const sql = getSql();
+  const rows = await sql`SELECT code, title, pass_threshold, material, material_image, questions FROM topik`;
   return rows.map(r => ({
-    code: r[c('code')], title: r[c('title')], passThreshold: r[c('passThreshold')],
-    material: r[c('material')], materialImage: r[c('materialImage')],
-    questions: JSON.parse(r[c('questionsJson')] || '[]'),
+    code: r.code, title: r.title, passThreshold: r.pass_threshold,
+    material: r.material, materialImage: r.material_image,
+    questions: Array.isArray(r.questions) ? r.questions : (r.questions || []),
   }));
 }
 
 async function listSessions() {
-  const rows = await getRows(SESSIONS);
-  const head = rows.shift() || [];
-  const c = colIndexer(head);
+  const sql = getSql();
+  const rows = await sql`SELECT id, topic_code, title, valid_from, valid_until, target_companies, status FROM sesi`;
   return rows.map(r => ({
-    id: r[c('id')], topicCode: r[c('topicCode')], title: r[c('title')],
-    validFrom: serialToDateStr(r[c('validFrom')]), validUntil: serialToDateStr(r[c('validUntil')]),
-    targetCompanies: String(r[c('targetCompanies')] || '').split(',').map(s => s.trim()).filter(Boolean),
-    status: r[c('status')],
+    id: r.id, topicCode: r.topic_code, title: r.title,
+    validFrom: r.valid_from || '', validUntil: r.valid_until || '',
+    targetCompanies: String(r.target_companies || '').split(',').map(s => s.trim()).filter(Boolean),
+    status: r.status,
   }));
 }
 
@@ -566,6 +564,41 @@ module.exports = async (req, res) => {
         const after = await sql`SELECT count(*)::int AS n, count(*) FILTER (WHERE passed) AS lulus FROM partisipasi`;
         return res.json({ ok: true, migrated: ok, total: after[0].n, lulus: after[0].lulus });
       }
+      // Migrasi sekali-pakai topik + sesi (Sheets → Neon). Per-tabel empty-guard.
+      if (a === 'migrate_topik_sesi') {
+        const sql = getSql();
+        const toInt = v => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : null; };
+        const nz = v => { const s = String(v ?? '').trim(); return s === '' ? null : s; };
+        const okJson = v => { try { JSON.parse(String(v || '[]')); return String(v || '[]'); } catch { return '[]'; } };
+        let tMig = 0, sMig = 0;
+        if ((await sql`SELECT count(*)::int n FROM topik`)[0].n === 0) {
+          const rows = await getRows(TOPICS); const head = rows.shift() || []; const c = colIndexer(head);
+          for (const r of rows) {
+            const code = nz(r[c('code')]); if (!code) continue;
+            await sql`
+              INSERT INTO topik (code, title, pass_threshold, material, material_image, questions)
+              VALUES (${code}, ${nz(r[c('title')])}, ${toInt(r[c('passThreshold')]) ?? 80}, ${nz(r[c('material')])},
+                      ${nz(r[c('materialImage')])}, ${okJson(r[c('questionsJson')])}::jsonb)
+              ON CONFLICT (code) DO NOTHING`;
+            tMig++;
+          }
+        }
+        if ((await sql`SELECT count(*)::int n FROM sesi`)[0].n === 0) {
+          const rows = await getRows(SESSIONS); const head = rows.shift() || []; const c = colIndexer(head);
+          for (const r of rows) {
+            const id = nz(r[c('id')]); if (!id) continue;
+            await sql`
+              INSERT INTO sesi (id, topic_code, title, valid_from, valid_until, target_companies, status)
+              VALUES (${id}, ${nz(r[c('topicCode')])}, ${nz(r[c('title')])},
+                      ${serialToDateStr(r[c('validFrom')]) || ''}, ${serialToDateStr(r[c('validUntil')]) || ''},
+                      ${String(r[c('targetCompanies')] || '')}, ${nz(r[c('status')]) || 'draft'})
+              ON CONFLICT (id) DO NOTHING`;
+            sMig++;
+          }
+        }
+        const cnt = await sql`SELECT (SELECT count(*)::int FROM topik) AS topik, (SELECT count(*)::int FROM sesi) AS sesi`;
+        return res.json({ ok: true, topik_migrated: tMig, sesi_migrated: sMig, topik_total: cnt[0].topik, sesi_total: cnt[0].sesi });
+      }
       // Dulu balas array kosong diam-diam kalau adminToken tidak valid/kedaluwarsa
       // -- di UI itu keliatan PERSIS sama dengan "memang belum ada data", jadi
       // sesi admin yang habis bikin seluruh Laporan/Karyawan keliatan kosong
@@ -618,21 +651,28 @@ module.exports = async (req, res) => {
       if (!isAdmin(adminToken)) return res.json({ ok: false, error: 'unauthorized' });
 
       if (action === 'topic_save') {
-        await saveRowByKey(TOPICS, 'code', p.code, {
-          code: p.code, title: p.title, passThreshold: p.passThreshold,
-          material: p.material, materialImage: p.materialImage, questionsJson: JSON.stringify(p.questions),
-        });
+        const sql = getSql();
+        await sql`
+          INSERT INTO topik (code, title, pass_threshold, material, material_image, questions)
+          VALUES (${p.code}, ${p.title}, ${p.passThreshold}, ${p.material}, ${p.materialImage}, ${JSON.stringify(p.questions || [])}::jsonb)
+          ON CONFLICT (code) DO UPDATE SET
+            title = EXCLUDED.title, pass_threshold = EXCLUDED.pass_threshold,
+            material = EXCLUDED.material, material_image = EXCLUDED.material_image, questions = EXCLUDED.questions`;
         return res.json({ ok: true });
       }
-      if (action === 'topic_delete') { await deleteRowByKey(TOPICS, 'code', p.code); return res.json({ ok: true }); }
+      if (action === 'topic_delete') { await getSql()`DELETE FROM topik WHERE code = ${p.code}`; return res.json({ ok: true }); }
       if (action === 'session_save') {
-        await saveRowByKey(SESSIONS, 'id', p.id, {
-          id: p.id, topicCode: p.topicCode, title: p.title, validFrom: p.validFrom, validUntil: p.validUntil,
-          targetCompanies: (p.targetCompanies || []).join(','), status: p.status,
-        });
+        const sql = getSql();
+        await sql`
+          INSERT INTO sesi (id, topic_code, title, valid_from, valid_until, target_companies, status)
+          VALUES (${p.id}, ${p.topicCode}, ${p.title}, ${p.validFrom}, ${p.validUntil}, ${(p.targetCompanies || []).join(',')}, ${p.status})
+          ON CONFLICT (id) DO UPDATE SET
+            topic_code = EXCLUDED.topic_code, title = EXCLUDED.title,
+            valid_from = EXCLUDED.valid_from, valid_until = EXCLUDED.valid_until,
+            target_companies = EXCLUDED.target_companies, status = EXCLUDED.status`;
         return res.json({ ok: true });
       }
-      if (action === 'session_delete') { await deleteRowByKey(SESSIONS, 'id', p.id); return res.json({ ok: true }); }
+      if (action === 'session_delete') { await getSql()`DELETE FROM sesi WHERE id = ${p.id}`; return res.json({ ok: true }); }
       if (action === 'upload_image') { return res.json({ ok: true, url: await uploadImage(p) }); }
       return res.json({ ok: false });
     }

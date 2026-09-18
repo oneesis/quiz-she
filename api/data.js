@@ -218,27 +218,40 @@ async function getSafetyTalkStatusMap(bulan) {
 /** statusKerja ("aktif"|"cuti"|"wajib_reinduksi") per NIK di `roster`. Env var
  * SISTER_MINER_SPREADSHEET_ID belum diset -> Map kosong (semua "aktif"). */
 async function getStatusKerjaMap(roster) {
-  const sisterId = process.env.SISTER_MINER_SPREADSHEET_ID;
-  if (!sisterId) return new Map();
   const now = Date.now();
   if (_statusKerjaCache && now - _statusKerjaCache.at < 30_000) return _statusKerjaCache.byNik;
 
   let karyawan, bridgeByNik = new Map(), records = [];
-  try {
-    karyawan = rowsToObjects(await getRows('Karyawan', sisterId));
-    const simantraId = process.env.SIMANTRA_SPREADSHEET_ID;
-    if (simantraId) {
-      for (const r of rowsToObjects(await getRows('akun_karyawan', simantraId))) {
+  const sql = getSql();
+  if (sql) {
+    // Sumber cuti kini di Neon (sheet SISTER MINER/SIMANTRA sudah beku pasca migrasi).
+    try {
+      karyawan = (await sql`SELECT data FROM sm."Karyawan"`).map((r) => r.data || {});
+      for (const r of (await sql`SELECT data FROM simantra."akun_karyawan"`).map((x) => x.data || {})) {
         if (r.nik) bridgeByNik.set(String(r.nik).trim(), r.karyawan_id);
       }
-      records = rowsToObjects(await getRows('training_records', simantraId));
+      records = (await sql`SELECT data FROM simantra."training_records"`).map((r) => r.data || {});
+    } catch (err) {
+      console.error('[cuti] gagal baca Neon (sm/simantra), fitur cuti nonaktif sementara:', err.message);
+      return new Map();
     }
-  } catch (err) {
-    // Fail-open (2026-08-20): salah ID / akun OAuth belum di-share akses ke
-    // spreadsheet SISTER MINER TIDAK BOLEH bikin listEmployees() (dipakai di
-    // mana-mana) patah -- cuma bikin fitur cuti mati sementara.
-    console.error('[cuti] gagal baca SISTER MINER/SIMANTRA, fitur cuti nonaktif sementara:', err.message);
-    return new Map();
+  } else {
+    // Fallback Sheets (pra-migrasi / tanpa DATABASE_URL)
+    const sisterId = process.env.SISTER_MINER_SPREADSHEET_ID;
+    if (!sisterId) return new Map();
+    try {
+      karyawan = rowsToObjects(await getRows('Karyawan', sisterId));
+      const simantraId = process.env.SIMANTRA_SPREADSHEET_ID;
+      if (simantraId) {
+        for (const r of rowsToObjects(await getRows('akun_karyawan', simantraId))) {
+          if (r.nik) bridgeByNik.set(String(r.nik).trim(), r.karyawan_id);
+        }
+        records = rowsToObjects(await getRows('training_records', simantraId));
+      }
+    } catch (err) {
+      console.error('[cuti] gagal baca SISTER MINER/SIMANTRA, fitur cuti nonaktif sementara:', err.message);
+      return new Map();
+    }
   }
 
   const byNik = new Map();

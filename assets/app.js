@@ -893,5 +893,12 @@
     if (await tryVerifyFromUrl()) return;
     renderLogin();
     show('screen-login');
+    // Auto-login via NRP/NIK dari URL (?nik=...) — dipakai tombol "Pengganti
+    // Safety Talk" di Beranda ONE-SAP agar karyawan tak perlu ketik NIK lagi.
+    const autoNik = new URLSearchParams(location.search).get('nik');
+    if (autoNik && autoNik.trim()) {
+      $('#nik-input').value = autoNik.trim();
+      doLogin();
+    }
   })();
 })();

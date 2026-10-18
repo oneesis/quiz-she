@@ -305,15 +305,57 @@ async function listEmployees() {
   return list.map(e => ({ ...e, statusKerja: statusByNik.get(e.nik) || 'aktif' }));
 }
 
+// Satu karyawan + status kerjanya, dibaca PER NIK langsung dari Neon (2026-10-18, hemat kuota transfer
+// Neon): dulu tiap login kiosk membaca roster, sm."Karyawan", akun & training SIMANTRA PENUH (±250 KB)
+// hanya untuk satu orang. Aturan status sama dengan getStatusKerjaMap. null = DB tak tersedia → jalur lama.
+async function cariSatuKaryawan(key) {
+  const sql = getSql();
+  if (!sql || !key) return null;
+  try {
+    const [row] = await sql`SELECT data FROM karyawan WHERE nik = ${key}`;
+    const d = row ? row.data || {} : {};
+    const emp = { nik: String(d['NIK'] || '').trim(), nama: d['NAMA'], perusahaan: d['PERUSAHAAN'],
+      jabatan: d['JABATAN'], departemen: d['DEPARTEMEN'], email: String(d['EMAIL'] || '').trim() };
+    if (!emp.nama) return {};
+    const [bridge] = await sql`SELECT data->>'karyawan_id' AS id FROM simantra."akun_karyawan" WHERE trim(data->>'nik') = ${key} LIMIT 1`;
+    const kand = (await sql`SELECT data FROM sm."Karyawan"
+      WHERE id = ${bridge?.id || ''} OR (data->>'status' = 'approved' AND trim(data->>'nrp') = ${key})`).map((r) => r.data || {});
+    const match = (bridge?.id && kand.find((r) => r.id === bridge.id)) || kand.find((r) => r.status === 'approved' && namaCocok(r.nama, emp.nama));
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
+    let statusKerja = 'aktif';
+    if (match && match.cutiMulai && match.cutiSelesai && today >= match.cutiMulai) {
+      if (today <= match.cutiSelesai) statusKerja = 'cuti';
+      else {
+        const rec = await sql`SELECT 1 FROM simantra."training_records" WHERE data->>'karyawan_id' = ${match.id}
+          AND data->>'training_id' = 'TR_REINDUKSI' AND data->>'status' = 'Hadir'
+          AND coalesce(data->>'tanggal_selesai', '') >= ${match.cutiSelesai} LIMIT 1`;
+        statusKerja = rec.length ? 'aktif' : 'wajib_reinduksi';
+      }
+    }
+    return { ...emp, statusKerja };
+  } catch (err) {
+    console.error('[employee] gagal baca per NIK, pakai jalur lama:', err.message);
+    return null;
+  }
+}
+
 async function findEmployee(nik) {
   const key = String(nik || '').trim();
-  const list = await listEmployees();
-  const emp  = list.find(e => e.nik === key) || {};
+  let emp = await cariSatuKaryawan(key);
+  if (emp === null) emp = (await listEmployees()).find(e => e.nik === key) || {};
   if (!emp.nik) return emp;
-  // Status Safety Talk bulan ini, per jadwal
+  // Status Safety Talk bulan ini, per jadwal — hanya baris NIK ini (dulu seluruh absensi sebulan).
   const { year, month } = jakartaParts(new Date());
   const bulan = `${year}-${month}`;
-  const bySched = (await getSafetyTalkStatusMap(bulan)).get(key) || new Map();
+  let bySched;
+  const sqlSt = getSql();
+  if (sqlSt) {
+    try {
+      const rows = await sqlSt`SELECT schedule_id, status_kehadiran FROM safety_talk_absensi WHERE nik = ${key} AND substr(bulan,1,7) = ${bulan}`;
+      bySched = new Map(rows.map((r) => [String(r.schedule_id || '').trim(), String(r.status_kehadiran || 'HADIR').trim().toUpperCase() || 'HADIR']));
+    } catch { bySched = null; }
+  }
+  if (!bySched) bySched = (await getSafetyTalkStatusMap(bulan)).get(key) || new Map();
   const statuses = [...bySched.values()];
   // { 'ST-1789...': 'MANGKIR', 'ST-1790...': 'LIBUR' } -- dipakai klien untuk
   // menilai tiap sesi kuis Safety Talk dari jadwal yang bersangkutan saja.

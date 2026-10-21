@@ -382,9 +382,21 @@
     btn.disabled = true;
     try {
       await API.saveTopic(topic);
+      // Topik Safety Talk (ST-...) langsung dapat sesi terbit — admin tak perlu
+      // membuat sesi terpisah (2026-10-21). Target perusahaan dari jadwal ONE-SAP.
+      let sesiOtomatis = false;
+      if (isSTTopic(code) && !sessions.some(s => s.topicCode === code)) {
+        await API.saveSession({
+          id: 'S-' + Date.now().toString(36).toUpperCase(), topicCode: code, title: '',
+          validFrom: '2000-01-01T00:00', validUntil: '2099-12-31T23:59',
+          targetCompanies: companiesFromST(await safetyTalkForTopic(code)), status: 'published',
+        });
+        sesiOtomatis = true;
+      }
       await reloadData();
       renderTopicsList();
       switchTab('topics');
+      if (sesiOtomatis) alert('Topik tersimpan dan sesi kuis langsung diterbitkan — karyawan yang tidak hadir sudah bisa mengerjakan kuis di kiosk.');
     } catch (e) {
       alert('Gagal menyimpan topik. Periksa koneksi lalu coba lagi.');
     } finally {
